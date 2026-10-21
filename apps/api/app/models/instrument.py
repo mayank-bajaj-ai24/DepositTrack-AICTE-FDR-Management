@@ -9,6 +9,7 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -33,10 +34,9 @@ class Instrument(UUIDPrimaryKey, Timestamps, Base):
     """A security deposit / FDR. Lifecycle per plan §7.1."""
 
     __tablename__ = "instrument"
-    # Canonical key catches the same FDR submitted twice or backing two institutions (N7).
-    __table_args__ = (
-        UniqueConstraint("canonical_bank", "instrument_no_norm", name="uq_instrument_canonical"),
-    )
+    # Canonical key (N7). Not unique on purpose: a second submission of the same FDR is
+    # stored and both are flagged as a double pledge, so officers can see it.
+    __table_args__ = (Index("ix_instrument_canonical", "canonical_bank", "instrument_no_norm"),)
 
     institution_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("institution.id"), index=True)
     kind: Mapped[InstrumentKind] = mapped_column(_str_enum(InstrumentKind))
