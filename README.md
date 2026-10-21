@@ -330,3 +330,36 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 
 ---
 
+## Expected outcomes
+
+> **None of these values has been measured yet.** They are the team's targets from the implementation plan. The *Measured* column will be filled in as each component is built and evaluated. Synthetic-data results will be labelled as such.
+
+### Component targets
+
+| Component | Metric | Target | Measured | Status |
+| --- | --- | --- | --- | --- |
+| Field extraction | Field exact-match after rules (overall) | ≥ 90% | — | Pending |
+| Field extraction | Exact-match on amount and dates | ≥ 95% | — | Pending |
+| Field extraction | Processing time per page (CPU) | < 5 s | — | Pending |
+| Forgery signals | Recall on tampered amount/date | ≥ 0.90 | — | Pending |
+| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | — | Pending |
+| Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Pending |
+| Renewal risk | AUC | ≥ 0.80 | — | Pending |
+| Renewal risk | Mean warning lead time | ≥ 21 days | — | Pending |
+| Officer assistant | RAGAS faithfulness | ≥ 0.85 | — | Pending |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | — | Pending |
+
+### PS improvement areas
+
+For the five areas the PS asks the prototype to improve, the plan measures a manual baseline (spreadsheet + email) against the portal on the same cases. No baseline or result numbers exist yet.
+
+| PS improvement area | How it will be measured | Baseline | Result | Status |
+| --- | --- | --- | --- | --- |
+| Record accuracy | Field errors per 100 instruments | — | — | Pending |
+| Verification turnaround time | Time from submission to bank-attested | — | — | Pending |
+| Timely renewal monitoring | % of maturities with reminders ≥ 30 days ahead; coverage gaps forecast before they occur | — | — | Pending |
+| Manual tracking effort | Officer minutes per case per month | — | — | Pending |
+| Visibility into pending cases | Time to answer "which cases need action today?" | — | — | Pending |
+
+---
+
