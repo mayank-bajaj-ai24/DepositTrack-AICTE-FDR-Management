@@ -1,6 +1,7 @@
 """Audit endpoints (M6): chain verification, file verifier, Merkle anchors."""
 
 import hashlib
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
@@ -10,10 +11,12 @@ from app.api import serializers as ser
 from app.api.deps import actor_of
 from app.core.access import Scope, get_scope, scope_instruments
 from app.core.config import Settings, get_settings
+from app.core.configfiles import load_config
 from app.core.permissions import Action, is_allowed
 from app.db.session import get_session
-from app.models import Anchor, Document, Institution, Instrument
+from app.models import Anchor, Document, Event, Institution, Instrument
 from app.modules.audit.anchoring import anchor_new_events, verify_anchor
+from app.modules.audit.conformance import replay
 from app.modules.audit.service import record_event, verify_chain
 
 router = APIRouter(prefix="/api/v1", tags=["audit"])
@@ -127,4 +130,54 @@ def list_anchors(
             }
             for a in anchors
         ]
+    }
+
+
+@router.get("/audit/conformance")
+def conformance(scope: Scope = Depends(get_scope), session: Session = Depends(get_session)) -> dict:
+    """Replay every visible instrument's audit log against the procedural constraints (N10)."""
+    _require_audit(scope)
+    config = load_config("conformance.yaml")
+    now = datetime.now(UTC)
+    cases, violated_cases = [], 0
+    by_constraint = {c["id"]: 0 for c in config["constraints"]}
+    query = select(Instrument, Institution).join(
+        Institution, Institution.id == Instrument.institution_id
+    )
+    for instrument, institution in session.execute(scope_instruments(query, scope)):
+        events = list(
+            session.scalars(
+                select(Event).where(Event.instrument_id == instrument.id).order_by(Event.seq)
+            )
+        )
+        violations = replay(events, config["constraints"], now)
+        for v in violations:
+            by_constraint[v.constraint_id] += 1
+        if violations:
+            violated_cases += 1
+            cases.append(
+                {
+                    "instrument": ser.instrument_summary(instrument, institution),
+                    "violations": [
+                        {
+                            "constraint": v.constraint_id,
+                            "seq": v.seq,
+                            "action": v.action,
+                            "explanation": v.explanation,
+                        }
+                        for v in violations
+                    ],
+                }
+            )
+    total = len(session.execute(scope_instruments(query, scope)).all())
+    return {
+        "constraints_version": config["version"],
+        "validated_by": config["validated_by"],
+        "constraints": [
+            {"id": c["id"], "description": c["description"]} for c in config["constraints"]
+        ],
+        "checked": total,
+        "conforming_share": round((total - violated_cases) / total, 4) if total else None,
+        "violations_by_constraint": by_constraint,
+        "cases": cases,
     }
