@@ -220,3 +220,145 @@ These were found during verification and are **not** carried into this plan. The
 
 ---
 
+## 5. Novel solution
+
+Ten novel elements, grouped by layer. Headline novelties N1–N3 lead the pitch; each one can be demoed in under 60 seconds.
+
+### N1. Trust Ladder — per-field provenance (headline)
+
+Every field of every instrument stores up to three values (declared, extracted, bank) plus a provenance level:
+
+| Level | Name | Reached when |
+| --- | --- | --- |
+| L0 | Declared | Typed or uploaded by the institution |
+| L1 | Machine-checked | Extraction agrees with the declared value; rules pass; forgery signals low |
+| L2 | Officer-verified | A named officer confirmed it during scrutiny (logged with reason) |
+| L3 | Bank-attested | A bank-signed credential (N3) or authorised bank channel matches the field |
+| L4 | Live-confirmed | The bank/authorised source confirms *current* status (not closed, lien intact) within its freshness window |
+
+- **Instrument trust** = the minimum trust over its key fields (amount, instrument number, IFSC, maturity date, lien status). The weakest field decides.
+- **UI:** a coloured badge on every field and every instrument. The dashboard can filter by trust level.
+- **Covers:** R-d directly, and capability #3.
+
+### N2. Obligation–Coverage model with gap forecasting (headline)
+
+The core modelling idea. Existing tools track *documents*; AICTE actually cares whether an *obligation* is covered.
+
+- **Obligation:** what an institution owes. `institution, basis (approval case / rule reference), required_amount, required_from, required_until, conditions (e.g. beneficiary wording, lien)`. Obligations are generated from configurable rules; the actual amounts and durations come from AICTE (see §14).
+- **Coverage:** an allocation of an instrument (or part of one) to an obligation, valid from its issue date to its maturity/validity date.
+- **Coverage function:** for each obligation and day *t*, sum the amounts allocated from instruments valid on day *t*:
+
+```math
+C(t) = \sum_{i \in \text{valid}(t)} a_i \qquad \text{gap}(t) = \max\big(0,\ R(t) - C(t)\big)
+```
+
+- The system computes two curves:
+  - **Declared coverage** C₀(t) counts all instruments at trust level L0 or above.
+  - **Attested coverage** C₃(t) counts only instruments at L3 or above.
+  - **Verification exposure** = C₀(t) − C₃(t): rupees that AICTE is relying on but no bank has confirmed. This one number joins N1 and N2.
+- **Gap forecasting:** an interval sweep over future dates finds the first day each obligation becomes under-covered (maturity without renewal, amount shortfall, partial release). That date becomes a task and drives reminders.
+- **Renewal continuity check:** a replacement must start on or before the old instrument's maturity, and its amount must be at least the requirement. Otherwise a *continuity gap* flag is raised. This makes PS capability #5 checkable rather than just recordable.
+- **UI:** a "coverage strip" timeline per institution (green = covered and attested, amber = covered but only declared, red = gap).
+
+### N3. Bank-signed e-FDR credential (headline; proposal, simulated in the prototype)
+
+- **Model:** the issuer–holder–verifier model from P7.
+  - The **bank** issues a small signed JSON credential per FDR.
+  - The **institution** holds it and submits it.
+  - **AICTE** verifies it offline using the bank's pinned public key.
+- **Release:** when the lien is removed on release, the bank revokes the credential. Its status record carries last/next-update fields (P2), so a stale status is detectable.
+- **Precedent:** this extends the idea behind India's electronic bank guarantee and bank-to-bank BG advice to FDRs. The prototype uses a mock bank with Ed25519 signatures. Production would need a formal bank agreement (§14).
+- **No personal data:** the credential carries no depositor PAN, phone or account numbers.
+
+```json
+{
+  "type": "FDRAttestation",
+  "issuer": "bank:<BANKCODE>:key-2026-01",
+  "issued_at": "2026-03-12T10:41:00+05:30",
+  "subject": {
+    "instrument_no": "<FDR number>",
+    "ifsc": "<IFSC>",
+    "amount_inr": 0,
+    "issue_date": "YYYY-MM-DD",
+    "maturity_date": "YYYY-MM-DD",
+    "beneficiary": "<as printed>",
+    "lien_status": "MARKED"
+  },
+  "status": {"registry": "bank:<BANKCODE>:fdr-status", "index": 0,
+             "last_update": "…", "next_update": "…"},
+  "signature": "ed25519:…"
+}
+```
+
+### N4. Verifiable audit trail with trust freshness
+
+- **Hash chain:** every event is chained per instrument: `hash = SHA256(prev_hash ‖ canonical_json(event))`.
+- **Anchoring:** periodically, a Merkle root over new events and document hashes is written to a tamper-evident store (immudb in the prototype; a permissioned ledger is the production option, per P9 Table 2).
+- **Public verifier:** drop in any file and get either *"submitted on ⟨date⟩ by ⟨institution⟩, unchanged"* or *"no match"*.
+- **Freshness and decay (from P2's next-update idea):** every L3/L4 confirmation carries `next_update`.
+  - Once it passes without a re-check, L4 automatically drops to L3.
+  - If the credential is revoked or the bank reports closure, the instrument drops to L0 and is flagged *critical*.
+  - Trust is therefore time-bound, never permanent.
+
+### N5. Policy-as-code release, discharge and refund (from P1, P10, P15)
+
+- Release conditions are versioned, testable rule sets per case type: release / discharge / refund / early break.
+  - Each rule cites the regulation clause it implements.
+  - The rule version used is recorded in the audit trail.
+- **Time boxes (the SMTSEC parameter idea):**
+  - The institution has X days to answer a query, then the request auto-closes with notice.
+  - Officers have Y days to act, then the case escalates.
+  - X and Y are configured per case type.
+- **Flow:** verify → log → notify at every step (P15).
+- **Approval:** final approval is always a named competent authority with a mandatory reason.
+- **Early release** (before the end of the prescribed period) requires an extra authenticated approval step, mirroring P10's authenticated early break.
+
+### N6. Dual-pass extraction with disagreement routing (from P12, P13)
+
+- **Two independent passes:** (a) OCR + LayoutLMv3 token classification and (b) OCR + rules/LLM key-value extraction.
+  - Fields where the passes disagree, or where confidence is below the threshold (default 0.8, as in P13), are forced to human confirmation.
+  - Known weak fields, such as multi-line addresses (P12), always go to a human.
+- **Amount check:** the amount in figures is cross-checked against the amount in words.
+
+### N7. Canonical instrument key, double-pledge and IFSC lineage
+
+- **Canonical key:** `canonical_bank(IFSC) + normalised instrument number`, unique across all institutions.
+  - A duplicate means the same FDR has been submitted twice or is backing two institutions, and raises a *critical* flag instantly.
+  - Fuzzy matching (edit distance on the instrument number within the same bank) catches typos and deliberate near-duplicates.
+- **IFSC lineage:** a lineage table maps old IFSC codes to current ones, because Indian bank mergers change IFSC codes. An old FDR from a merged bank still matches its current identity, and the bank's verification key is resolved correctly.
+  - Lineage is seeded from the public RBI IFSC master. The exact source is to be confirmed (§14).
+
+### N8. Clause-linked discrepancy explanations (from P14, P6, P13)
+
+- **Every flag has three parts:**
+  1. the **fact** gathered (P13's facts-then-rules);
+  2. the **rule** that failed, with its clause reference from N5;
+  3. a **plain-language reason**.
+- **Retrieval:** when a rule has no direct clause mapping, the top-k clauses are retrieved from a vector index of the AICTE handbook/circulars (P14's FAISS-retrieval pattern). An LLM may draft the sentence, but the decision comes from the deterministic rule, never the LLM (P14 itself reports inconsistent generated justifications).
+- **Risk classes:** the risk model outputs *genuine / grey area / suspicious* from configurable score bands (P6), with SHAP and Anchor-style reasons.
+
+### N9. Renewal-risk forecasting with reasons (from P5, P6, P14)
+
+- **Prediction:** the probability that an institution misses a renewal or response deadline, from its event history:
+  - past lateness;
+  - median response time;
+  - open discrepancies;
+  - days to maturity;
+  - bank;
+  - amount;
+  - recency-weighted activity, using temporal decay (P14).
+- **Escalation:** high-risk cases escalate earlier (e.g. at T-30 instead of T-7). Every escalation shows its reasons.
+- **Evaluation:** follows P5's protocol (prefix encoding, chronological split). A direct remaining-time regressor is used because Navarin's direct approach ranked best in P5.
+
+### N10. Procedural conformance replay (from P11)
+
+- **Prescriptive constraints:** the Regulation Bureau's own procedure is written as constraints over the event log. Examples:
+  - *"release approved ⇒ checklist complete before approval"*;
+  - *"lien-removal confirmation within N days after release letter"*;
+  - *"scrutiny observation recorded before discrepancy closed"*.
+- **Nightly replay:** a job replays every case against the constraints and reports the result types identified in P11: quantify (conformance %), qualify (violated / not), localize (which event), explain (why).
+- **Validation:** P11 found that prescriptive models are always built manually and rarely validated. Our constraints are therefore reviewed by an AICTE official and versioned (§14).
+- **UI:** a "procedural compliance" panel for auditors.
+
+---
+
