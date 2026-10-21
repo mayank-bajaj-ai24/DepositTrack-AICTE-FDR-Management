@@ -3,7 +3,8 @@ import re
 
 import pytest
 
-from fdrsynth.values import BANKS, amount_in_words, indian_format, random_values
+from fdrsynth.catalog import load_catalog
+from fdrsynth.values import amount_in_words, indian_format, random_values
 
 IFSC = re.compile(r"^[A-Z]{4}0[A-Z0-9]{6}$")
 
@@ -49,7 +50,7 @@ def test_values_are_well_formed():
 
 
 def test_only_fictional_bank_prefixes():
-    assert all(prefix[0] in "XZ" for _, prefix in BANKS)
+    assert all(bank.ifsc_prefix[0] in "XZ" for bank in load_catalog().banks)
 
 
 def test_same_seed_same_values():
