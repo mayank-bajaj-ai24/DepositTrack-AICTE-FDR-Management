@@ -770,3 +770,71 @@ Method: on the same set of cases, time a manual baseline (spreadsheet + email, d
 
 ---
 
+## 12. Roadmap
+
+The phases are relative to the team's kickoff. **Team size, member roles and the hackathon calendar are not fixed in this plan** (§14) and should be filled in once confirmed.
+
+```mermaid
+flowchart LR
+    P0["Phase 0<br/>Idea submission<br/>(PS deadline 28 Oct 2026)"]
+    P1["Phase 1<br/>Repo, CI, Docker<br/>Data model, auth<br/>Synthetic FDRs"]
+    P2["Phase 2<br/>Upload + extraction<br/>Lifecycle + coverage<br/>Reminders, dashboard v1"]
+    G1{{"Gate: core demo<br/>end to end"}}
+    P3["Phase 3<br/>Bank credential + Trust Ladder<br/>Audit chain + verifier<br/>Release workflow, forgery"]
+    G2{{"Gate: feature freeze"}}
+    P4["Phase 4<br/>Risk models, conformance replay<br/>Assistant + RAGAS<br/>KPI timing runs, rehearsal"]
+    P0 --> P1 --> P2 --> G1 --> P3 --> G2 --> P4
+```
+
+### Phase deliverables
+
+**Phase 0: idea submission**
+- [ ] PPT built on §1, §3 and §5.
+- [ ] Architecture diagram.
+- [ ] Demo storyboard.
+
+**Phase 1: foundations**
+- [ ] CI green.
+- [ ] Login with all roles.
+- [ ] All tables migrated.
+- [ ] First batch of synthetic FDRs rendered.
+- [ ] One conversation with an AICTE or institution accounts official (answers to §14).
+
+**Phase 2: core lifecycle**
+- [ ] Extraction auto-fill working.
+- [ ] Rule flags with reasons.
+- [ ] State machine + coverage sweep.
+- [ ] Reminders.
+- [ ] Dashboard tiles with drill-down.
+- [ ] **Gate:** the full story from upload to maturity reminder works.
+
+**Phase 3: trust layer**
+- [ ] Signed credential → L3.
+- [ ] Freshness decay.
+- [ ] Hash chain, anchoring and verifier page.
+- [ ] Release workflow with checklist and letter.
+- [ ] Duplicate/IFSC-lineage checks.
+- [ ] Forgery baseline.
+- [ ] **Gate:** feature freeze.
+
+**Phase 4: intelligence and demo readiness**
+- [ ] Renewal-risk model with reasons.
+- [ ] Conformance replay.
+- [ ] Assistant with RAGAS score.
+- [ ] Manual-vs-portal timing runs.
+- [ ] Recorded backup demo video.
+
+### Demo story (~6 minutes)
+
+1. **Submission.** An institution uploads a scan; fields auto-fill; one disagreeing field is confirmed by hand → **L1**.
+2. **Bank attestation.** The mock bank signs a credential → **L3**. The coverage strip turns green.
+3. **Discrepancy.** A second upload has an edited amount. Forgery signal plus a bank mismatch appear side by side, with fact, rule, clause and reason.
+4. **Double pledge.** A reused FDR number is flagged, including the merged-bank IFSC variant.
+5. **Approaching maturity.** The clock advances. The FDR turns amber, reminders appear, and the risk model escalates early with reasons. The coverage strip shows the forecast gap date.
+6. **Renewal.** A replacement is attested and linked; the gap closes. A late replacement for another institution shows a continuity-gap flag.
+7. **Release.** The checklist ticks as evidence arrives; the competent authority approves; the letter PDF is generated; the credential is revoked → **Released**.
+8. **Audit.** The verifier proves the original scan is unchanged. A live database edit shows the chain break. The conformance panel shows one seeded procedural violation.
+9. **Dashboard.** Tiles, verification exposure in ₹, and the assistant giving a cited answer.
+
+---
+
