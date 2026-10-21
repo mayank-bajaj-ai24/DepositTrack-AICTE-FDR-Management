@@ -37,3 +37,38 @@
 
 ---
 
+## Problem statement
+
+| Field | Value |
+| --- | --- |
+| PS ID | SIH26265 |
+| Title | Streamline of security deposit/ FDR portal |
+| Organization | AICTE (All India Council for Technical Education) |
+| Department | Regulation Bureau |
+| Category | Software |
+| Theme | Smart Automation |
+
+**Background.** AICTE may require technical institutions to submit or maintain security deposits or Fixed Deposit Receipts (FDRs) as part of approval and compliance. Managing them means:
+
+- keeping institution-wise records;
+- verifying the instruments;
+- monitoring validity and maturity;
+- tracking renewal or replacement;
+- recording release or refund requests;
+- keeping documents available for regulatory verification.
+
+**Current pain.** Fragmented records, manual correspondence and multiple trackers make it hard to keep an accurate, current view of deposit status, pending actions and time-sensitive requirements.
+
+**What the PS asks for:**
+
+- A secure, centralized portal that tracks every deposit across its lifecycle.
+- The portal must distinguish what an institution *submitted* from what a bank or financial source has *independently confirmed*.
+- The prototype must show measurable improvement in:
+  - record accuracy;
+  - verification turnaround time;
+  - timely renewal monitoring;
+  - manual tracking effort;
+  - visibility into pending cases.
+
+---
+
