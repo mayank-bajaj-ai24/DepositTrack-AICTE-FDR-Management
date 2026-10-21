@@ -735,3 +735,38 @@ Controls are organised under the five IDMS properties from P7.
 
 ---
 
+## 11. Testing: SIH scenarios and KPIs
+
+### 11.1 Acceptance tests
+
+| ID | Scenario (PS wording where applicable) | Automated test | Pass condition |
+| --- | --- | --- | --- |
+| T-01 | **New FDR submission** | Upload synthetic FDRs via API | Stored, hashed, versioned; fields extracted; L1 when clean |
+| T-02 | Repository completeness (R-a) | Schema + search tests | All PS-listed fields stored and searchable |
+| T-03 | **Validity tracking** | Sweep over seeded dates | Every instrument in the correct state bucket |
+| T-04 | **Approaching maturity** | Clock set to each configured threshold | Exactly one reminder per threshold; escalation when ignored |
+| T-05 | **Discrepancy identification** | Tampered + clean uploads | Tampered recall ≥ 0.90; false alarms ≤ 5% |
+| T-06 | Incomplete record (R-c) | Missing field / missing document | Flagged; appears in missing-documents report |
+| T-07 | Double pledge | Same FDR under two institutions; merged-bank IFSC variant | Critical flag in both cases |
+| T-08 | **Renewal** | Renew instruments, including one late | Chain linked; history intact; continuity-gap flag on the late one |
+| T-09 | **Authorized release processing** | Release with one checklist item missing, then complete | Blocked, then approved; lien revocation recorded; audit present |
+| T-10 | Overdue escalation | Ignore a task past its time box | Escalated to the next role |
+| T-11 | Dashboard drill-down | Compare each tile with direct queries | Numbers match; drill-down lists exact records |
+| T-12 | Audit integrity | Direct DB edit | Verifier reports the break |
+| T-13 | Access control | ≥ 20 allow/deny cases | All pass |
+| T-14 | Credential forgery | Credential signed by an unknown key | Rejected; flag raised |
+
+### 11.2 Measuring the five PS improvement areas
+
+Method: on the same set of cases, time a manual baseline (spreadsheet + email, done by a team member) against the portal. Where possible, replace the baseline with figures from an AICTE or institution accounts official. Report measured numbers only.
+
+| PS KPI | Measurement |
+| --- | --- |
+| Record accuracy | Field errors per 100 instruments: manual entry vs extraction + confirmation |
+| Verification turnaround | Time from submission to L3 (simulated bank) vs manual letter cycle |
+| Timely renewal monitoring | % of maturities with reminders sent ≥ 30 days ahead; # coverage gaps forecast before they occur |
+| Manual tracking effort | Officer minutes per case per month |
+| Visibility into pending cases | Time to answer "which cases need action today?" |
+
+---
+
