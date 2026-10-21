@@ -52,6 +52,19 @@ The problem statement does not specify deposit amounts, durations, beneficiary/l
 - Contributors using other tools should follow the design guidance from that plugin's repository (https://github.com/Leonxlnx/taste-skill).
 - [21st.dev](https://21st.dev/) may be used only within its free plan. Its free tier allows 2 component copies per day, and unlimited Magic MCP access needs a paid plan, so taste-skill is the primary tool. Never sign up for or use a paid plan on the project's behalf.
 
+### 4a. Next.js 16
+
+`apps/web` uses Next.js 16, which changed APIs. Before writing frontend code, read the
+relevant guide in `apps/web/node_modules/next/dist/docs/` (see `apps/web/AGENTS.md`).
+Cache Components are on: client hooks that read the URL (`useParams`, `useSearchParams`)
+must sit inside `<Suspense>`.
+
+### 4b. Configuration, not code
+
+Rules and thresholds live in `apps/api/config/*.yaml` (policy, extraction, checks,
+workflow, alerts, conformance). Web URLs come from `apps/web/.env.local`. Demo values
+live only in `config/policy.demo.yaml`, labelled as placeholders.
+
 ### 5. Synthetic data only
 
 - Real FDRs are confidential. Use the generator in `ml/synth/`.
@@ -71,7 +84,10 @@ The problem statement does not specify deposit amounts, durations, beneficiary/l
 | Python packaging | `pip` + `venv`, dependencies in each package's `pyproject.toml` |
 | Python lint / format | `ruff check` and `ruff format` |
 | Python tests | `pytest` |
-| Frontend | Next.js + React (to be scaffolded with taste-skill), `npm` |
+| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `npm` |
+| Frontend lint / types | `npx eslint src`, `npx tsc --noEmit`, `npx next build` |
+| ML | scikit-learn, scikit-image, LightGBM (`pip install -e ".[ml]"` in `apps/api`); OCR with RapidOCR |
+| Mock bank | `services/mock-bank` (FastAPI), simulation of a bank's signed confirmation channel |
 | Infrastructure | Docker Compose: PostgreSQL 16 + pgvector, SeaweedFS (S3), Redis, Keycloak, immudb |
 | CI | GitHub Actions (`.github/workflows/`) |
 
@@ -84,20 +100,35 @@ MinIO from the original plan was replaced by SeaweedFS because MinIO no longer p
 cp infra/.env.example infra/.env
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 
-# Backend
-cd apps/api
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
+# Backend (apps/api)
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scriptsctivate
+pip install -e ".[dev,ml]"
 ruff check . && ruff format --check .
 pytest
 alembic upgrade head
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload                        # http://localhost:8000/docs
+python -m app.seed demo --synthetic ../../data/synthetic --count 12   # demo data
 
-# Synthetic FDR generator
-cd ml/synth
+# Mock bank (services/mock-bank)
+pip install -e ".[dev]"
+python -m mockbank seed --from ../../data/synthetic
+python -m mockbank serve --port 8090
+
+# Web (apps/web)
+cp .env.example .env.local
+npm install
+npm run dev                                          # http://localhost:3000
+npx eslint src && npx tsc --noEmit && npx next build
+
+# Synthetic FDR generator (ml/synth)
 pip install -e ".[dev]"
 python -m fdrsynth --count 20 --out ../../data/synthetic
 pytest
+
+# Models (run from the repo root with the API's virtual environment; outputs go to models/, not committed)
+apps/api/.venv/Scripts/python ml/forgery/train.py --data data/forgery-src --out models
+apps/api/.venv/Scripts/python ml/risk/train.py --out models
+# LayoutLMv3: run ml/layoutlm/train_layoutlmv3_fdr.ipynb on a GPU, unzip into models/layoutlmv3-fdr/
 ```
 
 Run lint and tests before every push. CI runs the same checks.
@@ -105,9 +136,14 @@ Run lint and tests before every push. CI runs the same checks.
 ## Repository layout
 
 ```
-apps/api/        FastAPI backend (modules per plan §8)
-apps/web/        Next.js frontend (pending, taste-skill)
+apps/api/        FastAPI backend (modules per plan §8), config/ holds every rule file
+apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
+services/mock-bank/  Mock bank: signed FDR credentials and lien status (simulation only)
 ml/synth/        Synthetic FDR generator
+ml/forgery/      Forgery signal training (tampering generator + classifier)
+ml/risk/         Renewal-risk training (event-log simulator + LightGBM)
+ml/layoutlm/     LayoutLMv3 fine-tuning notebook (GPU)
+models/          Trained model files (generated, not committed)
 infra/           Docker Compose and service config (Keycloak realm, etc.)
 research/        Papers and research notes
 .github/         CI workflows
