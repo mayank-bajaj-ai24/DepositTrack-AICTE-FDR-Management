@@ -236,6 +236,7 @@ def detail(
         "instrument": ser.instrument_summary(
             instrument, institution, sum(f.status == "open" for f in flags)
         ),
+        "today": clock.today(session).isoformat(),
         "beneficiary_text": instrument.beneficiary_text,
         "lien_marked": instrument.lien_marked,
         "fields": [

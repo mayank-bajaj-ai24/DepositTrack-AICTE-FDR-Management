@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api import serializers as ser
+from app.api.instruments import coverage_payload
 from app.core import clock
 from app.core.access import Scope, get_scope, scope_instruments
 from app.core.permissions import Action, Role, is_allowed
@@ -46,6 +47,7 @@ def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_
         select(Flag).where(Flag.status == "open", Flag.instrument_id.in_(ids))
     ).all()
     flagged_ids = {f.instrument_id for f in open_flags}
+    critical_ids = {f.instrument_id for f in open_flags if f.severity == "critical"}
 
     def expiring_within(days: int) -> int:
         return sum(
@@ -125,6 +127,7 @@ def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_
             "overdue": states.get("overdue", 0),
             "pending_verification": sum(states.get(s.value, 0) for s in PENDING_STATES),
             "flagged": len(flagged_ids),
+            "critical": len(critical_ids),
             "coverage_gaps": len(gaps),
         },
         "coverage": {
@@ -287,3 +290,28 @@ def report(
             headers={"Content-Disposition": f'attachment; filename="{name}.xlsx"'},
         )
     raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "format must be json, csv or xlsx")
+
+
+@router.get("/coverage")
+def coverage_reports(
+    scope: Scope = Depends(get_scope), session: Session = Depends(get_session)
+) -> dict:
+    """Coverage of every open obligation the caller may see (N2): one strip per obligation."""
+    today = clock.today(session)
+    institution_ids = {inst.id for _, inst in _visible(session, scope)}
+    if scope.institution_id:
+        institution_ids.add(scope.institution_id)
+    items = []
+    query = select(Obligation).where(
+        Obligation.institution_id.in_(institution_ids), Obligation.status == "open"
+    )
+    for obligation in session.scalars(query):
+        institution = session.get(Institution, obligation.institution_id)
+        items.append(
+            {
+                "institution": ser.institution(institution),
+                "basis_ref": obligation.basis_ref,
+                "coverage": coverage_payload(coverage.report(session, obligation, today)),
+            }
+        )
+    return {"today": today.isoformat(), "items": items}
