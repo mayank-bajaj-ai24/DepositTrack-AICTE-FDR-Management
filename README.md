@@ -463,3 +463,35 @@ Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-mo
 
 ---
 
+## Repository structure
+
+**Current:**
+
+```
+DepositTrack-AICTE-FDR-Management/
+  README.md
+  IMPLEMENTATION_PLAN.md
+  LICENSE
+  research/
+    README.md
+    krrish/          # 8 papers + earlier implementation plan (FDR Guardian)
+    Mayank_Kathe/    # 7 papers + research notes
+```
+
+**Planned additions:**
+
+```
+  apps/
+    web/             # Next.js: institution, officer, auditor, verifier UIs
+    api/             # FastAPI modules + Celery workers
+  ml/                # synthetic data, LayoutLMv3, forgery, risk models, RAG
+  services/
+    mock-bank/       # issues and revokes signed FDR credentials
+  infra/
+    docker-compose.yml
+  docs/              # ADRs, API spec, dataset cards
+  tests/             # pytest + Playwright, SIH scenario suite
+```
+
+---
+
