@@ -30,3 +30,8 @@ out/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Runtime state: keys, ledgers, local document storage, ML models
+var/
+/models/
+.taste-skill/
