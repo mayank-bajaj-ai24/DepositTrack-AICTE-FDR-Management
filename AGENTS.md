@@ -50,11 +50,18 @@ The problem statement does not specify deposit amounts, durations, beneficiary/l
   /plugin install taste-skill@taste-skill
   ```
 - Contributors using other tools should follow the design guidance from that plugin's repository (https://github.com/Leonxlnx/taste-skill).
+- [21st.dev](https://21st.dev/) may be used only within its free plan. Its free tier allows 2 component copies per day, and unlimited Magic MCP access needs a paid plan, so taste-skill is the primary tool. Never sign up for or use a paid plan on the project's behalf.
 
 ### 5. Synthetic data only
 
 - Real FDRs are confidential. Use the generator in `ml/synth/`.
-- Synthetic documents use fictional bank names and are watermarked `SYNTHETIC SAMPLE – NOT A REAL INSTRUMENT`. Do not imitate real banks' branding.
+- Synthetic documents use fictional bank names and are watermarked `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT`. Do not imitate real banks' branding.
+- **No hardcoded data lists.** Banks, cities, institution names, wording and value ranges for synthetic data live in `ml/synth/fdrsynth/data/synthetic_lists.json` (or a file passed with `--catalog`), never in Python code.
+
+### 6. Ask, and flag manual work
+
+- When something is unclear or an issue comes up, ask a maintainer instead of assuming.
+- When a step needs manual action (an account, an API key, installing software, starting Docker Desktop, GitHub permissions), tell the maintainer exactly what to do; do not do it on your own.
 
 ## Stack and tooling
 
