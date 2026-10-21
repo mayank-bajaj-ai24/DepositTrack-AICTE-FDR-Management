@@ -386,3 +386,65 @@ Every test scenario named in the PS has an automated test:
 
 ---
 
+## Progress
+
+### Done
+
+- [x] Problem statement analysed (SIH26265, official text)
+- [x] Research: 15 papers collected (`research/krrish/`, `research/Mayank_Kathe/`)
+- [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
+- [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
+- [x] README
+
+### Roadmap
+
+```mermaid
+flowchart LR
+    P0["Phase 0<br/>Idea submission"]
+    P1["Phase 1<br/>Foundations"]
+    P2["Phase 2<br/>Core lifecycle"]
+    G1{{"Gate: core demo<br/>end to end"}}
+    P3["Phase 3<br/>Trust layer"]
+    G2{{"Gate: feature freeze"}}
+    P4["Phase 4<br/>Intelligence + demo"]
+    P0 --> P1 --> P2 --> G1 --> P3 --> G2 --> P4
+```
+
+**Phase 0: idea submission** (PS idea deadline listed as 28 Oct 2026)
+- [ ] Presentation built from the plan (summary, objectives, novelty)
+- [ ] Architecture diagram for the submission
+- [ ] Demo storyboard
+
+**Phase 1: foundations**
+- [ ] Repository scaffolding, CI, Docker Compose
+- [ ] Login with all roles (M1)
+- [ ] Database schema and migrations
+- [ ] Synthetic FDR generator, first batch rendered
+- [ ] Answers to the open questions from an AICTE or institution accounts official
+
+**Phase 2: core lifecycle**
+- [ ] Upload and document storage (M2)
+- [ ] Extraction with auto-fill (M3)
+- [ ] Completeness and policy rules with reasons (M4)
+- [ ] State machine and coverage sweep (M7)
+- [ ] Reminders and escalation (M8)
+- [ ] Dashboard tiles with drill-down (M10)
+- [ ] **Gate:** full story from upload to maturity reminder works
+
+**Phase 3: trust layer**
+- [ ] Signed bank credential and Trust Ladder up to L3, with freshness decay (M5)
+- [ ] Hash chain, anchoring and verifier page (M6)
+- [ ] Release / discharge / refund workflow with checklist and letter (M9)
+- [ ] Duplicate and IFSC-lineage checks (M4)
+- [ ] Forgery baseline (M4)
+- [ ] **Gate:** feature freeze
+
+**Phase 4: intelligence and demo readiness**
+- [ ] Renewal-risk model with reasons (M11)
+- [ ] Conformance replay (M13)
+- [ ] Officer assistant with RAGAS score (M11)
+- [ ] Manual-vs-portal timing runs; fill in [Expected outcomes](#expected-outcomes)
+- [ ] Recorded backup demo video
+
+---
+
