@@ -21,7 +21,10 @@ from app.modules.audit.service import SYSTEM, record_event
 from app.modules.bank.client import BankChannelError, BankClient
 from app.modules.bank.credentials import load_pinned, save_pinned
 from app.modules.extraction import layoutlm
+from app.modules.forgery import model as forgery_model
 from app.modules.lifecycle.sweep import run_sweep
+from app.modules.risk import model as risk_model
+from app.modules.risk.service import score_live
 
 router = APIRouter(prefix="/api/v1", tags=["admin"])
 
@@ -51,6 +54,8 @@ def system_status(
         "bank_channel_configured": bool(settings.bank_api_token),
         "bank_keys_pinned": len(load_pinned(settings.bank_keys_file)),
         "layoutlm_available": layoutlm.is_available(settings.models_dir),
+        "forgery_model_available": forgery_model.is_available(settings.models_dir),
+        "risk_model_available": risk_model.is_available(settings.models_dir),
         "immudb_enabled": settings.immudb_enabled,
     }
 
@@ -100,9 +105,13 @@ def sweep(
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
     policy: Policy = Depends(policy_dep),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
+    """Score renewal risk (if the model is available), then run the lifecycle sweep."""
     _admin(scope)
-    report = run_sweep(session, policy, clock.today(session))
+    today = clock.today(session)
+    scored = score_live(session, settings.models_dir, today)
+    report = run_sweep(session, policy, today)
     record_event(
         session,
         actor=SYSTEM,
@@ -111,6 +120,7 @@ def sweep(
             "today": report.today.isoformat(),
             "moved": len(report.moved),
             "notifications": report.notifications,
+            "risk_scored": len(scored),
         },
     )
     session.commit()
@@ -118,6 +128,7 @@ def sweep(
         "today": report.today.isoformat(),
         "moved": [{"instrument_id": i, "from": a, "to": b} for i, a, b in report.moved],
         "notifications": report.notifications,
+        "risk_scored": len(scored),
         "awaiting_policy": report.awaiting_policy,
     }
 
