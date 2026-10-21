@@ -20,6 +20,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["fdrsynth*"]
 
+[tool.setuptools.package-data]
+fdrsynth = ["data/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
