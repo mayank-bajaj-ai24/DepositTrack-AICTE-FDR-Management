@@ -671,3 +671,32 @@ Each module lists what it does and its **definition of done (DoD)**.
 
 ---
 
+## 9. AI / ML components
+
+Real FDRs are confidential, so the team builds labelled synthetic data first. Real data, if any, is used only with written permission and with personal data redacted. All synthetic-data results must be labelled as synthetic.
+
+### 9.1 Datasets
+
+| Dataset | Target size | Method | Used by |
+| --- | --- | --- | --- |
+| Synthetic FDR images | ~2,000 pages, multiple bank-style templates | HTML templates rendered with valid-format random values; scan artefacts (blur, noise, skew, stamps, folds) via Augraphy | M3 |
+| Real redacted FDRs | Whatever can be obtained with permission | Redacted, final validation only | M3, M4 |
+| Forgery set | Genuine + tampered regions on amount/date/name | Apply P4's forgery types (copy-paste, insertion, noise, blur, combinations) | M4 |
+| Synthetic event logs | Hundreds of institutions × multiple years | Simulator with behaviour personas (punctual, slow, chronically late, fraud-prone) | N9, N10 |
+| Regulation corpus | Public AICTE handbook + circulars | Chunk by clause | N8, M11 |
+| Assistant eval set | ~40 Q&A | Written by the team; optionally auto-generated per P8 then reviewed | M11 |
+
+### 9.2 Models and targets
+
+| Component | Method | Metric | Target |
+| --- | --- | --- | --- |
+| Field extraction | LayoutLMv3-base fine-tune (P3 settings as a starting point) + Pass B | Field exact-match after rules | ≥ 90% overall, ≥ 95% on amount/dates |
+| Forgery signals | 9-feature RGB-GLCM + SVM baseline (P4), + ELA statistics | Recall on tampered amount/date; false-alarm rate on genuine | ≥ 0.90 / ≤ 5% |
+| Discrepancy risk | XGBoost + SHAP instance weighting + Anchors (P6); grey band | Recall on suspicious; grey-band size | ≥ 0.95 recall |
+| Renewal risk | LightGBM P(miss) + direct remaining-time regressor (P5) | AUC; mean warning lead time; MAE | ≥ 0.80; ≥ 21 days |
+| Assistant | Retrieval + LLM, cited | RAGAS faithfulness | ≥ 0.85 |
+
+These targets are the team's goals, not results. Report the measured values.
+
+---
+
