@@ -1,37 +1,16 @@
 """Random but well-formed FDR field values.
 
-Banks, branches and institutions are fictional. Amounts and tenures are random and
-are NOT AICTE requirements (those are unconfirmed, plan §14).
+All lists and ranges (banks, cities, wording, amounts, tenures) come from the data
+catalogue (see catalog.py); this module holds only formatting and sampling logic.
 """
 
 import random
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import timedelta
 
-# Fictional banks: (display name, 4-letter IFSC prefix). Prefixes start with X or Z
-# so they cannot collide with a real bank's code by accident.
-BANKS = [
-    ("Example National Bank", "XNBK"),
-    ("Sample Co-operative Bank", "XSCB"),
-    ("Demo Federal Bank", "ZDFB"),
-    ("Placeholder Union Bank", "ZPUB"),
-    ("Mock Rural Bank", "XMRB"),
-    ("Specimen City Bank", "ZSCB"),
-]
+from fdrsynth.catalog import Catalog, load_catalog
 
-CITIES = ["Nagpur", "Pune", "Bhopal", "Jaipur", "Lucknow", "Kochi", "Guwahati", "Indore"]
-
-INSTITUTION_WORDS = ["Synthetic", "Sample", "Demo", "Model"]
-INSTITUTION_KINDS = [
-    "Institute of Technology",
-    "College of Engineering",
-    "School of Management",
-    "Polytechnic",
-]
-
-# Placeholder lien wording: the real required wording is unconfirmed (plan §14, Q2).
-LIEN_TEXT = "Lien marked in favour of AICTE (synthetic placeholder wording)"
-
+# English number words used to spell amounts in Indian numbering.
 ONES = [
     "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
     "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen",
@@ -116,28 +95,30 @@ def make_ifsc(rng: random.Random, prefix: str) -> str:
     return f"{prefix}0{rng.randint(0, 999999):06d}"
 
 
-def random_values(rng: random.Random) -> FDRValues:
-    bank, prefix = rng.choice(BANKS)
-    city = rng.choice(CITIES)
-    amount = rng.randint(1, 100) * 50_000
-    deposit = date(2024, 1, 1) + timedelta(days=rng.randint(0, 900))
-    tenure = rng.choice([12, 24, 36, 60])
+def random_values(rng: random.Random, catalog: Catalog | None = None) -> FDRValues:
+    cat = catalog or load_catalog()
+    bank = rng.choice(cat.banks)
+    city = rng.choice(cat.cities)
+    amount = rng.randint(cat.amount_min_steps, cat.amount_max_steps) * cat.amount_step
+    deposit = cat.deposit_start + timedelta(days=rng.randint(0, cat.deposit_span_days))
+    tenure = rng.choice(cat.tenure_months)
     maturity = deposit + timedelta(days=round(tenure * 30.4375))
     institution = (
-        f"{rng.choice(INSTITUTION_WORDS)} {rng.choice(INSTITUTION_KINDS)}, {rng.choice(CITIES)}"
+        f"{rng.choice(cat.institution_words)} {rng.choice(cat.institution_kinds)}, "
+        f"{rng.choice(cat.cities)}"
     )
     return FDRValues(
-        fdr_no=f"{prefix[:2]}{rng.randint(10**9, 10**10 - 1)}",
-        bank=bank,
-        branch=f"{city} Main Branch",
-        ifsc=make_ifsc(rng, prefix),
+        fdr_no=f"{bank.ifsc_prefix[:2]}{rng.randint(10**9, 10**10 - 1)}",
+        bank=bank.name,
+        branch=f"{city} {cat.branch_suffix}",
+        ifsc=make_ifsc(rng, bank.ifsc_prefix),
         amount=amount,
         amount_text=indian_format(amount),
         amount_words=amount_in_words(amount),
-        deposit_date=deposit.strftime("%d/%m/%Y"),
-        maturity_date=maturity.strftime("%d/%m/%Y"),
+        deposit_date=deposit.strftime(cat.date_format),
+        maturity_date=maturity.strftime(cat.date_format),
         tenure_months=tenure,
         depositor=institution,
-        beneficiary="AICTE, New Delhi",
-        lien_text=LIEN_TEXT,
+        beneficiary=cat.beneficiary,
+        lien_text=cat.lien_text,
     )
