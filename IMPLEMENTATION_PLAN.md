@@ -838,3 +838,17 @@ flowchart LR
 
 ---
 
+## 13. Risks and fallbacks
+
+| Risk | Likelihood | Fallback |
+| --- | --- | --- |
+| No real FDR samples | High | Synthetic set; disclose openly; seek redacted samples early |
+| LayoutLMv3 fine-tune underperforms | Medium | Pass B (rules + LLM) with human confirmation |
+| Bank integration questioned as unrealistic | High | Present it as a proposal with Indian precedents (electronic BG, bank-to-bank advice); the prototype uses simulators |
+| AICTE rule values unknown | High | All amounts, windows and conditions are configuration, not code; demo values clearly marked as placeholders |
+| Ledger setup consumes time | Medium | immudb only; permissioned ledger as a slide |
+| Assistant hallucinates during the demo | Medium | Pre-tested question list; RAGAS score shown; assistant cannot change state |
+| Scope creep | High | Hard gates in §12; anything new goes to "future scope" |
+
+---
+
