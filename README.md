@@ -495,3 +495,18 @@ DepositTrack-AICTE-FDR-Management/
 
 ---
 
+## Research basis
+
+The design draws on 15 papers; full citations are in [plan §16](IMPLEMENTATION_PLAN.md#16-references).
+
+| Area | Papers | Used for |
+| --- | --- | --- |
+| Document AI | LayoutLMv3 (2022); IDP Accelerator (2026); Multi-agent asset review (2024) | Extraction, human-in-the-loop, dual-pass cross-checking |
+| Forgery and fraud | RGB-GLCM forgery detection (2022); SHAP/Anchor XGBoost (2024) | Forgery signals, grey-area risk classes with reasons |
+| Trust and verification | SSI / identity management survey (2022); blockchain certificate revocation (2021) | Bank credential, revocation, freshness, Merkle anchoring |
+| Ledger and audit | Blockchain for finance survey (2024); blockchain audit trails (2024) | Permissioned anchoring, hash chains, compliance rules as code |
+| Workflow and compliance | SMTSEC smart contract (2020); smart-contract fixed deposits (2023); regulatory compliance monitoring review (2025) | Time-boxed release, lifecycle framing, conformance replay |
+| Prediction and explanation | Predictive process monitoring benchmark (2023); regulatory graphs + GenAI (2025); RAGAS (2024) | Renewal-risk model, clause-linked explanations, assistant evaluation |
+
+---
+
