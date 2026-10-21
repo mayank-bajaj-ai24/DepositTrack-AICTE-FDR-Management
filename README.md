@@ -243,3 +243,50 @@ stateDiagram-v2
 
 ---
 
+## Key concepts
+
+### Trust Ladder
+
+Every field (amount, instrument number, IFSC, maturity date, lien status…) records who vouches for it.
+
+| Level | Name | Reached when |
+| --- | --- | --- |
+| L0 | Declared | Typed or uploaded by the institution |
+| L1 | Machine-checked | Extraction agrees with the declared value; rules pass; forgery signals low |
+| L2 | Officer-verified | A named officer confirmed it during scrutiny |
+| L3 | Bank-attested | A bank-signed credential or authorised bank channel matches |
+| L4 | Live-confirmed | The bank confirms current status (not closed, lien intact) within a freshness window |
+
+- **Instrument trust** = the lowest trust among its key fields.
+- **Decay:** confirmations expire. L4 drops to L3 when its freshness window passes, and to L0 if the bank revokes the credential.
+
+### Obligation–Coverage model
+
+AICTE cares whether an institution's **requirement** is covered, not only whether a document exists.
+
+- **Obligation:** required amount × required time window, generated from configurable rules.
+- **Coverage:** instruments allocated to an obligation over their validity periods.
+- **Coverage gap:** any day on which the covered amount falls below the requirement. The system forecasts the first gap date and opens a task before the gap happens.
+- **Verification exposure:** the amount covered only by declared (unconfirmed) instruments, i.e. money AICTE relies on that no bank has confirmed.
+- **Continuity check:** a replacement must start no later than the old instrument's maturity and cover the required amount.
+
+### Bank-signed e-FDR credential
+
+The bank signs the FDR details (number, amount, dates, beneficiary, lien status) as a small credential. AICTE verifies the signature with the bank's pinned public key, and the bank revokes the credential when the lien is removed.
+
+This is a **proposal**: the prototype uses a mock bank, and production would need a formal agreement with each bank.
+
+### Other novel elements
+
+| Element | What it does |
+| --- | --- |
+| Verifiable audit trail | Per-instrument hash chain + periodic Merkle anchoring + a verifier that proves a file is unchanged |
+| Double-pledge detection with IFSC lineage | Canonical key catches the same FDR across institutions, even after bank mergers change IFSC codes |
+| Dual-pass extraction | Two independent extraction passes; disagreements go to a human |
+| Clause-linked explanations | Every flag shows the fact, the failed rule, the regulation clause and a plain-language reason |
+| Renewal-risk forecasting | Predicts likely missed renewals and escalates earlier, with reasons |
+| Policy-as-code release | Versioned release/discharge/refund rules with time boxes and mandatory approver reason |
+| Procedural conformance replay | Checks the Bureau's own procedure against the event log every night |
+
+---
+
