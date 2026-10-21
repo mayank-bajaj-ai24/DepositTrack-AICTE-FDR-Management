@@ -391,3 +391,53 @@ def test_clock_cannot_move_backwards_or_without_admin(env):
         ).status_code
         == 403
     )
+
+
+def test_late_renewal_is_flagged_as_a_continuity_gap(env):
+    old = values(maturity_date=(date.today() + timedelta(days=40)).isoformat())
+    env.extracted["values"] = old
+    old_id = submit(env.client, env.tokens["inst_a"], old).json()["id"]
+    late = values(
+        fdr_no="XN4444444444",
+        issue_date=(date.today() + timedelta(days=55)).isoformat(),
+        maturity_date=(date.today() + timedelta(days=800)).isoformat(),
+    )
+    env.extracted["values"] = late
+    new_id = submit(env.client, env.tokens["inst_a"], late, replaces_id=old_id).json()["id"]
+    flags = _detail(env, new_id)["flags"]
+    gap = next(f for f in flags if f["type"] == "continuity_gap")
+    assert gap["fact"]["gap_days"] == 15
+
+
+def test_double_pledge_detected_across_a_bank_merger(env):
+    from app.models import IfscLineage
+
+    with env.factory() as s:
+        s.add(
+            IfscLineage(old_ifsc="XOLD0001234", current_ifsc="XNBK0001234", canonical_bank="XNBK")
+        )
+        s.commit()
+    submit(env.client, env.tokens["inst_a"], values())
+    merged = values(ifsc="XOLD0001234", depositor="Synthetic Institute B")
+    env.extracted["values"] = merged
+    second = submit(env.client, env.tokens["inst_b"], merged).json()["id"]
+    assert any(f["type"] == "duplicate_pledge" for f in _detail(env, second)["flags"])
+
+
+def test_credential_from_an_unpinned_key_is_rejected(env):
+    from tests.flow_support import FakeBank
+
+    v = values()
+    env.bank.add(v)
+    instrument_id = submit(env.client, env.tokens["inst_a"], v).json()["id"]
+    env.client.post("/api/v1/admin/bank-keys/pin", headers=env.h("admin"))
+    impostor = FakeBank()  # same issuer id, different private key
+    impostor.add(v)
+    env.bank.key = impostor.key
+    r = env.client.post(
+        f"/api/v1/instruments/{instrument_id}/bank-verification", headers=env.h("verifier")
+    )
+    assert r.json()["result"] == "rejected"
+    detail = _detail(env, instrument_id)
+    assert detail["instrument"]["trust_level"] < 3
+    assert any(f["type"] == "bank_mismatch" for f in detail["flags"])
