@@ -1,4 +1,5 @@
 """CLI: python -m fdrsynth --count 20 --out data/synthetic [--seed 7] [--no-scan-effects]
+                          [--catalog path/to/lists.json]
 
 Writes, per sample: <id>.png, <id>.json (values + word boxes + labels), and a
 manifest.jsonl index. All outputs are synthetic and watermarked.
@@ -10,18 +11,26 @@ import random
 from pathlib import Path
 
 from fdrsynth import WATERMARK
+from fdrsynth.catalog import load_catalog
 from fdrsynth.render import render
 from fdrsynth.values import random_values
 
 
-def generate(count: int, out: Path, seed: int, scan_effects: bool = True) -> list[Path]:
+def generate(
+    count: int,
+    out: Path,
+    seed: int,
+    scan_effects: bool = True,
+    catalog_path: Path | None = None,
+) -> list[Path]:
     out.mkdir(parents=True, exist_ok=True)
+    catalog = load_catalog(catalog_path)
     rng = random.Random(seed)
     written: list[Path] = []
     with open(out / "manifest.jsonl", "w", encoding="utf-8") as manifest:
         for index in range(count):
             sample_id = f"fdr_{seed}_{index:05d}"
-            values = random_values(rng)
+            values = random_values(rng, catalog)
             rendered = render(values, rng, scan_effects=scan_effects)
             image_path = out / f"{sample_id}.png"
             rendered.image.save(image_path)
@@ -47,8 +56,20 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--out", type=Path, default=Path("data/synthetic"))
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--no-scan-effects", action="store_true")
+    parser.add_argument(
+        "--catalog",
+        type=Path,
+        default=None,
+        help="JSON data catalogue (default: fdrsynth/data/synthetic_lists.json)",
+    )
     args = parser.parse_args(argv)
-    files = generate(args.count, args.out, args.seed, scan_effects=not args.no_scan_effects)
+    files = generate(
+        args.count,
+        args.out,
+        args.seed,
+        scan_effects=not args.no_scan_effects,
+        catalog_path=args.catalog,
+    )
     print(f"Wrote {len(files)} synthetic FDRs to {args.out}")
 
 
