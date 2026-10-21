@@ -72,3 +72,33 @@
 
 ---
 
+## Objectives
+
+The ten capabilities required by the PS, and how DepositTrack covers each:
+
+| # | PS capability | DepositTrack implementation | Modules |
+| --- | --- | --- | --- |
+| 1 | Centralized Security Deposit/FDR Repository | Institution-, obligation- and instrument-wise records with documents and status | M1, M2, M10 |
+| 2 | Digital Document Management | Encrypted, versioned uploads; bundle splitting; dual-pass OCR + LayoutLMv3 auto-fill | M2, M3 |
+| 3 | Verification and Discrepancy Detection | Bank-signed credential check, completeness and policy rules, forgery signals, duplicate detection, clause-linked reasons | M4, M5 |
+| 4 | Automated Validity and Maturity Tracking | Lifecycle state machine, daily sweep, coverage-gap forecasting | M7, M8 |
+| 5 | Renewal and Replacement Monitoring | Linked instrument chain with a continuity check between old and new | M7 |
+| 6 | Release and Refund Workflow | Policy-as-code checklist, time boxes, competent-authority approval, release letter | M9 |
+| 7 | Automated Alerts and Escalation | Configurable reminders, overdue escalation, risk-based early escalation | M8 |
+| 8 | Dashboard and Management Reports | Status tiles, coverage gaps, verification exposure, scheduled PDF/Excel reports | M10 |
+| 9 | Audit Trail and Access Control | Hash-chained audit log, Merkle anchoring, public file verifier, RBAC + ABAC | M1, M6 |
+| 10 | System Integration and Data Security | Adapters for AICTE and bank systems (authorised channels only), encryption, key pinning | M5, M12 |
+
+The PS's detailed description also asks for the following, all of which are covered in the plan:
+
+- discharge requests;
+- updating permitted fields;
+- recording scrutiny observations;
+- reviewing document histories;
+- missing-document reports;
+- flagging incomplete records.
+
+See the [traceability matrix](IMPLEMENTATION_PLAN.md#3-objective-traceability-matrix).
+
+---
+
