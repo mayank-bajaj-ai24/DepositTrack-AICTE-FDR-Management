@@ -448,3 +448,18 @@ flowchart LR
 
 ---
 
+## Work to be done
+
+Immediate next steps, in order:
+
+1. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
+2. **Scaffold the repository:** `apps/web`, `apps/api`, `ml/`, `services/mock-bank`, `infra/docker-compose.yml`, `tests/`, plus CI.
+3. **Data model first:** create migrations for institution, obligation, instrument, coverage, field_value, document, attestation, flag, observation, case, event, anchor, policy_version, ifsc_lineage, field_permission.
+4. **Synthetic data:** FDR template renderer with scan artefacts; event-log simulator.
+5. **Core vertical slice:** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
+6. **Prepare the idea submission** for the PS deadline.
+
+Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
+
+---
+
