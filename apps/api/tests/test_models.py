@@ -3,7 +3,6 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import app.models  # noqa: F401  (registers tables)
@@ -12,6 +11,9 @@ from app.models import Institution, Instrument
 from app.modules.lifecycle.states import InstrumentKind, InstrumentState
 
 EXPECTED_TABLES = {
+    "user_account",
+    "notification",
+    "system_setting",
     "institution",
     "obligation",
     "instrument",
@@ -65,13 +67,13 @@ def test_new_instrument_defaults_to_draft_and_declared(session):
     assert isinstance(fdr.id, uuid.UUID)
 
 
-def test_same_fdr_cannot_be_pledged_twice(session):
+def test_same_fdr_can_be_stored_twice_so_it_can_be_flagged(session):
+    """The canonical key is indexed, not unique: double pledges are flagged, not rejected."""
     a = Institution(aicte_id="TEST-A", name="Synthetic A")
     b = Institution(aicte_id="TEST-B", name="Synthetic B")
     session.add_all([a, b])
     session.flush()
-    session.add(_instrument(a.id))
+    session.add_all([_instrument(a.id), _instrument(b.id)])
     session.flush()
-    session.add(_instrument(b.id))
-    with pytest.raises(IntegrityError):
-        session.flush()
+    indexes = {ix.name for ix in Base.metadata.tables["instrument"].indexes}
+    assert "ix_instrument_canonical" in indexes
