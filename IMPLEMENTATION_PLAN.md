@@ -495,3 +495,179 @@ flowchart LR
 
 ---
 
+## 8. Module-by-module build specification
+
+Each module lists what it does and its **definition of done (DoD)**.
+
+### M1. Identity and access (RBAC + ABAC)
+
+- **Keycloak roles:** institution, scrutiny officer, verifying officer, competent authority, auditor, admin, bank-service.
+- **Attribute rules:**
+  - a regional officer sees only their region;
+  - an institution sees only its own records;
+  - a bank-service account can only attest instruments of its own bank;
+  - the auditor role is read-only.
+- **Field-level edit permissions** (`field_permission`) implement "update permitted fields". Every edit needs a reason and is audited.
+- **DoD:** an automated suite of at least 20 allow/deny cases passes; denials are logged.
+
+### M2. Intake and document management
+
+- **Uploads:** PDF/JPG/PNG up to a configured size limit.
+  - Every file is malware-scanned and its SHA-256 computed on arrival.
+  - Files are stored encrypted under random keys.
+  - A re-upload creates a new version; versions are never overwritten.
+- **Bundles:** a multi-document upload is split into separate documents (P13 DocSplit idea), e.g. FDR, covering letter and bank letter.
+- **Document history view:** all versions, who uploaded each, its hash and its trust level.
+- **DoD:**
+  - upload → stored → hash shown → downloadable only by authorised roles;
+  - version history is visible.
+
+### M3. Extraction (N6)
+
+1. **Pre-process:** deskew, denoise, render PDFs at 300 dpi.
+2. **OCR:** docTR/PaddleOCR produces words + boxes.
+3. **Pass A:** LayoutLMv3 token classification with labels FDR_NO, BANK, BRANCH, IFSC, AMOUNT, AMOUNT_WORDS, ISSUE_DATE, MATURITY_DATE, BENEFICIARY, DEPOSITOR, LIEN_TEXT.
+4. **Pass B:** rules + LLM key-value extraction.
+5. **Post-process:**
+   - parse Indian amount formats;
+   - check amount in words against amount in figures;
+   - normalise dates;
+   - validate IFSC with the regex `^[A-Z]{4}0[A-Z0-9]{6}$` and look it up in the master.
+6. **Route to a human:** any field with pass disagreement or confidence below 0.8.
+
+- **Fallback** if fine-tuning is late: Pass B alone, keeping the human-confirm step.
+- **DoD:**
+  - ≥ 90% field accuracy on held-out synthetic FDRs;
+  - < 5 s per page on CPU.
+
+### M4. Rules, discrepancy and forgery (N7, N8)
+
+- **Completeness rules (R-c):**
+  - mandatory fields present;
+  - mandatory documents attached per case type;
+  - these rules feed the "missing documents" report.
+- **Policy rules:**
+  - amount ≥ the obligation requirement;
+  - beneficiary/lien wording as prescribed;
+  - maturity covers the required window;
+  - declared value vs extracted value;
+  - bank on the allowed list;
+  - canonical duplicate key.
+- **Forgery signals:** RGB-GLCM features computed block-wise (P4) to localise suspicious regions, plus error-level analysis, PDF metadata checks and font consistency around amount/date regions. These are signals only; the bank cross-check is the final word.
+- **Risk model:** XGBoost over rule results + signals produces *genuine / grey / suspicious* from configurable bands (P6), with SHAP and Anchor reasons.
+- **Observations:** officers record scrutiny observations against any flag or field.
+- **DoD:** every flag shows the fact, rule, clause, reason and an evidence crop.
+
+### M5. Bank verification gateway (N3)
+
+- **Adapter interface:** `verify(instrument) → Attested | Pending | Mismatch | Rejected`, with three implementations:
+  1. **Signed credential** (demo default): verify the signature against the pinned key registry, then compare every field.
+  2. **Bank API simulator:** returns exists / amount / maturity / lien / closed.
+  3. **Manual letter:** the officer uploads the bank's reply and records the verification (L2); tracked with an SLA timer.
+- **Live re-check:** a periodic job re-checks attested instruments to refresh L4 and applies decay (N4).
+- **Release:** lien removal on release is confirmed via credential revocation or a recorded bank letter.
+- **DoD:** a tampered amount in a scan is caught because it disagrees with the bank credential.
+
+### M6. Audit chain and anchoring (N4)
+
+- Every state change and field edit writes an event to the per-instrument hash chain.
+- Scheduled Merkle anchoring covers events and document hashes.
+- The public verifier page accepts a file and returns a match/no-match proof.
+- **DoD:** a direct SQL edit to a row is detected by the verifier.
+
+### M7. Lifecycle and coverage engine (N2)
+
+- Enforces the state machine with a transitions table.
+- **Daily sweep:**
+  - computes days to maturity;
+  - moves instruments between states;
+  - recomputes C₀(t) and C₃(t) per obligation;
+  - forecasts the first gap date;
+  - opens renewal tasks.
+- **Renewal:**
+  - the continuity check runs (start date ≤ old maturity, amount ≥ requirement);
+  - the old and new instruments are linked;
+  - the full chain is visible.
+- **Prescribed timelines** are configurable per obligation type (R-e).
+- **Demo clock:** a time-travel control (demo only, admin-gated and audited).
+- **DoD:** advancing the clock moves an FDR through Active → Expiring → Renewed, and a deliberately late replacement raises a continuity-gap flag.
+
+### M8. Alerts and escalation (N9)
+
+- **Reminders:** configurable schedules per case type (default T-90/60/30/7 days; final values per AICTE, §14).
+- **Escalation:**
+  - a task untouched for N days escalates to the next role;
+  - overdue cases and coverage gaps escalate automatically;
+  - risk-based early escalation (N9) moves high-risk cases up sooner.
+- **Channels:**
+  - in-app;
+  - email;
+  - SMS (stubbed in the prototype; production via an authorised government SMS gateway).
+- **Digests:** officers receive a daily digest instead of many separate emails.
+- **DoD:** every alert appears on the instrument timeline; duplicate reminders for the same threshold are impossible.
+
+### M9. Release, discharge and refund (N5)
+
+- **Flow:**
+  1. request;
+  2. checklist auto-built from the policy version;
+  3. evidence upload;
+  4. scrutiny;
+  5. competent-authority approval, with a mandatory reason;
+  6. release letter PDF generated (e-sign in production);
+  7. bank confirms lien removal;
+  8. instrument moves to *Released*.
+- Time boxes and escalation follow N5.
+- **DoD:** a release cannot be approved while any checklist item is red, and every approval cites its policy version.
+
+### M10. Dashboard, search and reports
+
+- **Tiles:**
+  - active;
+  - expiring in 30/60/90 days;
+  - matured;
+  - renewed;
+  - released;
+  - pending verification;
+  - flagged;
+  - coverage gaps;
+  - verification exposure (₹).
+- **Views:**
+  - Trust Ladder distribution;
+  - ageing of pending cases;
+  - risk by region/institution type;
+  - bank-wise verification turnaround;
+  - procedural conformance (N10).
+- **Global search:** institution, AICTE ID, instrument number, bank, amount range, status, trust level.
+- **Scheduled reports (R-j), as PDF/Excel:**
+  - pending verifications;
+  - upcoming maturities;
+  - missing documents;
+  - cases requiring intervention.
+- **DoD:** every number drills down to the records behind it.
+
+### M11. Risk models and officer assistant
+
+- **Models:** the renewal-risk model (N9) and the discrepancy-risk model (M4) are served behind one internal API.
+- **Assistant:**
+  - retrieval over curated AICTE handbook/circular text plus structured database facts, with clause-cited answers;
+  - it **cannot change state**, only drafts notes;
+  - it never reads raw uploaded documents, which guards against prompt injection.
+- **Evaluation:** RAGAS on a fixed question set, reporting faithfulness, answer relevance and context relevance. Note that human agreement is much lower for the latter two (0.78 / 0.70 in P8).
+
+### M12. Integration adapters (R-l)
+
+- **AICTE master data:** institution master and approval case IDs via API, or CSV import if no API is authorised.
+- **Bank channel:** M5 adapters.
+- **Future options, listed as proposals:**
+  - consent-based financial-data sharing (Account Aggregator rails);
+  - issuer-signed document pull (DigiLocker pattern).
+- **Constraint:** integrations go only through formally authorised channels. The system never scrapes or logs in to bank portals.
+
+### M13. Conformance replay (N10)
+
+- Constraint definitions are stored with `policy_version`. A nightly replay over `event` produces per-case results (quantify, qualify, localize, explain), shown in the auditor panel.
+- **DoD:** a seeded case where release happened before lien confirmation is reported with the exact violating event.
+
+---
+
