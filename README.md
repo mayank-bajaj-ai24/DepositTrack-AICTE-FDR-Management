@@ -209,3 +209,37 @@ sequenceDiagram
 
 ---
 
+## Instrument lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft
+    Draft --> Submitted
+    Submitted --> Scrutiny
+    Scrutiny --> Discrepancy: query raised
+    Discrepancy --> Scrutiny: resolved
+    Scrutiny --> Rejected
+    Scrutiny --> Verified
+    Verified --> Active
+    Active --> Expiring: T-N days (configurable)
+    Expiring --> Renewed: replacement accepted
+    Expiring --> Overdue: maturity passed, no replacement
+    Overdue --> Renewed: late replacement accepted
+    Active --> Matured
+    Active --> Releasing
+    Matured --> Releasing
+    Releasing --> Released
+    Released --> Archived
+    Rejected --> [*]
+    Archived --> [*]
+```
+
+**Rules:**
+
+- The engine allows only these transitions.
+- A renewed instrument links to its replacement, so the full history is one chain.
+- *Overdue* and any forecast coverage gap trigger automatic escalation.
+- Whether bank attestation is mandatory before an instrument becomes *Active* is configurable. It is an open question for AICTE.
+
+---
+
