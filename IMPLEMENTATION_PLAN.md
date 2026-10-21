@@ -852,3 +852,20 @@ flowchart LR
 
 ---
 
+## 14. Open questions for AICTE (not assumed)
+
+The PS does not specify these. The plan keeps each one configurable and does **not** assume an answer. Collect the answers before or during Phase 1.
+
+1. Required deposit / FDR amounts and durations by institution type and approval case, with the governing handbook clauses.
+2. In whose name the FDR is made out (AICTE, joint, lien in favour of AICTE), and the exact beneficiary/lien wording required.
+3. Which instrument kinds are accepted (FDR only, or also security deposit by transfer, bank guarantee, DD).
+4. Conditions for release, discharge and refund, and who the competent authority is at each level (delegation of powers).
+5. Reminder thresholds and escalation chain the Bureau wants.
+6. Whether bank attestation must happen before an instrument becomes *Active*, or whether officer verification (L2) is acceptable when no bank channel exists.
+7. Available AICTE systems and APIs (institution master, approval portal) and the authorisation route for integration.
+8. Which banks hold most AICTE FDRs, and whether any already offer a verification API or signed confirmations.
+9. Record retention period and RTI/audit access requirements.
+10. Hosting requirements (NIC / MeghRaj or other) and any mandated SSO.
+
+---
+
