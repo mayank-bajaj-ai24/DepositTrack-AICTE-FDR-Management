@@ -16,3 +16,24 @@
 
 ---
 
+## Table of contents
+
+1. [Problem statement](#problem-statement)
+2. [Objectives](#objectives)
+3. [Solution overview](#solution-overview)
+4. [Architecture](#architecture)
+5. [Instrument lifecycle](#instrument-lifecycle)
+6. [Key concepts](#key-concepts)
+7. [Modules](#modules)
+8. [Tech stack](#tech-stack)
+9. [Expected outcomes](#expected-outcomes)
+10. [Test scenarios](#test-scenarios)
+11. [Progress](#progress)
+12. [Work to be done](#work-to-be-done)
+13. [Repository structure](#repository-structure)
+14. [Research basis](#research-basis)
+15. [Open questions](#open-questions)
+16. [License](#license)
+
+---
+
