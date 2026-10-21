@@ -16,6 +16,7 @@ class ExtractedField:
     raw: str
     normalized: str
     confidence: float
+    box: tuple[int, int, int, int] | None = None  # OCR line the value was read from
 
 
 @lru_cache
@@ -91,10 +92,12 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
     rows = _rows(usable, rules["row_tolerance_px"])
     out: dict[str, ExtractedField] = {}
 
-    def keep(field: str, raw: str, score: float) -> None:
+    def keep(field: str, raw: str, score: float, box=None) -> None:
         normalized = _normalize(field, raw, rules)
         if normalized and field not in out:
-            out[field] = ExtractedField(raw=raw, normalized=normalized, confidence=round(score, 3))
+            out[field] = ExtractedField(
+                raw=raw, normalized=normalized, confidence=round(score, 3), box=box
+            )
 
     for field, spec in rules["fields"].items():
         # 1. caption on a line; value after it on the same line or the next line in the row
@@ -103,14 +106,12 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
                 for index, line in enumerate(row):
                     if not line.text.lower().startswith(caption.lower()):
                         continue
-                    candidates = [_strip_caption(line.text, caption)]
-                    candidates += [other.text for other in row[index + 1 :]]
-                    for candidate, score in zip(
-                        candidates, [line.score] + [o.score for o in row[index + 1 :]], strict=True
-                    ):
+                    sources = [(_strip_caption(line.text, caption), line)]
+                    sources += [(other.text, other) for other in row[index + 1 :]]
+                    for candidate, source in sources:
                         value = _match_pattern(spec, candidate) if candidate else None
                         if value:
-                            keep(field, value, score)
+                            keep(field, value, source.score, source.box)
                             break
             if field in out:
                 break
@@ -122,20 +123,20 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
             if any(text.startswith(k.lower()) for k in spec.get("starts_with", [])) or any(
                 k.lower() in text for k in spec.get("contains", [])
             ):
-                keep(field, line.text, line.score)
+                keep(field, line.text, line.score, line.box)
                 break
         if field in out:
             continue
         # 3. positional rule
         if spec.get("position") == "top" and usable:
             top = min(usable, key=lambda line: line.box[1])
-            keep(field, top.text, top.score)
+            keep(field, top.text, top.score, top.box)
             continue
         # 4. pattern anywhere on the page
         if spec.get("search_anywhere"):
             for line in usable:
                 value = _match_pattern(spec, line.text)
                 if value:
-                    keep(field, value, line.score * 0.9)  # weaker: no caption context
+                    keep(field, value, line.score * 0.9, line.box)  # weaker: no caption context
                     break
     return out

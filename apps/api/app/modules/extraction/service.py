@@ -11,6 +11,8 @@ from PIL import Image
 from app.modules.extraction import layoutlm
 from app.modules.extraction.ocr import OcrLine, run_ocr
 from app.modules.extraction.rules import _normalize, extract_fields
+from app.modules.forgery import model as forgery_model
+from app.modules.forgery.model import ForgeryResult
 
 FIELDS = (
     "fdr_no",
@@ -43,6 +45,7 @@ class ExtractionResult:
     fields: dict[str, FieldResult] = field(default_factory=dict)
     pass_a_available: bool = False
     ocr_lines: list[OcrLine] = field(default_factory=list)
+    forgery: ForgeryResult | None = None
 
 
 def extract(image: Image.Image, rules: dict, models_dir: str) -> ExtractionResult:
@@ -50,7 +53,12 @@ def extract(image: Image.Image, rules: dict, models_dir: str) -> ExtractionResul
     pass_b = extract_fields(lines, rules)
     raw_a = layoutlm.extract(image, lines, models_dir)
     threshold = rules["human_review_below"]
-    result = ExtractionResult(pass_a_available=raw_a is not None, ocr_lines=lines)
+    regions = [(name, f.box) for name, f in pass_b.items() if f.box is not None]
+    result = ExtractionResult(
+        pass_a_available=raw_a is not None,
+        ocr_lines=lines,
+        forgery=forgery_model.score(image, regions, models_dir),
+    )
 
     for name in FIELDS:
         b = pass_b.get(name)
