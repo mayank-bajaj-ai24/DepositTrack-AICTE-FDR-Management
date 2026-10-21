@@ -362,3 +362,87 @@ C(t) = \sum_{i \in \text{valid}(t)} a_i \qquad \text{gap}(t) = \max\big(0,\ R(t)
 
 ---
 
+## 6. System architecture
+
+A modular monolith: one Python backend split by module folders, one web frontend, and one Docker Compose file. Modules can later be split into services.
+
+```mermaid
+flowchart TB
+    subgraph Actors[" "]
+        direction LR
+        A1["Institution portal"]
+        A2["Officer console"]
+        A3["Auditor / public verifier"]
+        A4["Bank issuer (mock)"]
+    end
+
+    GW["API gateway · FastAPI · Keycloak (RBAC + ABAC)"]
+
+    subgraph Core["Core modules"]
+        direction LR
+        M2["M2 Intake + documents"]
+        M7["M7 Lifecycle + coverage"]
+        M8["M8 Alerts + escalation"]
+        M9["M9 Release / discharge / refund"]
+        M10["M10 Dashboard, search, reports"]
+    end
+
+    subgraph Trust["Trust modules"]
+        direction LR
+        M3["M3 Extraction (dual-pass)"]
+        M4["M4 Rules, discrepancy, forgery"]
+        M5["M5 Bank verification + credentials"]
+        M6["M6 Audit chain + anchoring"]
+    end
+
+    subgraph Intel["Intelligence modules"]
+        direction LR
+        M11["M11 Risk models + assistant"]
+        M13["M13 Conformance replay"]
+    end
+
+    subgraph Stores[" "]
+        direction LR
+        D1["PostgreSQL + pgvector"]
+        D2["MinIO (encrypted files)"]
+        D3["immudb (anchors, proofs)"]
+        D4["Redis + Celery (jobs, schedules)"]
+    end
+
+    Actors --> GW --> Core
+    GW --> Trust
+    GW --> Intel
+    Core --> Stores
+    Trust --> Stores
+    Intel --> Stores
+```
+
+### 6.1 Data flow for one submission
+
+1. The institution uploads a scan and types (or accepts) key fields. The gateway checks role + attributes. M2 stores the file encrypted in MinIO and records its SHA-256 and version in PostgreSQL.
+2. M3 runs dual-pass extraction. Disagreements and low-confidence fields go back to the user for confirmation.
+3. M4 runs completeness rules, policy rules, the duplicate key, forgery signals and the risk score. It writes flags (fact, rule, clause, reason). Trust rises to L1 if clean.
+4. M5 verifies the bank credential, or opens a manual verification task with an SLA timer. Trust rises to L3 on a match.
+5. M7 allocates the instrument to its obligation, recomputes coverage and schedules maturity milestones. M8 plans reminders.
+6. Every step writes an audit event (M6). Anchoring runs on schedule.
+
+### 6.2 Tech stack
+
+| Layer | Choice | Reason |
+| --- | --- | --- |
+| Frontend | Next.js + React, Tailwind, shadcn/ui, Recharts | Fast to build accessible dashboards |
+| API | FastAPI (Python 3.11), Pydantic | Same language as the ML code; auto OpenAPI docs |
+| Auth | Keycloak (OTP/MFA, roles) | SSO-ready; can federate with government SSO later |
+| Jobs | Celery + Redis, Celery beat | Retries for OCR/bank calls; daily lifecycle and coverage sweep |
+| Database | PostgreSQL 16 + pgvector | Relational core plus clause retrieval in one store |
+| Files | MinIO (S3-compatible), server-side encryption | Local and cloud-portable |
+| Tamper evidence | immudb (production option: permissioned ledger, PoA/BFT) | Inclusion/consistency proofs out of the box |
+| OCR / doc AI | docTR or PaddleOCR + `microsoft/layoutlmv3-base` | Open source, CPU inference acceptable |
+| ML | scikit-learn, scikit-image, XGBoost, LightGBM, SHAP, alibi (Anchors) | Matches P4, P5, P6 methods |
+| Credentials | Ed25519 JSON signatures (stretch: W3C VC tooling) | Simple and standards-aligned |
+| Assistant | Retrieval over pgvector + an LLM; `ragas` for evaluation | Cited answers with measured faithfulness |
+| Reports | WeasyPrint (PDF), openpyxl (Excel) | Release letters, scheduled reports |
+| DevOps | Docker Compose, GitHub Actions, pytest, Playwright | One-command demo; tests on every push |
+
+---
+
