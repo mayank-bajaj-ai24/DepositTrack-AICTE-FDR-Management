@@ -26,8 +26,8 @@ from tamper import OPERATIONS, field_regions, recompress, tamper  # noqa: E402
 
 from app.core.configfiles import load_config  # noqa: E402
 from app.modules.extraction.ocr import run_ocr  # noqa: E402
-from app.modules.extraction.rules import extract_fields  # noqa: E402
 from app.modules.forgery.features import FEATURE_NAMES, page_features  # noqa: E402
+from app.modules.forgery.model import text_regions  # noqa: E402
 
 RULES = load_config("extraction.yaml")
 
@@ -41,10 +41,8 @@ def _overlap(a, b) -> float:
 
 
 def runtime_regions(image):
-    """The same regions the API scores: OCR lines that pass B read each field from."""
-    lines = run_ocr(image)
-    fields = extract_fields(lines, RULES)
-    return [(name, f.box) for name, f in fields.items() if f.box is not None]
+    """The same regions the API scores: every OCR text line except watermark fragments."""
+    return text_regions(run_ocr(image), RULES)
 
 
 def build(records: list[Path], seed: int):

@@ -46,6 +46,7 @@ class ExtractionResult:
     pass_a_available: bool = False
     ocr_lines: list[OcrLine] = field(default_factory=list)
     forgery: ForgeryResult | None = None
+    forgery_field: str | None = None  # field read from the suspicious region, if any
 
 
 def extract(image: Image.Image, rules: dict, models_dir: str) -> ExtractionResult:
@@ -53,12 +54,16 @@ def extract(image: Image.Image, rules: dict, models_dir: str) -> ExtractionResul
     pass_b = extract_fields(lines, rules)
     raw_a = layoutlm.extract(image, lines, models_dir)
     threshold = rules["human_review_below"]
-    regions = [(name, f.box) for name, f in pass_b.items() if f.box is not None]
+    regions = forgery_model.text_regions(lines, rules)
     result = ExtractionResult(
         pass_a_available=raw_a is not None,
         ocr_lines=lines,
         forgery=forgery_model.score(image, regions, models_dir),
     )
+    if result.forgery and result.forgery.region_box:
+        result.forgery_field = next(
+            (n for n, f in pass_b.items() if f.box == result.forgery.region_box), None
+        )
 
     for name in FIELDS:
         b = pass_b.get(name)

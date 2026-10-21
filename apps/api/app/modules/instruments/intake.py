@@ -207,7 +207,7 @@ def submit_instrument(
                 FlagSpec(
                     flag_type,
                     checks()["severity"][flag_type],
-                    f"image analysis marks the {forgery.region_text} region as "
+                    f"image analysis marks the region '{forgery.region_text}' as "
                     f"{forgery.band} (score {forgery.score:.2f}); compare with the bank's record",
                     fact={
                         "score": forgery.score,
@@ -216,7 +216,7 @@ def submit_instrument(
                         "box": list(forgery.region_box) if forgery.region_box else None,
                     },
                     rule_id="forgery_signal",
-                    field=forgery.region_text,
+                    field=extraction.forgery_field,
                 )
             )
     for spec in specs:
