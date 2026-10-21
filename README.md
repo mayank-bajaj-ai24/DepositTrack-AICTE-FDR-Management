@@ -12,7 +12,9 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
-> **Current status:** research and design are complete; no application code has been written yet. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in this README are **targets**, not measured results.
+> **Current status:** Phase 1 (foundations) in progress. The backend skeleton, database schema, lifecycle state machine, audit hash chain, synthetic FDR generator, Docker Compose infrastructure and CI exist. The web UI has not been started. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in [Expected outcomes](#expected-outcomes) are **targets**, not measured results.
+>
+> Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
 
 ---
 
@@ -26,14 +28,15 @@
 6. [Key concepts](#key-concepts)
 7. [Modules](#modules)
 8. [Tech stack](#tech-stack)
-9. [Expected outcomes](#expected-outcomes)
-10. [Test scenarios](#test-scenarios)
-11. [Progress](#progress)
-12. [Work to be done](#work-to-be-done)
-13. [Repository structure](#repository-structure)
-14. [Research basis](#research-basis)
-15. [Open questions](#open-questions)
-16. [License](#license)
+9. [Getting started](#getting-started)
+10. [Expected outcomes](#expected-outcomes)
+11. [Test scenarios](#test-scenarios)
+12. [Progress](#progress)
+13. [Work to be done](#work-to-be-done)
+14. [Repository structure](#repository-structure)
+15. [Research basis](#research-basis)
+16. [Open questions](#open-questions)
+17. [License](#license)
 
 ---
 
@@ -160,7 +163,7 @@ flowchart TB
     subgraph Stores["Data stores"]
         direction LR
         D1[("PostgreSQL<br/>+ pgvector")]
-        D2[("MinIO<br/>encrypted files")]
+        D2[("SeaweedFS (S3)<br/>encrypted files")]
         D3[("immudb<br/>anchors, proofs")]
         D4[("Redis + Celery<br/>jobs, schedules")]
     end
@@ -319,7 +322,7 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | Authentication | Keycloak (OTP/MFA, roles) |
 | Background jobs | Celery + Redis, Celery beat |
 | Database | PostgreSQL 16 + pgvector |
-| File storage | MinIO (S3-compatible, server-side encryption) |
+| File storage | SeaweedFS (S3-compatible); replaces MinIO from the plan, which no longer publishes Docker images |
 | Tamper evidence | immudb (permissioned ledger as production option) |
 | OCR / document AI | docTR or PaddleOCR, LayoutLMv3 |
 | Machine learning | scikit-learn, scikit-image, XGBoost, LightGBM, SHAP, alibi (Anchors) |
@@ -327,6 +330,46 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | Assistant | Retrieval over pgvector + LLM, evaluated with ragas |
 | Reports | WeasyPrint (PDF), openpyxl (Excel) |
 | DevOps | Docker Compose, GitHub Actions, pytest, Playwright |
+
+---
+
+## Getting started
+
+Prerequisites: Python 3.11, Docker Desktop (running), Git.
+
+**1. Infrastructure** (PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb):
+
+```bash
+cp infra/.env.example infra/.env
+docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+```
+
+Keycloak imports the `depositrack` realm with seven roles and one development user per role (for example `scrutiny.demo` / `dev-only-scrutiny`). These credentials are for local development only.
+
+**2. Backend**
+
+```bash
+cd apps/api
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+alembic upgrade head             # creates the schema
+uvicorn app.main:app --reload    # http://localhost:8000/docs
+pytest                           # unit tests (no services needed)
+```
+
+Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
+
+**3. Synthetic FDRs**
+
+```bash
+cd ml/synth
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m fdrsynth --count 20 --out ../../data/synthetic
+```
+
+Each sample is a PNG plus a JSON file with field values and word-level boxes and labels for LayoutLMv3. All samples use fictional banks and carry a `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT` watermark.
 
 ---
 
@@ -380,8 +423,8 @@ Every test scenario named in the PS has an automated test:
 | T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Not started |
 | T-10 | Overdue escalation | Escalated to the next role | Not started |
 | T-11 | Dashboard drill-down | Tile numbers match underlying records | Not started |
-| T-12 | Audit integrity | Direct DB edit detected by verifier | Not started |
-| T-13 | Access control | All allow/deny cases pass | Not started |
+| T-12 | Audit integrity | Direct DB edit detected by verifier | In progress: hash-chain tamper detection unit-tested; verifier not built |
+| T-13 | Access control | All allow/deny cases pass | In progress: 28 role-level cases passing; attribute rules (own institution, region) not built |
 | T-14 | Credential forgery | Credential from unknown key rejected | Not started |
 
 ---
@@ -410,16 +453,24 @@ flowchart LR
     P0 --> P1 --> P2 --> G1 --> P3 --> G2 --> P4
 ```
 
-**Phase 0: idea submission** (PS idea deadline listed as 28 Oct 2026)
-- [ ] Presentation built from the plan (summary, objectives, novelty)
+**Phase 0: idea submission** (PS idea deadline listed as 28 Oct 2026; on hold)
+- [ ] Presentation built from the plan (summary, objectives, novelty), using the official SIH 2026 idea template
 - [ ] Architecture diagram for the submission
 - [ ] Demo storyboard
 
 **Phase 1: foundations**
-- [ ] Repository scaffolding, CI, Docker Compose
-- [ ] Login with all roles (M1)
-- [ ] Database schema and migrations
-- [ ] Synthetic FDR generator, first batch rendered
+- [x] Contributor and AI agent rules ([AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md))
+- [x] Docker Compose for PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb (config validated; stack not yet run end to end)
+- [x] CI: backend lint + tests + migrations on PostgreSQL, generator lint + tests, compose check
+- [x] Backend skeleton: settings, health, policy status, `/api/v1/me`
+- [x] Keycloak realm with seven roles and development users; token verification and role-based permission checks (M1, backend side)
+- [x] Database schema for all 15 plan tables, with initial Alembic migration
+- [x] Lifecycle state machine with tests for every legal and illegal transition (M7 core)
+- [x] Audit hash chain and Merkle root with tamper-detection tests (M6 core)
+- [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
+- [x] Synthetic FDR generator (watermarked images + word-level labels)
+- [ ] Web app scaffold and login screen (waiting for taste-skill plugin)
+- [ ] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
 
 **Phase 2: core lifecycle**
@@ -452,12 +503,13 @@ flowchart LR
 
 Immediate next steps, in order:
 
-1. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
-2. **Scaffold the repository:** `apps/web`, `apps/api`, `ml/`, `services/mock-bank`, `infra/docker-compose.yml`, `tests/`, plus CI.
-3. **Data model first:** create migrations for institution, obligation, instrument, coverage, field_value, document, attestation, flag, observation, case, event, anchor, policy_version, ifsc_lineage, field_permission.
-4. **Synthetic data:** FDR template renderer with scan artefacts; event-log simulator.
-5. **Core vertical slice:** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
-6. **Prepare the idea submission** for the PS deadline.
+1. **Run the Docker stack end to end** and confirm Keycloak login, PostgreSQL migrations and SeaweedFS bucket access locally.
+2. **Web app scaffold** (`apps/web`, Next.js) with Keycloak login, built with the taste-skill plugin.
+3. **Attribute-based access rules** on top of the role matrix (own institution, region, own bank).
+4. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
+5. **Event-log simulator** for the renewal-risk model (N9) and conformance replay (N10).
+6. **Core vertical slice (Phase 2):** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
+7. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
@@ -471,26 +523,43 @@ Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-mo
 DepositTrack-AICTE-FDR-Management/
   README.md
   IMPLEMENTATION_PLAN.md
+  AGENTS.md                  # rules for contributors and AI agents
+  CLAUDE.md                  # Claude Code entry point (imports AGENTS.md)
   LICENSE
+  .github/workflows/ci.yml   # lint, tests, migrations, compose check
+  apps/
+    api/                     # FastAPI backend
+      app/
+        core/                # settings, permissions, token verification, policy loader
+        db/                  # declarative base, session
+        models/              # 15 tables from plan §7.2
+        modules/
+          auth/              # /api/v1/me
+          lifecycle/         # states, trust levels, state machine
+          audit/             # hash chain, Merkle root
+      alembic/               # migrations
+      config/                # policy.example.yaml (AICTE values unconfirmed)
+      tests/
+  ml/
+    synth/                   # synthetic FDR generator (fdrsynth)
+  infra/
+    docker-compose.yml
+    keycloak/                # realm import
+    postgres/                # init SQL (pgvector)
+    seaweedfs/               # S3 identity config
   research/
-    README.md
-    krrish/          # 8 papers + earlier implementation plan (FDR Guardian)
-    Mayank_Kathe/    # 7 papers + research notes
+    krrish/                  # 8 papers + earlier implementation plan (FDR Guardian)
+    Mayank_Kathe/            # 7 papers + research notes
 ```
 
 **Planned additions:**
 
 ```
-  apps/
-    web/             # Next.js: institution, officer, auditor, verifier UIs
-    api/             # FastAPI modules + Celery workers
-  ml/                # synthetic data, LayoutLMv3, forgery, risk models, RAG
-  services/
-    mock-bank/       # issues and revokes signed FDR credentials
-  infra/
-    docker-compose.yml
-  docs/              # ADRs, API spec, dataset cards
-  tests/             # pytest + Playwright, SIH scenario suite
+  apps/web/                  # Next.js: institution, officer, auditor, verifier UIs
+  apps/api/app/workers/      # Celery tasks and schedules
+  ml/                        # LayoutLMv3, forgery, risk models, RAG
+  services/mock-bank/        # issues and revokes signed FDR credentials
+  docs/                      # ADRs, API spec, dataset cards
 ```
 
 ---
