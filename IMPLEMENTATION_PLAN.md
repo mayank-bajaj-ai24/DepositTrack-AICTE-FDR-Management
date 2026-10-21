@@ -700,3 +700,38 @@ These targets are the team's goals, not results. Report the measured values.
 
 ---
 
+## 10. Security, privacy and compliance
+
+Controls are organised under the five IDMS properties from P7.
+
+| Property | Controls |
+| --- | --- |
+| Authentication | Keycloak with OTP/MFA for officers; short-lived tokens; bank services use mutual TLS + signed requests; no shared accounts |
+| Integrity | SHA-256 per file; per-instrument hash chain; Merkle anchoring; signature check against a pinned bank-key registry; key rotation |
+| Privacy | Encryption at rest (object storage SSE, column encryption for sensitive fields) and TLS in transit; field masking by role; data minimisation in credentials |
+| Trust | Trust Ladder; every officer action has a reason; overrides surfaced on the dashboard; AI outputs advisory only |
+| Simplicity | Institution flow is three screens (upload → confirm → submit); officers get daily digests |
+
+### Threats and defences
+
+| Threat | Defence |
+| --- | --- |
+| Edited scan (amount/date) | Forgery signals + mismatch against bank credential |
+| Same FDR pledged twice / near-duplicate | Canonical key + fuzzy match (N7) |
+| FDR closed early after submission | Live re-check + freshness decay (N4) |
+| Insider silently edits a record | Hash chain + anchoring; verifier shows the break |
+| Fake bank credential | Pinned bank public keys; unknown keys rejected |
+| Prompt injection via uploads | Assistant reads only the curated corpus and structured fields; no state changes |
+| Vulnerable code in trust components | Code review + dependency scanning in CI (P9's "audit before release, monitor after") |
+
+### Compliance points (to be confirmed with AICTE's IT and legal teams)
+
+- **Digital Personal Data Protection Act, 2023:** purpose limitation, retention schedule and a grievance contact for personal data of institution contacts.
+- **IT Act, 2000:** e-signing of release letters by the competent authority in production.
+- **Government hosting and security:**
+  - hosting on government cloud (e.g. NIC / MeghRaj);
+  - CERT-In incident reporting;
+  - GIGW accessibility guidelines for the UI.
+
+---
+
