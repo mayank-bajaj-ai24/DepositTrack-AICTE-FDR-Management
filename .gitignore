@@ -23,7 +23,7 @@ out/
 !.env.example
 
 # Generated data (synthetic samples are reproducible from ml/synth)
-data/
+/data/
 
 # Editors and OS
 .vscode/
