@@ -50,3 +50,65 @@ The build has three layers:
 
 ---
 
+## 2. The problem, in AICTE's own words
+
+### 2.1 Background (summarised from the PS)
+
+AICTE may require technical institutions to submit or maintain security deposits / FDRs as part of approval and compliance. The work involves:
+
+- keeping institution-wise records;
+- verifying the submitted instruments;
+- monitoring validity and maturity;
+- tracking renewal or replacement;
+- recording release and refund requests;
+- keeping documents available for regulatory verification.
+
+Today this runs on fragmented records, manual correspondence and multiple trackers. As a result, nobody has an accurate, current view of deposit status, pending actions and deadlines.
+
+### 2.2 Every requirement stated in the PS
+
+The ten numbered capabilities are listed in §3. The *Detailed Description* also asks for the following, which are easy to miss and are tracked as explicit requirements here:
+
+| ID | Requirement (PS wording, condensed) |
+| --- | --- |
+| R-a | Records include reference numbers, issuing bank details, amount, issue date, maturity date, validity status, supporting documents, current administrative status |
+| R-b | Verify through *legitimate bank-issued verification mechanisms wherever supported* |
+| R-c | Identify **incomplete records** and flag discrepancies |
+| R-d | **Distinguish institution-submitted vs bank/financial-source-confirmed** information |
+| R-e | Track maturity, validity, renewal/replacement and *other prescribed timelines* |
+| R-f | **Configurable** reminders; overdue/unresolved cases flagged for follow-up |
+| R-g | Release, **discharge** or refund, subject to regulations, prescribed conditions and **competent-authority authorization** |
+| R-h | Dashboard: active, expiring, matured, renewed, released, pending |
+| R-i | Users can **search records, review document histories, update permitted fields, record scrutiny observations, monitor case status** |
+| R-j | Automated reports: pending verifications, upcoming maturities, **missing documents**, cases requiring intervention |
+| R-k | Role-based access, secure storage, encryption, audit trails, controlled access |
+| R-l | Integration with AICTE systems and bank verification *where technically feasible and formally authorized*, to reduce duplicate entry |
+
+### 2.3 Evaluation criteria in the PS
+
+- **Measurable improvements** in five areas:
+  - record accuracy;
+  - verification turnaround time;
+  - timely renewal monitoring;
+  - reduction in manual tracking effort;
+  - visibility into pending cases.
+- **Test scenarios:** new FDR submission, validity tracking, approaching maturity, renewal, discrepancy identification, authorized release processing.
+
+§11 maps every one of these to an automated test and a measured KPI.
+
+### 2.4 Actors
+
+| Actor | Role in DepositTrack |
+| --- | --- |
+| Institution user | Submits instruments, confirms extracted fields, responds to queries, requests renewal/release, sees own status |
+| Scrutiny officer (Regulation Bureau) | Reviews submissions, records scrutiny observations, raises/clears discrepancies |
+| Verifying officer / Finance | Triggers and records bank verification |
+| Competent authority | Approves release/discharge/refund; any override needs a recorded reason |
+| Bank (integration actor) | Issues signed confirmation; confirms lien marking and lien removal |
+| Auditor | Read-only access to full history and integrity proofs |
+| System admin | Users, roles, rule configuration, reminder schedules, master data |
+
+The exact officer hierarchy and delegation levels are **not** stated in the PS (see §14).
+
+---
+
