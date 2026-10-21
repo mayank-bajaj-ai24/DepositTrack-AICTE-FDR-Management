@@ -387,8 +387,8 @@ Each sample is a PNG plus a JSON file with field values and word-level boxes and
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.875 (180 synthetic test pages; copy-paste 0.53) | Below target |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 5.4% | Slightly above target |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
-| Renewal risk | AUC | ≥ 0.80 | 0.789 (simulated event logs, 180 test institutions) | Below target |
-| Renewal risk | Mean warning lead time | ≥ 21 days | 47 days (at 0.7 alarm threshold; 45% of late renewals caught, 0% false alarms at T-30) | Met for lead time |
+| Renewal risk | AUC | ≥ 0.80 | 0.780 (simulated event logs; 300 held-out institutions, early stopping on a separate validation set) | Below target; likely limited by the simulator's random lateness |
+| Renewal risk | Mean warning lead time | ≥ 21 days | 26 days (at the 0.7 alarm threshold; 33% of late renewals caught, 0% false alarms at T-30) | Met for lead time |
 | Officer assistant | RAGAS faithfulness | ≥ 0.85 | — | Not built (skipped for the prototype) |
 | Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 cases, plus scoping tests | Met |
 
