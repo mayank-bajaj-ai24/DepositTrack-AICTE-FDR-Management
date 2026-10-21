@@ -12,7 +12,7 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
-> **Current status:** Phase 1 (foundations) in progress. The backend skeleton, database schema, lifecycle state machine, audit hash chain, synthetic FDR generator, Docker Compose infrastructure and CI exist. The web UI has not been started. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in [Expected outcomes](#expected-outcomes) are **targets**, not measured results.
+> **Current status:** prototype built end to end in code — backend (all modules M1–M10, M13), mock bank, ML components and the bilingual web app. Automated tests pass; the live stack (Docker) and the UI have not yet been run together. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in [Expected outcomes](#expected-outcomes) are **targets**, not measured results.
 >
 > Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
 
@@ -408,24 +408,24 @@ For the five areas the PS asks the prototype to improve, the plan measures a man
 
 ## Test scenarios
 
-Every test scenario named in the PS has an automated test:
+Every test scenario named in the PS has an automated test. "API" tests run the real API with an in-memory database, a fake OCR result and an in-process bank that signs with real Ed25519 keys; the live Docker stack and the browser UI have not yet been run together.
 
 | ID | Scenario | Pass condition | Status |
 | --- | --- | --- | --- |
-| T-01 | New FDR submission | Stored, hashed, versioned; fields extracted; L1 when clean | Not started |
-| T-02 | Repository completeness | All required fields stored and searchable | Not started |
-| T-03 | Validity tracking | Every instrument in the correct state | Not started |
-| T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Not started |
-| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Not started |
-| T-06 | Incomplete record | Flagged; listed in missing-documents report | Not started |
-| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Not started |
-| T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Not started |
-| T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Not started |
-| T-10 | Overdue escalation | Escalated to the next role | Not started |
-| T-11 | Dashboard drill-down | Tile numbers match underlying records | Not started |
-| T-12 | Audit integrity | Direct DB edit detected by verifier | In progress: hash-chain tamper detection unit-tested; verifier not built |
-| T-13 | Access control | All allow/deny cases pass | In progress: 28 role-level cases passing; attribute rules (own institution, region) not built |
-| T-14 | Credential forgery | Credential from unknown key rejected | Not started |
+| T-01 | New FDR submission | Stored, hashed, versioned; fields extracted; L1 when clean | Passing (API end-to-end test) |
+| T-02 | Repository completeness | All required fields stored and searchable | Passing (API: fields, search and filters) |
+| T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
+| T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
+| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal measured on synthetic data, see [Expected outcomes](#expected-outcomes) |
+| T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
+| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants) |
+| T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
+| T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
+| T-10 | Overdue escalation | Escalated to the next role | Passing (API: overdue alert to competent authority) |
+| T-11 | Dashboard drill-down | Tile numbers match underlying records | Passing for API counts; UI drill-down not yet tested in a browser |
+| T-12 | Audit integrity | Direct DB edit detected by verifier | Passing (API: chain break and anchor mismatch detected) |
+| T-13 | Access control | All allow/deny cases pass | Passing (28 role cases + institution and regional scoping) |
+| T-14 | Credential forgery | Credential from unknown key rejected | Passing (API) |
 
 ---
 
@@ -438,6 +438,8 @@ Every test scenario named in the PS has an automated test:
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
+- [x] Backend: 291 automated tests (unit + end-to-end API flows), lint clean
+- [x] LayoutLMv3 fine-tuning notebook for a GPU runtime (to be run by the team)
 
 ### Roadmap
 
@@ -469,31 +471,31 @@ flowchart LR
 - [x] Audit hash chain and Merkle root with tamper-detection tests (M6 core)
 - [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
 - [x] Synthetic FDR generator (watermarked images + word-level labels)
-- [ ] Web app scaffold and login screen (waiting for taste-skill plugin)
-- [ ] Attribute-based access rules (own institution, region, own bank)
+- [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
+- [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
 
 **Phase 2: core lifecycle**
-- [ ] Upload and document storage (M2)
-- [ ] Extraction with auto-fill (M3)
-- [ ] Completeness and policy rules with reasons (M4)
-- [ ] State machine and coverage sweep (M7)
-- [ ] Reminders and escalation (M8)
-- [ ] Dashboard tiles with drill-down (M10)
-- [ ] **Gate:** full story from upload to maturity reminder works
+- [x] Upload and encrypted, versioned document storage (M2)
+- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A plugs in when the Colab-trained model is added (M3)
+- [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
+- [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
+- [x] Reminders once per threshold, overdue / coverage-gap / time-box escalation (M8)
+- [x] Dashboard with drill-down, reports as Excel/CSV (M10)
+- [ ] **Gate:** full story from upload to maturity reminder works — passes in the API's end-to-end tests; not yet run on the live stack and UI (needs Docker)
 
 **Phase 3: trust layer**
-- [ ] Signed bank credential and Trust Ladder up to L3, with freshness decay (M5)
-- [ ] Hash chain, anchoring and verifier page (M6)
-- [ ] Release / discharge / refund workflow with checklist and letter (M9)
-- [ ] Duplicate and IFSC-lineage checks (M4)
-- [ ] Forgery baseline (M4)
+- [x] Signed bank credential via the mock bank, pinned keys, Trust Ladder up to L4 with freshness decay (M5, N3, N4)
+- [x] Hash chain, Merkle anchoring (optional immudb receipt) and file verifier (M6)
+- [x] Release / discharge / refund workflow with policy checklist, mandatory reason, release letter PDF and bank lien removal (M9, N5)
+- [x] Double-pledge and near-duplicate detection with IFSC lineage (N7)
+- [x] Forgery signal: RGB-GLCM + ELA + copy-move features, SVM classifier on synthetic tampering (N6)
 - [ ] **Gate:** feature freeze
 
 **Phase 4: intelligence and demo readiness**
-- [ ] Renewal-risk model with reasons (M11)
-- [ ] Conformance replay (M13)
-- [ ] Officer assistant with RAGAS score (M11)
+- [x] Renewal-risk model (LightGBM) with SHAP reasons, scored in the sweep (N9)
+- [x] Procedural conformance replay with proposed constraints (N10)
+- [ ] Officer assistant with RAGAS score (M11) — skipped for the prototype by decision
 - [ ] Manual-vs-portal timing runs; fill in [Expected outcomes](#expected-outcomes)
 - [ ] Recorded backup demo video
 
