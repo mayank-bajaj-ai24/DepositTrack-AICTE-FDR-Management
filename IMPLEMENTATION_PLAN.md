@@ -869,3 +869,34 @@ The PS does not specify these. The plan keeps each one configurable and does **n
 
 ---
 
+## 15. Repository layout
+
+```
+DepositTrack-AICTE-FDR-Management/
+  README.md
+  IMPLEMENTATION_PLAN.md       # this document
+  research/                    # papers and research notes
+  apps/
+    web/                       # Next.js: institution, officer, auditor, verifier UIs
+    api/                       # FastAPI
+      modules/
+        auth/ intake/ extraction/ checks/ bank/ audit/
+        lifecycle/ coverage/ alerts/ release/ reports/
+        risk/ assistant/ conformance/ integration/
+      workers/                 # Celery tasks and beat schedules
+  ml/
+    synth/                     # FDR template renderer + scan artefacts
+    layoutlm/                  # fine-tune and inference
+    forgery/                   # GLCM features, ELA, classifiers
+    risk/                      # event-log simulator, LightGBM, SHAP, Anchors
+    rag/                       # clause ingestion, retrieval, RAGAS eval
+  services/
+    mock-bank/                 # issues and revokes signed FDR credentials
+  infra/
+    docker-compose.yml         # postgres, minio, redis, immudb, keycloak
+  docs/                        # ADRs, API spec, dataset cards
+  tests/                       # pytest + Playwright; SIH scenario suite (§11)
+```
+
+---
+
