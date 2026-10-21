@@ -527,3 +527,6 @@ The PS does not specify the following, so DepositTrack keeps them configurable r
 
 ---
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
