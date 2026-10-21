@@ -76,7 +76,7 @@ def dataset(institutions: list[Institution], seed: int, points=DECISION_POINTS):
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", type=Path, default=ROOT / "models")
-    parser.add_argument("--institutions", type=int, default=600)
+    parser.add_argument("--institutions", type=int, default=1500)
     parser.add_argument("--seed", type=int, default=11)
     parser.add_argument("--alarm-threshold", type=float, default=0.7)
     args = parser.parse_args()
@@ -85,14 +85,35 @@ def main() -> None:
     from sklearn.metrics import mean_absolute_error, roc_auc_score
 
     institutions = simulate(args.institutions, args.seed)
-    split = int(len(institutions) * 0.7)
-    X_tr, yc_tr, yr_tr, _ = dataset(institutions[:split], args.seed)
-    X_te, yc_te, yr_te, g_te = dataset(institutions[split:], args.seed + 1)
+    n = len(institutions)
+    train_end, val_end = int(n * 0.6), int(n * 0.8)
+    X_tr, yc_tr, yr_tr, _ = dataset(institutions[:train_end], args.seed)
+    X_va, yc_va, yr_va, _ = dataset(institutions[train_end:val_end], args.seed + 2)
+    X_te, yc_te, yr_te, g_te = dataset(institutions[val_end:], args.seed + 1)
 
-    params = {"objective": "binary", "learning_rate": 0.05, "num_leaves": 15, "min_data_in_leaf": 40, "verbose": -1, "seed": args.seed}
-    classifier = lgb.train(params, lgb.Dataset(X_tr, yc_tr, feature_name=FEATURE_NAMES), num_boost_round=300)
+    params = {
+        "objective": "binary",
+        "learning_rate": 0.03,
+        "num_leaves": 15,
+        "min_data_in_leaf": 120,
+        "feature_fraction": 0.8,
+        "bagging_fraction": 0.8,
+        "bagging_freq": 1,
+        "lambda_l2": 5.0,
+        "verbose": -1,
+        "seed": args.seed,
+    }
+    stop = [lgb.early_stopping(50, verbose=False)]
+    train_set = lgb.Dataset(X_tr, yc_tr, feature_name=FEATURE_NAMES)
+    classifier = lgb.train(
+        params, train_set, num_boost_round=2000, valid_sets=[lgb.Dataset(X_va, yc_va, reference=train_set)], callbacks=stop
+    )
     reg_params = params | {"objective": "regression_l1"}
-    regressor = lgb.train(reg_params, lgb.Dataset(X_tr, yr_tr, feature_name=FEATURE_NAMES), num_boost_round=300)
+    reg_set = lgb.Dataset(X_tr, yr_tr, feature_name=FEATURE_NAMES)
+    regressor = lgb.train(
+        reg_params, reg_set, num_boost_round=2000, valid_sets=[lgb.Dataset(X_va, yr_va, reference=reg_set)], callbacks=stop
+    )
+    split = train_end
 
     p = classifier.predict(X_te)
     auc = roc_auc_score(yc_te, p)
@@ -115,7 +136,9 @@ def main() -> None:
     metrics = {
         "data": "synthetic (simulated event logs)",
         "institutions_train": split,
-        "institutions_test": len(institutions) - split,
+        "institutions_validation": val_end - train_end,
+        "institutions_test": n - val_end,
+        "boosting_rounds": classifier.best_iteration,
         "auc": round(float(auc), 4),
         "regressor_mae_days": round(float(mae), 2),
         "alarm_threshold": args.alarm_threshold,
