@@ -900,3 +900,27 @@ DepositTrack-AICTE-FDR-Management/
 
 ---
 
+## 16. References
+
+Papers in `research/krrish/`:
+
+1. Ahmadisheykhsarmast, S., Sonmez, R. (2020). A smart contract system for security of payment of construction contracts. *Automation in Construction*, 120, 103401. https://doi.org/10.1016/j.autcon.2020.103401
+2. Elloh Adja, Y. C., Hammi, B., Serhrouchni, A., Zeadally, S. (2021). A blockchain-based certificate revocation management and status verification system. *Computers & Security*, 104, 102209. https://doi.org/10.1016/j.cose.2021.102209
+3. Huang, Y., Lv, T., Cui, L., Lu, Y., Wei, F. (2022). LayoutLMv3: Pre-training for Document AI with Unified Text and Image Masking. *ACM MM '22*. https://doi.org/10.1145/3503161.3548112
+4. Gornale, S. S., Patil, G., Benne, R. (2022). Document Image Forgery Detection Using RGB Color Channel. *Transactions on Machine Learning and Artificial Intelligence*, 10(5). https://doi.org/10.14738/tmlai.105.13126
+5. Rama-Maneiro, E., Vidal, J. C., Lama, M. (2023). Deep Learning for Predictive Business Process Monitoring: Review and Benchmark. *IEEE Transactions on Services Computing*. https://doi.org/10.1109/TSC.2021.3139807
+6. Thanathamathee, P., Sawangarreerak, S., Chantamunee, S., Mohd Nizam, D. N. (2024). SHAP-Instance Weighted and Anchor Explainable AI: Enhancing XGBoost for Financial Fraud Detection. *Emerging Science Journal*, 8(6). https://doi.org/10.28991/ESJ-2024-08-06-016
+7. Ahmed, M. R., Islam, A. K. M. M., Shatabda, S., Islam, S. (2022). Blockchain-Based Identity Management System and Self-Sovereign Identity Ecosystem: A Comprehensive Survey. *IEEE Access*. https://doi.org/10.1109/ACCESS.2022.3216643
+8. Es, S., James, J., Espinosa-Anke, L., Schockaert, S. (2024). RAGAS: Automated Evaluation of Retrieval Augmented Generation. *EACL 2024 System Demonstrations*. https://aclanthology.org/2024.eacl-demo.16
+
+Papers in `research/Mayank_Kathe/`:
+
+9. Wu, H., Yao, Q., Liu, Z., Huang, B., Zhuang, Y., Tang, H., Liu, E. (2024). Blockchain for Finance: A Survey. *arXiv:2402.17219*. https://arxiv.org/abs/2402.17219
+10. Rawat, A., Rahman, H. U. (2023). Smart Contract Based Approach for Fixed Deposit in Blockchain Networks with Remix IDE. *IJCRT*, 11(5).
+11. Klessascheck, F., Pufahl, L. (2025). Reviewing Uses of Regulatory Compliance Monitoring. *arXiv:2501.10362* (v5). https://arxiv.org/abs/2501.10362
+12. Wan, X., Deng, H., Zou, K., Xu, S. (2024). Enhancing the Efficiency and Accuracy of Underlying Asset Reviews in Structured Finance: The Application of Multi-agent Framework. *arXiv:2405.04294*. https://arxiv.org/abs/2405.04294
+13. Islam, M. M., Salekin, M. S., King, J., Roy, P., et al. (2026). IDP Accelerator: Agentic Document Intelligence from Extraction to Compliance Validation. *arXiv:2602.23481*. https://arxiv.org/abs/2602.23481
+14. Khanvilkar, K., Kommuru, K. (2025). Regulatory Graphs and GenAI for Real-Time Transaction Monitoring and Compliance Explanation in Banking. *arXiv:2506.01093*. https://arxiv.org/abs/2506.01093
+15. Keating, L. (2024). Blockchain-Enabled Audit Trails for Compliance and Security in Cloud-Based Payment Systems. Preprint (no venue listed).
+
+Indian systems mentioned as precedents (electronic bank guarantees, bank-to-bank BG advice, Account Aggregator, DigiLocker) and open-source tools (immudb, docTR, PaddleOCR, Keycloak, ragas, Augraphy) should be re-checked at their official sites before they are cited in the submission.
