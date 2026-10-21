@@ -310,3 +310,23 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 
 ---
 
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Frontend | Next.js, React, Tailwind CSS, shadcn/ui, Recharts |
+| Backend API | FastAPI (Python 3.11), Pydantic |
+| Authentication | Keycloak (OTP/MFA, roles) |
+| Background jobs | Celery + Redis, Celery beat |
+| Database | PostgreSQL 16 + pgvector |
+| File storage | MinIO (S3-compatible, server-side encryption) |
+| Tamper evidence | immudb (permissioned ledger as production option) |
+| OCR / document AI | docTR or PaddleOCR, LayoutLMv3 |
+| Machine learning | scikit-learn, scikit-image, XGBoost, LightGBM, SHAP, alibi (Anchors) |
+| Credentials | Ed25519 signed JSON |
+| Assistant | Retrieval over pgvector + LLM, evaluated with ragas |
+| Reports | WeasyPrint (PDF), openpyxl (Excel) |
+| DevOps | Docker Compose, GitHub Actions, pytest, Playwright |
+
+---
+
