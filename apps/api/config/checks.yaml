@@ -1,0 +1,27 @@
+# Discrepancy rules (M4). These are system design settings, not AICTE rules; AICTE values
+# (amounts, wording, accepted kinds) come from the policy file.
+
+required_fields: [fdr_no, bank, ifsc, amount, issue_date, maturity_date]
+required_documents: [scan]
+
+# Declared vs extracted comparison: fields compared and how strictly.
+compare_fields: [fdr_no, ifsc, amount, issue_date, maturity_date]
+
+# Near-duplicate detection (N7): instrument numbers at this edit distance or less, at the
+# same canonical bank, are flagged for review.
+near_duplicate_max_distance: 1
+
+severity:
+  missing_field: high
+  missing_document: high
+  declared_mismatch: high
+  amount_words_mismatch: high
+  invalid_ifsc: medium
+  dates_inconsistent: high
+  duplicate_pledge: critical
+  near_duplicate: medium
+  kind_not_accepted: high
+  amount_below_requirement: high
+  beneficiary_wording_missing: medium
+  forgery_suspected: high
+  bank_mismatch: critical

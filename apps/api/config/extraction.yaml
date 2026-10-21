@@ -1,0 +1,48 @@
+# Rules for pass B of field extraction (M3, N6): OCR lines -> FDR fields.
+# Captions are matched case-insensitively at the start of an OCR line; the value is the
+# next line on the same row to the right, or the text after the caption on the same line.
+# Patterns validate (and, where no caption is found, search for) a field's value.
+
+row_tolerance_px: 18          # lines whose vertical centres differ by less than this share a row
+human_review_below: 0.8       # route a field to human confirmation below this confidence (P13 default)
+
+ignore_lines_containing:      # watermark text that is never a field value
+  - "SYNTHETIC SAMPLE"
+  - "NOT A REAL"
+ignore_lines_equal:           # watermark fragments OCR may read on their own
+  - "INSTRUMENT"
+  - "SYNTHETIC"
+  - "SAMPLE"
+
+fields:
+  fdr_no:
+    captions: ["FDR No", "FDR Number", "Receipt No", "Deposit No", "TDR No"]
+    pattern: "^[A-Z0-9/-]{6,20}$"
+  ifsc:
+    captions: ["IFSC", "IFSC Code"]
+    pattern: "[A-Z]{4}0[A-Z0-9]{6}"
+    search_anywhere: true
+  amount:
+    captions: ["Amount", "Deposit Amount", "Principal"]
+    pattern: "(?:Rs\\.?|INR|₹)\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?"
+    search_anywhere: true
+  amount_words:
+    starts_with: ["Rupees"]
+  issue_date:
+    captions: ["Date of Deposit", "Deposit Date", "Date of Issue", "Issue Date"]
+    pattern: "[0-3]?[0-9][/.-][01]?[0-9][/.-](?:19|20)[0-9]{2}"
+  maturity_date:
+    captions: ["Date of Maturity", "Maturity Date", "Due Date"]
+    pattern: "[0-3]?[0-9][/.-][01]?[0-9][/.-](?:19|20)[0-9]{2}"
+  depositor:
+    captions: ["Depositor", "Name of Depositor", "Depositor Name"]
+  beneficiary:
+    captions: ["Beneficiary", "In favour of"]
+  lien_text:
+    contains: ["lien"]
+  branch:
+    contains: ["branch"]
+  bank:
+    position: top             # the topmost text line on the receipt
+
+date_formats: ["%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y"]

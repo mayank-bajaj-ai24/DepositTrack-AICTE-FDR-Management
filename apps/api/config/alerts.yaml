@@ -1,0 +1,16 @@
+# Alert and escalation settings (M8, N9). System design settings, not AICTE rules.
+# Reminder thresholds and the escalation chain come from the policy file.
+
+# Renewal-risk early escalation (N9): when the predicted probability of missing the
+# renewal is at least this value, escalate this many days before maturity.
+risk_escalation_threshold: 0.7
+risk_escalation_days_before_maturity: 30
+
+# Who is told about what.
+audiences:
+  maturity_reminder: [institution, scrutiny_officer]
+  overdue: [competent_authority]
+  coverage_gap: [scrutiny_officer]
+  risk_escalation: [scrutiny_officer]
+  case_overdue: [competent_authority]
+  scrutiny_sla: [scrutiny_officer]
