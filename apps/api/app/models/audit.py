@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, UUIDPrimaryKey, utcnow
@@ -24,6 +24,8 @@ class Event(UUIDPrimaryKey, Base):
     after: Mapped[dict | None] = mapped_column(JSON)
     reason: Mapped[str | None] = mapped_column(Text)
     ts: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    # Position in its chain (per instrument, or the system chain when instrument_id is null).
+    seq: Mapped[int] = mapped_column(Integer, default=0)
     prev_hash: Mapped[str | None] = mapped_column(String(64))
     hash: Mapped[str] = mapped_column(String(64), unique=True)
 

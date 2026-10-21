@@ -48,3 +48,10 @@ class Case(UUIDPrimaryKey, Timestamps, Base):
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     escalation_level: Mapped[int] = mapped_column(Integer, default=0)
     policy_version: Mapped[str | None] = mapped_column(String(50))
+    # Release checklist built from the policy version: [{id, label, evidence, done, by, at, ref}]
+    checklist: Mapped[list | None] = mapped_column(JSON)
+    opened_by: Mapped[str | None] = mapped_column(String(100))
+    reason: Mapped[str | None] = mapped_column(Text)
+    decision: Mapped[str | None] = mapped_column(String(20))
+    decided_by: Mapped[str | None] = mapped_column(String(100))
+    decision_reason: Mapped[str | None] = mapped_column(Text)
