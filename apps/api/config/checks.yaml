@@ -24,4 +24,5 @@ severity:
   amount_below_requirement: high
   beneficiary_wording_missing: medium
   forgery_suspected: high
+  forgery_grey: medium
   bank_mismatch: critical

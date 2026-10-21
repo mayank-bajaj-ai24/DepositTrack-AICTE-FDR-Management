@@ -198,6 +198,27 @@ def submit_instrument(
         )
         if low:
             specs.append(low)
+    forgery = extraction.forgery if extraction else None
+    if forgery is not None:
+        document.forgery_score = forgery.score
+        if forgery.band in ("suspicious", "grey"):
+            flag_type = "forgery_suspected" if forgery.band == "suspicious" else "forgery_grey"
+            specs.append(
+                FlagSpec(
+                    flag_type,
+                    checks()["severity"][flag_type],
+                    f"image analysis marks the {forgery.region_text} region as "
+                    f"{forgery.band} (score {forgery.score:.2f}); compare with the bank's record",
+                    fact={
+                        "score": forgery.score,
+                        "band": forgery.band,
+                        "region": forgery.region_text,
+                        "box": list(forgery.region_box) if forgery.region_box else None,
+                    },
+                    rule_id="forgery_signal",
+                    field=forgery.region_text,
+                )
+            )
     for spec in specs:
         raise_flag(session, instrument, spec, SYSTEM)
     for other, spec in duplicate_flags(session, instrument):
