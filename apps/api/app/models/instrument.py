@@ -3,6 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     Date,
     DateTime,
@@ -59,6 +60,8 @@ class Instrument(UUIDPrimaryKey, Timestamps, Base):
     trust_level: Mapped[int] = mapped_column(Integer, default=int(TrustLevel.DECLARED))
     replaces_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("instrument.id"))
     risk_score: Mapped[float | None] = mapped_column(Float)
+    # {as_of, expected_days_late, reasons: [{feature, value, contribution, text}]} (N9)
+    risk_reasons: Mapped[dict | None] = mapped_column(JSON)
 
 
 class FieldValue(Base):
