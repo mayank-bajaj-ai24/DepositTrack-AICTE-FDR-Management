@@ -116,3 +116,96 @@ DepositTrack has three layers. The core must work end to end before the other tw
 
 ---
 
+## Architecture
+
+### System architecture
+
+```mermaid
+flowchart TB
+    subgraph Actors["Users and external actors"]
+        direction LR
+        A1["Institution portal<br/>submit, confirm, respond, request"]
+        A2["Officer console<br/>scrutiny, verification, approval"]
+        A3["Auditor / public verifier<br/>read-only, integrity proofs"]
+        A4["Bank issuer (mock in prototype)<br/>signs and revokes FDR credentials"]
+    end
+
+    GW["API gateway<br/>FastAPI · Keycloak · RBAC + ABAC"]
+
+    subgraph Core["Core modules"]
+        direction LR
+        M2["M2 Intake +<br/>documents"]
+        M7["M7 Lifecycle +<br/>coverage"]
+        M8["M8 Alerts +<br/>escalation"]
+        M9["M9 Release /<br/>discharge / refund"]
+        M10["M10 Dashboard,<br/>search, reports"]
+    end
+
+    subgraph Trust["Trust modules"]
+        direction LR
+        M3["M3 Dual-pass<br/>extraction"]
+        M4["M4 Rules, discrepancy,<br/>forgery"]
+        M5["M5 Bank verification<br/>+ credentials"]
+        M6["M6 Audit chain<br/>+ anchoring"]
+    end
+
+    subgraph Intel["Intelligence modules"]
+        direction LR
+        M11["M11 Risk models<br/>+ assistant"]
+        M13["M13 Conformance<br/>replay"]
+    end
+
+    M12["M12 Integration adapters<br/>AICTE master data · bank channels"]
+
+    subgraph Stores["Data stores"]
+        direction LR
+        D1[("PostgreSQL<br/>+ pgvector")]
+        D2[("MinIO<br/>encrypted files")]
+        D3[("immudb<br/>anchors, proofs")]
+        D4[("Redis + Celery<br/>jobs, schedules")]
+    end
+
+    A1 --> GW
+    A2 --> GW
+    A3 --> GW
+    A4 --> GW
+    GW --> Core
+    GW --> Trust
+    GW --> Intel
+    Core --> Stores
+    Trust --> Stores
+    Intel --> Stores
+    M12 --- GW
+```
+
+It is a modular monolith: one FastAPI backend split into module folders, one Next.js frontend, and one Docker Compose file. Modules can later be split into separate services.
+
+### Data flow for one submission
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Inst as Institution
+    participant API as API gateway
+    participant Intake as M2 Intake
+    participant Ext as M3 Extraction
+    participant Chk as M4 Rules + forgery
+    participant Bank as M5 Bank verification
+    participant Life as M7 Lifecycle + coverage
+    participant Audit as M6 Audit chain
+
+    Inst->>API: Upload scan + declared fields
+    API->>Intake: Role and attribute check passed
+    Intake->>Audit: Event: document stored (SHA-256, version)
+    Intake->>Ext: Extract fields (pass A + pass B)
+    Ext-->>Inst: Ask to confirm disagreeing / low-confidence fields
+    Ext->>Chk: Confirmed fields
+    Chk->>Audit: Flags (fact, rule, clause, reason)
+    Chk->>Bank: Verify instrument
+    Bank->>Audit: Attestation result, trust level updated
+    Bank->>Life: Instrument verified
+    Life->>Audit: Coverage recomputed, reminders scheduled
+```
+
+---
+
