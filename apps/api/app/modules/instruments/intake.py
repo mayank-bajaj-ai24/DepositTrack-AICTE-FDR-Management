@@ -99,6 +99,29 @@ def duplicate_flags(session: Session, instrument: Instrument) -> list[tuple[Inst
     return found
 
 
+def continuity_gap(replaces: Instrument | None, new: Instrument) -> FlagSpec | None:
+    """A replacement must start on or before the old instrument's maturity (N2)."""
+    if replaces is None or replaces.maturity_date is None or new.issue_date is None:
+        return None
+    if new.issue_date <= replaces.maturity_date:
+        return None
+    days = (new.issue_date - replaces.maturity_date).days
+    return FlagSpec(
+        "continuity_gap",
+        checks()["severity"]["continuity_gap"],
+        f"the replacement starts {days} day(s) after the old instrument matured "
+        f"({replaces.maturity_date.isoformat()} to {new.issue_date.isoformat()}); "
+        "the requirement was uncovered in between",
+        fact={
+            "old_maturity": replaces.maturity_date.isoformat(),
+            "new_issue": new.issue_date.isoformat(),
+            "gap_days": days,
+        },
+        rule_id="continuity_gap",
+        field="issue_date",
+    )
+
+
 def submit_instrument(
     session: Session,
     *,
@@ -219,6 +242,9 @@ def submit_instrument(
                     field=extraction.forgery_field,
                 )
             )
+    gap = continuity_gap(replaces, instrument)
+    if gap:
+        specs.append(gap)
     for spec in specs:
         raise_flag(session, instrument, spec, SYSTEM)
     for other, spec in duplicate_flags(session, instrument):
