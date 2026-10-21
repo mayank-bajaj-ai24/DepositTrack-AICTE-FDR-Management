@@ -510,3 +510,20 @@ The design draws on 15 papers; full citations are in [plan §16](IMPLEMENTATION_
 
 ---
 
+## Open questions
+
+The PS does not specify the following, so DepositTrack keeps them configurable rather than assuming values:
+
+1. Required deposit / FDR amounts and durations by institution type and approval case, and the governing clauses
+2. In whose name the FDR is made out, and the required beneficiary / lien wording
+3. Accepted instrument kinds (FDR only, or also other forms of security deposit)
+4. Conditions for release, discharge and refund, and the competent authority at each level
+5. Reminder thresholds and escalation chain
+6. Whether bank attestation is mandatory before an instrument becomes active
+7. Available AICTE systems/APIs and the authorisation route for integration
+8. Which banks hold most AICTE FDRs and whether any offer verification APIs
+9. Record retention and RTI/audit access requirements
+10. Hosting and SSO requirements
+
+---
+
