@@ -102,3 +102,17 @@ See the [traceability matrix](IMPLEMENTATION_PLAN.md#3-objective-traceability-ma
 
 ---
 
+## Solution overview
+
+DepositTrack has three layers. The core must work end to end before the other two are built.
+
+| Layer | What it contains | Priority |
+| --- | --- | --- |
+| **Core** | Repository, upload, extraction, lifecycle engine, reminders, release workflow, dashboard, reports, audit trail, access control | Must work end to end |
+| **Trust** | Trust Ladder, bank-signed e-FDR credential, freshness decay, double-pledge detection, forgery signals, Merkle anchoring | Main differentiator |
+| **Intelligence** | Coverage forecasting, renewal-risk model with reasons, procedural conformance replay, clause-linked explanations, officer assistant | Built after the core gate |
+
+**Guiding rule:** AI is advisory only. A named officer makes every decision, and every decision is logged with a reason.
+
+---
+
