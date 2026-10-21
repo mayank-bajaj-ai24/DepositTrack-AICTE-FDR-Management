@@ -363,3 +363,26 @@ For the five areas the PS asks the prototype to improve, the plan measures a man
 
 ---
 
+## Test scenarios
+
+Every test scenario named in the PS has an automated test:
+
+| ID | Scenario | Pass condition | Status |
+| --- | --- | --- | --- |
+| T-01 | New FDR submission | Stored, hashed, versioned; fields extracted; L1 when clean | Not started |
+| T-02 | Repository completeness | All required fields stored and searchable | Not started |
+| T-03 | Validity tracking | Every instrument in the correct state | Not started |
+| T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Not started |
+| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Not started |
+| T-06 | Incomplete record | Flagged; listed in missing-documents report | Not started |
+| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Not started |
+| T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Not started |
+| T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Not started |
+| T-10 | Overdue escalation | Escalated to the next role | Not started |
+| T-11 | Dashboard drill-down | Tile numbers match underlying records | Not started |
+| T-12 | Audit integrity | Direct DB edit detected by verifier | Not started |
+| T-13 | Access control | All allow/deny cases pass | Not started |
+| T-14 | Credential forgery | Credential from unknown key rejected | Not started |
+
+---
+
