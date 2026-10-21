@@ -2,7 +2,6 @@
   "app.name": "DepositTrack",
   "app.scope": "AICTE Regulation Bureau",
   "app.tagline": "Security deposits and FDRs, from submission to release",
-
   "nav.overview": "Overview",
   "nav.instruments": "Instruments",
   "nav.queue": "Scrutiny queue",
@@ -17,17 +16,14 @@
   "nav.signout": "Sign out",
   "nav.menu": "Menu",
   "nav.language": "हिन्दी",
-
   "auth.title": "Sign in to DepositTrack",
   "auth.body": "Officers and institutions sign in with their DepositTrack account.",
   "auth.signin": "Sign in",
   "auth.completing": "Completing sign-in",
   "auth.failed": "Sign-in failed",
-
   "banner.demo": "Demo policy in use. Amounts, reminder days and release conditions are placeholders, not AICTE rules.",
   "banner.awaiting": "Awaiting AICTE policy: {list}",
   "banner.clock": "Demo clock: {date} ({days} days ahead)",
-
   "common.loading": "Loading",
   "common.retry": "Retry",
   "common.error": "Couldn't load this. {message}",
@@ -50,7 +46,6 @@
   "common.back": "Back",
   "common.done": "Done",
   "common.synthetic": "Synthetic data",
-
   "state.draft": "Draft",
   "state.submitted": "Submitted",
   "state.scrutiny": "In scrutiny",
@@ -65,7 +60,6 @@
   "state.releasing": "Releasing",
   "state.released": "Released",
   "state.archived": "Archived",
-
   "trust.0": "Declared",
   "trust.1": "Machine-checked",
   "trust.2": "Officer-verified",
@@ -73,7 +67,6 @@
   "trust.4": "Live-confirmed",
   "trust.title": "Trust",
   "trust.explain": "Who vouches for this value",
-
   "field.fdr_no": "FDR number",
   "field.bank": "Bank",
   "field.branch": "Branch",
@@ -85,7 +78,6 @@
   "field.depositor": "Depositor",
   "field.beneficiary": "Beneficiary",
   "field.lien_text": "Lien wording",
-
   "col.institution": "Institution",
   "col.fdr": "FDR",
   "col.bank": "Bank",
@@ -99,7 +91,6 @@
   "col.bankValue": "Bank confirms",
   "col.due": "Due",
   "col.type": "Type",
-
   "flag.missing_field": "Missing field",
   "flag.missing_document": "Missing document",
   "flag.declared_mismatch": "Declared value differs from the scan",
@@ -114,11 +105,11 @@
   "flag.forgery_suspected": "Image looks edited",
   "flag.forgery_grey": "Image needs a closer look",
   "flag.bank_mismatch": "Bank record disagrees",
+  "flag.continuity_gap": "Gap between old and renewed FDR",
   "severity.critical": "Critical",
   "severity.high": "High",
   "severity.medium": "Medium",
   "severity.low": "Low",
-
   "overview.title": "Overview",
   "overview.finding.clear": "No critical issues today. {pending} instruments wait for scrutiny.",
   "overview.finding.critical": "{n} instruments carry a critical flag; {exposure} rests on records no bank has confirmed.",
@@ -140,13 +131,11 @@
   "overview.alerts": "Recent alerts",
   "overview.alerts.none": "No alerts yet.",
   "overview.ageing": "Waiting for scrutiny",
-
   "action.reviewQueue": "Review scrutiny queue",
   "action.criticalFlag": "Critical flag",
   "action.overdue": "Overdue renewal",
   "action.awaitingDecision": "Release awaiting decision",
   "action.pendingScrutiny": "Waiting for scrutiny",
-
   "list.title": "Instruments",
   "list.sub": "Every security deposit and FDR the Bureau holds",
   "list.filter.all": "All",
@@ -154,7 +143,6 @@
   "list.search": "Institution, AICTE ID, FDR number, IFSC",
   "list.empty": "No instruments match.",
   "list.range": "{from}–{to} of {total}",
-
   "detail.fields": "Fields",
   "detail.fields.sub": "Institution's declaration beside what the scan shows and what the bank confirms",
   "detail.flags": "Discrepancies",
@@ -187,12 +175,10 @@
   "detail.bankResult.attested": "Bank attested every key field.",
   "detail.bankResult.mismatch": "The bank's record disagrees: {fields}",
   "detail.bankResult.rejected": "The bank credential was rejected: {reason}",
-
   "queue.title": "Scrutiny queue",
   "queue.sub": "Oldest first",
   "queue.empty": "No instruments are waiting for scrutiny.",
   "queue.select": "Select an instrument to review it.",
-
   "cases.title": "Release cases",
   "cases.sub": "Release, discharge and refund requests",
   "cases.empty": "No open requests.",
@@ -214,7 +200,6 @@
   "cases.state.rejected": "Rejected",
   "cases.request.title": "Request {type}",
   "cases.request.reason": "Why is this requested?",
-
   "reports.title": "Reports",
   "reports.sub": "Exported as Excel or CSV",
   "reports.pending-verifications": "Pending verifications",
@@ -223,7 +208,6 @@
   "reports.interventions": "Cases requiring intervention",
   "reports.rows": "{n} rows",
   "reports.empty": "No rows.",
-
   "audit.title": "Audit",
   "audit.sub": "Hash chains, anchors and procedural conformance",
   "audit.chains": "Hash chains",
@@ -236,7 +220,6 @@
   "audit.conformance": "Procedural conformance",
   "audit.conformance.share": "{p} of instruments followed the procedure",
   "audit.conformance.unvalidated": "Constraints are a proposal and have not been validated by AICTE.",
-
   "verify.title": "Verify a file",
   "verify.sub": "Check that a file is exactly the one submitted, and that its record is unchanged",
   "verify.choose": "Choose a file",
@@ -244,7 +227,6 @@
   "verify.nomatch": "No document with this exact content is on record.",
   "verify.chainOk": "Its audit chain is intact.",
   "verify.chainBroken": "Its audit chain is broken at event {seq}.",
-
   "admin.title": "System",
   "admin.sub": "Policy, integrations and demo controls",
   "admin.policy": "Policy",
@@ -260,13 +242,11 @@
   "admin.models": "Models",
   "admin.available": "Available",
   "admin.unavailable": "Not installed",
-
   "my.title": "My deposits",
   "my.sub": "{institution}",
   "my.empty": "You have not submitted an instrument yet.",
   "my.requirement": "Your requirement",
   "my.alerts": "Reminders",
-
   "submit.title": "Submit an FDR",
   "submit.sub": "Upload the scan; we read the fields for you to confirm.",
   "submit.file": "Scan of the FDR (PNG or JPG)",
@@ -276,10 +256,8 @@
   "submit.review": "Check this value",
   "submit.done": "Submitted. It is now in scrutiny.",
   "submit.renewalOf": "Renewal of {fdr}",
-
   "bank.title": "Bank service",
   "bank.body": "This account posts attestations through the bank channel; it has no screens.",
-
   "event.instrument.created": "Instrument recorded",
   "event.document.uploaded": "Document uploaded",
   "event.document.downloaded": "Document downloaded",
@@ -301,7 +279,6 @@
   "event.release.approved": "Release approved",
   "event.release.rejected": "Release rejected",
   "event.release.letter_issued": "Release letter issued",
-
   "notify.maturity_reminder": "Maturity reminder",
   "notify.overdue": "Overdue",
   "notify.coverage_gap": "Coverage gap",

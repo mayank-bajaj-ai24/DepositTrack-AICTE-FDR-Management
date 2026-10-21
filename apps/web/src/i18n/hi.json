@@ -2,7 +2,6 @@
   "app.name": "DepositTrack",
   "app.scope": "एआईसीटीई विनियमन ब्यूरो",
   "app.tagline": "प्रतिभूति जमा और एफडीआर, जमा करने से रिलीज़ तक",
-
   "nav.overview": "सारांश",
   "nav.instruments": "लिखत",
   "nav.queue": "जाँच कतार",
@@ -17,17 +16,14 @@
   "nav.signout": "साइन आउट",
   "nav.menu": "मेनू",
   "nav.language": "English",
-
   "auth.title": "DepositTrack में साइन इन करें",
   "auth.body": "अधिकारी और संस्थान अपने DepositTrack खाते से साइन इन करते हैं।",
   "auth.signin": "साइन इन",
   "auth.completing": "साइन इन पूरा हो रहा है",
   "auth.failed": "साइन इन विफल रहा",
-
   "banner.demo": "डेमो नीति उपयोग में है। राशियाँ, अनुस्मारक के दिन और रिलीज़ की शर्तें केवल उदाहरण हैं, एआईसीटीई के नियम नहीं।",
   "banner.awaiting": "एआईसीटीई नीति की प्रतीक्षा: {list}",
   "banner.clock": "डेमो घड़ी: {date} ({days} दिन आगे)",
-
   "common.loading": "लोड हो रहा है",
   "common.retry": "फिर से प्रयास करें",
   "common.error": "यह लोड नहीं हो सका। {message}",
@@ -50,7 +46,6 @@
   "common.back": "वापस",
   "common.done": "पूर्ण",
   "common.synthetic": "कृत्रिम डेटा",
-
   "state.draft": "मसौदा",
   "state.submitted": "जमा किया गया",
   "state.scrutiny": "जाँच में",
@@ -65,7 +60,6 @@
   "state.releasing": "रिलीज़ हो रहा है",
   "state.released": "रिलीज़ किया गया",
   "state.archived": "संग्रहीत",
-
   "trust.0": "घोषित",
   "trust.1": "मशीन द्वारा जाँचा गया",
   "trust.2": "अधिकारी द्वारा सत्यापित",
@@ -73,7 +67,6 @@
   "trust.4": "बैंक द्वारा अभी पुष्ट",
   "trust.title": "विश्वसनीयता",
   "trust.explain": "इस मान की पुष्टि कौन करता है",
-
   "field.fdr_no": "एफडीआर संख्या",
   "field.bank": "बैंक",
   "field.branch": "शाखा",
@@ -85,7 +78,6 @@
   "field.depositor": "जमाकर्ता",
   "field.beneficiary": "लाभार्थी",
   "field.lien_text": "ग्रहणाधिकार का पाठ",
-
   "col.institution": "संस्थान",
   "col.fdr": "एफडीआर",
   "col.bank": "बैंक",
@@ -99,7 +91,6 @@
   "col.bankValue": "बैंक की पुष्टि",
   "col.due": "नियत तिथि",
   "col.type": "प्रकार",
-
   "flag.missing_field": "फ़ील्ड अनुपस्थित",
   "flag.missing_document": "दस्तावेज़ अनुपस्थित",
   "flag.declared_mismatch": "घोषित मान स्कैन से भिन्न है",
@@ -114,11 +105,11 @@
   "flag.forgery_suspected": "छवि संपादित लगती है",
   "flag.forgery_grey": "छवि की और जाँच आवश्यक",
   "flag.bank_mismatch": "बैंक का रिकॉर्ड असहमत है",
+  "flag.continuity_gap": "पुराने और नवीनीकृत एफडीआर के बीच अंतराल",
   "severity.critical": "गंभीर",
   "severity.high": "उच्च",
   "severity.medium": "मध्यम",
   "severity.low": "निम्न",
-
   "overview.title": "सारांश",
   "overview.finding.clear": "आज कोई गंभीर समस्या नहीं। {pending} लिखत जाँच की प्रतीक्षा में हैं।",
   "overview.finding.critical": "{n} लिखतों पर गंभीर विसंगति है; {exposure} ऐसे रिकॉर्ड पर निर्भर है जिसकी किसी बैंक ने पुष्टि नहीं की।",
@@ -140,13 +131,11 @@
   "overview.alerts": "हाल के अलर्ट",
   "overview.alerts.none": "अभी तक कोई अलर्ट नहीं।",
   "overview.ageing": "जाँच की प्रतीक्षा",
-
   "action.reviewQueue": "जाँच कतार देखें",
   "action.criticalFlag": "गंभीर विसंगति",
   "action.overdue": "अतिदेय नवीनीकरण",
   "action.awaitingDecision": "रिलीज़ निर्णय की प्रतीक्षा में",
   "action.pendingScrutiny": "जाँच की प्रतीक्षा में",
-
   "list.title": "लिखत",
   "list.sub": "ब्यूरो के पास रखी हर प्रतिभूति जमा और एफडीआर",
   "list.filter.all": "सभी",
@@ -154,7 +143,6 @@
   "list.search": "संस्थान, एआईसीटीई आईडी, एफडीआर संख्या, आईएफएससी",
   "list.empty": "कोई लिखत मेल नहीं खाता।",
   "list.range": "{total} में से {from}–{to}",
-
   "detail.fields": "फ़ील्ड",
   "detail.fields.sub": "संस्थान की घोषणा, स्कैन में दिखा मान और बैंक की पुष्टि साथ-साथ",
   "detail.flags": "विसंगतियाँ",
@@ -187,12 +175,10 @@
   "detail.bankResult.attested": "बैंक ने हर मुख्य फ़ील्ड को प्रमाणित किया।",
   "detail.bankResult.mismatch": "बैंक का रिकॉर्ड असहमत है: {fields}",
   "detail.bankResult.rejected": "बैंक का प्रमाण-पत्र अस्वीकृत हुआ: {reason}",
-
   "queue.title": "जाँच कतार",
   "queue.sub": "सबसे पुराना पहले",
   "queue.empty": "कोई लिखत जाँच की प्रतीक्षा में नहीं है।",
   "queue.select": "जाँच के लिए एक लिखत चुनें।",
-
   "cases.title": "रिलीज़ मामले",
   "cases.sub": "रिलीज़, मुक्ति और वापसी के अनुरोध",
   "cases.empty": "कोई खुला अनुरोध नहीं।",
@@ -214,7 +200,6 @@
   "cases.state.rejected": "अस्वीकृत",
   "cases.request.title": "{type} का अनुरोध",
   "cases.request.reason": "यह अनुरोध क्यों किया जा रहा है?",
-
   "reports.title": "रिपोर्ट",
   "reports.sub": "एक्सेल या सीएसवी के रूप में निर्यात",
   "reports.pending-verifications": "लंबित सत्यापन",
@@ -223,7 +208,6 @@
   "reports.interventions": "हस्तक्षेप आवश्यक मामले",
   "reports.rows": "{n} पंक्तियाँ",
   "reports.empty": "कोई पंक्ति नहीं।",
-
   "audit.title": "लेखा-परीक्षा",
   "audit.sub": "हैश शृंखलाएँ, एंकर और प्रक्रियात्मक अनुपालन",
   "audit.chains": "हैश शृंखलाएँ",
@@ -236,7 +220,6 @@
   "audit.conformance": "प्रक्रियात्मक अनुपालन",
   "audit.conformance.share": "{p} लिखतों में प्रक्रिया का पालन हुआ",
   "audit.conformance.unvalidated": "नियम प्रस्तावित हैं और एआईसीटीई द्वारा मान्य नहीं किए गए हैं।",
-
   "verify.title": "फ़ाइल सत्यापित करें",
   "verify.sub": "जाँचें कि फ़ाइल वही है जो जमा की गई थी और उसका रिकॉर्ड अपरिवर्तित है",
   "verify.choose": "फ़ाइल चुनें",
@@ -244,7 +227,6 @@
   "verify.nomatch": "इस सामग्री वाला कोई दस्तावेज़ रिकॉर्ड में नहीं है।",
   "verify.chainOk": "इसकी लेखा-परीक्षा शृंखला अक्षुण्ण है।",
   "verify.chainBroken": "इसकी लेखा-परीक्षा शृंखला घटना {seq} पर टूटी है।",
-
   "admin.title": "सिस्टम",
   "admin.sub": "नीति, एकीकरण और डेमो नियंत्रण",
   "admin.policy": "नीति",
@@ -260,13 +242,11 @@
   "admin.models": "मॉडल",
   "admin.available": "उपलब्ध",
   "admin.unavailable": "स्थापित नहीं",
-
   "my.title": "मेरी जमा राशि",
   "my.sub": "{institution}",
   "my.empty": "आपने अभी तक कोई लिखत जमा नहीं किया है।",
   "my.requirement": "आपकी आवश्यकता",
   "my.alerts": "अनुस्मारक",
-
   "submit.title": "एफडीआर जमा करें",
   "submit.sub": "स्कैन अपलोड करें; हम फ़ील्ड पढ़ेंगे और आप पुष्टि करेंगे।",
   "submit.file": "एफडीआर का स्कैन (PNG या JPG)",
@@ -276,10 +256,8 @@
   "submit.review": "यह मान जाँचें",
   "submit.done": "जमा हो गया। अब यह जाँच में है।",
   "submit.renewalOf": "{fdr} का नवीनीकरण",
-
   "bank.title": "बैंक सेवा",
   "bank.body": "यह खाता बैंक चैनल के माध्यम से प्रमाणन भेजता है; इसकी कोई स्क्रीन नहीं है।",
-
   "event.instrument.created": "लिखत दर्ज किया गया",
   "event.document.uploaded": "दस्तावेज़ अपलोड किया गया",
   "event.document.downloaded": "दस्तावेज़ डाउनलोड किया गया",
@@ -301,7 +279,6 @@
   "event.release.approved": "रिलीज़ स्वीकृत",
   "event.release.rejected": "रिलीज़ अस्वीकृत",
   "event.release.letter_issued": "रिलीज़ पत्र जारी",
-
   "notify.maturity_reminder": "परिपक्वता अनुस्मारक",
   "notify.overdue": "अतिदेय",
   "notify.coverage_gap": "कवरेज में कमी",
