@@ -9,7 +9,15 @@ import random
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-OPERATIONS = ["copy_paste", "insertion", "noise", "blur", "copy_blur", "insert_noise", "insert_blur"]
+OPERATIONS = [
+    "copy_paste",
+    "insertion",
+    "noise",
+    "blur",
+    "copy_blur",
+    "insert_noise",
+    "insert_blur",
+]
 
 
 def field_regions(record: dict) -> list[tuple[str, tuple[int, int, int, int]]]:
@@ -38,7 +46,12 @@ def _insertion(image, box, rng):
     digits = "".join(rng.choice("0123456789") for _ in range(max(3, (x1 - x0) // 14)))
     size = max(10, (y1 - y0) + rng.choice([-3, -2, 2, 3]))
     shade = rng.randint(0, 60)
-    draw.text((x0, y0), digits, fill=(shade, shade, shade + rng.randint(0, 30)), font=ImageFont.load_default(size=size))
+    draw.text(
+        (x0, y0),
+        digits,
+        fill=(shade, shade, shade + rng.randint(0, 30)),
+        font=ImageFont.load_default(size=size),
+    )
 
 
 def _copy_paste(image, box, others, rng):
@@ -52,7 +65,12 @@ def _copy_paste(image, box, others, rng):
 
 def _noise(image, box, rng):
     region = np.asarray(image.crop(box), dtype=np.float32)
-    noisy = np.clip(region + np.random.default_rng(rng.randint(0, 10**6)).normal(0, rng.uniform(8, 20), region.shape), 0, 255)
+    noisy = np.clip(
+        region
+        + np.random.default_rng(rng.randint(0, 10**6)).normal(0, rng.uniform(8, 20), region.shape),
+        0,
+        255,
+    )
     image.paste(Image.fromarray(noisy.astype(np.uint8)), box[:2])
 
 
@@ -60,7 +78,9 @@ def _blur(image, box, rng):
     image.paste(image.crop(box).filter(ImageFilter.GaussianBlur(rng.uniform(1.0, 2.2))), box[:2])
 
 
-def tamper(image: Image.Image, regions, target: int, operation: str, rng: random.Random) -> Image.Image:
+def tamper(
+    image: Image.Image, regions, target: int, operation: str, rng: random.Random
+) -> Image.Image:
     image = image.convert("RGB").copy()
     box = regions[target][1]
     others = [r for i, r in enumerate(regions) if i != target]

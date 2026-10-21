@@ -22,12 +22,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps" / "api"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from tamper import OPERATIONS, field_regions, recompress, tamper  # noqa: E402
-
 from app.core.configfiles import load_config  # noqa: E402
 from app.modules.extraction.ocr import run_ocr  # noqa: E402
 from app.modules.forgery.features import FEATURE_NAMES, page_features  # noqa: E402
 from app.modules.forgery.model import text_regions  # noqa: E402
+from tamper import OPERATIONS, field_regions, recompress, tamper  # noqa: E402
 
 RULES = load_config("extraction.yaml")
 
@@ -132,7 +131,14 @@ def main() -> None:
 
     joblib.dump(model, out / "model.joblib")
     (out / "meta.json").write_text(
-        json.dumps({"features": FEATURE_NAMES, "bands": {"grey": grey, "suspicious": suspicious}, "classifier": "RBF SVM (Gornale et al. baseline) on RGB-GLCM + ELA + noise"}, indent=2),
+        json.dumps(
+            {
+                "features": FEATURE_NAMES,
+                "bands": {"grey": grey, "suspicious": suspicious},
+                "classifier": "RBF SVM (Gornale et al. baseline) on RGB-GLCM + ELA + noise",
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")

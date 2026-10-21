@@ -9,10 +9,10 @@ train and test. All numbers are on synthetic data.
 """
 
 import argparse
-from datetime import timedelta
 import json
 import random
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 import numpy as np
@@ -21,14 +21,15 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "apps" / "api"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from simulate import Institution, simulate  # noqa: E402
-
 from app.modules.risk.features import FEATURE_NAMES, History, features  # noqa: E402
+from simulate import Institution, simulate  # noqa: E402
 
 DECISION_POINTS = list(range(120, 0, -7))  # days before maturity at which risk is scored
 
 
-def history_at(inst: Institution, cycle_index: int, days_before: int, rng: random.Random) -> History:
+def history_at(
+    inst: Institution, cycle_index: int, days_before: int, rng: random.Random
+) -> History:
     cycle = inst.cycles[cycle_index]
     as_of = cycle.maturity - timedelta(days=days_before)
     return History(
@@ -106,12 +107,20 @@ def main() -> None:
     stop = [lgb.early_stopping(50, verbose=False)]
     train_set = lgb.Dataset(X_tr, yc_tr, feature_name=FEATURE_NAMES)
     classifier = lgb.train(
-        params, train_set, num_boost_round=2000, valid_sets=[lgb.Dataset(X_va, yc_va, reference=train_set)], callbacks=stop
+        params,
+        train_set,
+        num_boost_round=2000,
+        valid_sets=[lgb.Dataset(X_va, yc_va, reference=train_set)],
+        callbacks=stop,
     )
     reg_params = params | {"objective": "regression_l1"}
     reg_set = lgb.Dataset(X_tr, yr_tr, feature_name=FEATURE_NAMES)
     regressor = lgb.train(
-        reg_params, reg_set, num_boost_round=2000, valid_sets=[lgb.Dataset(X_va, yr_va, reference=reg_set)], callbacks=stop
+        reg_params,
+        reg_set,
+        num_boost_round=2000,
+        valid_sets=[lgb.Dataset(X_va, yr_va, reference=reg_set)],
+        callbacks=stop,
     )
     split = train_end
 
@@ -129,10 +138,18 @@ def main() -> None:
         if prob >= args.alarm_threshold:
             caught_cycles.add((inst, cyc))
             first_alarm[(inst, cyc)] = max(first_alarm.get((inst, cyc), 0), days_before)
-    on_time_alarms = sum(1 for (i, c, d), prob, late in zip(g_te, p, yc_te, strict=True) if not late and prob >= args.alarm_threshold and d == 30)
-    on_time_points = sum(1 for (i, c, d), late in zip(g_te, yc_te, strict=True) if not late and d == 30)
+    on_time_alarms = sum(
+        1
+        for (i, c, d), prob, late in zip(g_te, p, yc_te, strict=True)
+        if not late and prob >= args.alarm_threshold and d == 30
+    )
+    on_time_points = sum(
+        1 for (i, c, d), late in zip(g_te, yc_te, strict=True) if not late and d == 30
+    )
 
-    importance = dict(zip(FEATURE_NAMES, classifier.feature_importance("gain").round(1).tolist(), strict=True))
+    importance = dict(
+        zip(FEATURE_NAMES, classifier.feature_importance("gain").round(1).tolist(), strict=True)
+    )
     metrics = {
         "data": "synthetic (simulated event logs)",
         "institutions_train": split,
@@ -143,7 +160,9 @@ def main() -> None:
         "regressor_mae_days": round(float(mae), 2),
         "alarm_threshold": args.alarm_threshold,
         "late_cycles_caught": round(len(caught_cycles) / max(1, len(late_cycles)), 4),
-        "mean_lead_time_days": round(float(np.mean(list(first_alarm.values()))), 1) if first_alarm else None,
+        "mean_lead_time_days": round(float(np.mean(list(first_alarm.values()))), 1)
+        if first_alarm
+        else None,
         "false_alarm_rate_at_T30_on_time_cycles": round(on_time_alarms / max(1, on_time_points), 4),
         "feature_importance_gain": importance,
     }
@@ -151,7 +170,10 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     classifier.save_model(str(out / "classifier.txt"))
     regressor.save_model(str(out / "regressor.txt"))
-    (out / "meta.json").write_text(json.dumps({"features": FEATURE_NAMES, "alarm_threshold": args.alarm_threshold}, indent=2), encoding="utf-8")
+    (out / "meta.json").write_text(
+        json.dumps({"features": FEATURE_NAMES, "alarm_threshold": args.alarm_threshold}, indent=2),
+        encoding="utf-8",
+    )
     (out / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     print(json.dumps(metrics, indent=2))
 

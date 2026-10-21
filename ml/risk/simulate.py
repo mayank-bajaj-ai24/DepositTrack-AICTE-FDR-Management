@@ -57,7 +57,9 @@ def simulate_institution(rng: random.Random, start: date, years: int) -> Institu
         maturity = current + timedelta(days=tenure)
         late = rng.random() < p_late
         if late:
-            submitted = None if rng.random() < 0.15 else maturity + timedelta(days=rng.randint(1, 90))
+            submitted = (
+                None if rng.random() < 0.15 else maturity + timedelta(days=rng.randint(1, 90))
+            )
         else:
             submitted = maturity - timedelta(days=rng.randint(1, 80))
         cycles.append(Cycle(maturity, submitted, amount))
@@ -76,6 +78,8 @@ def simulate_institution(rng: random.Random, start: date, years: int) -> Institu
     return Institution(persona, cycles, responses, sorted(actions), flags_rate)
 
 
-def simulate(n: int, seed: int, start: date = date(2018, 1, 1), years: int = 7) -> list[Institution]:
+def simulate(
+    n: int, seed: int, start: date = date(2018, 1, 1), years: int = 7
+) -> list[Institution]:
     rng = random.Random(seed)
     return [simulate_institution(rng, start, years) for _ in range(n)]
