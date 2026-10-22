@@ -4,6 +4,10 @@ All project rules, context and commands for this repository are in AGENTS.md, im
 
 @AGENTS.md
 
+Current state of the work, decisions and next steps (update it at the end of each session):
+
+@CONTEXT.md
+
 ## Claude Code specifics
 
 - Use the **taste-skill** plugin for every UI / frontend task. If it is not installed, ask the user to run:
