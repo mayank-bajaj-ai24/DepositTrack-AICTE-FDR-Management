@@ -15,6 +15,8 @@
 > **Current status:** prototype built end to end in code — backend (all modules M1–M10, M13), mock bank, ML components and the bilingual web app. Automated tests pass; the live stack (Docker) and the UI have not yet been run together. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in [Expected outcomes](#expected-outcomes) are **targets**, not measured results.
 >
 > Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
+>
+> **CI is not set up yet** on this branch: the workflow file needs a GitHub token with the `workflow` scope to be pushed. Run lint and tests locally before every push.
 
 ---
 
@@ -463,7 +465,7 @@ flowchart LR
 **Phase 1: foundations**
 - [x] Contributor and AI agent rules ([AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md))
 - [x] Docker Compose for PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb (config validated; stack not yet run end to end)
-- [x] CI: backend lint + tests + migrations on PostgreSQL, generator lint + tests, compose check
+- [ ] CI workflow (backend, generator, mock bank, web, compose checks) — written, but not on this branch: pushing `.github/workflows/` needs a GitHub token with the `workflow` scope. Add it once that permission is granted; until then run the checks locally (see [Getting started](#getting-started))
 - [x] Backend skeleton: settings, health, policy status, `/api/v1/me`
 - [x] Keycloak realm with seven roles and development users; token verification and role-based permission checks (M1, backend side)
 - [x] Database schema for all 15 plan tables, with initial Alembic migration
@@ -528,7 +530,6 @@ DepositTrack-AICTE-FDR-Management/
   AGENTS.md                  # rules for contributors and AI agents
   CLAUDE.md                  # Claude Code entry point (imports AGENTS.md)
   LICENSE
-  .github/workflows/ci.yml   # lint, tests, migrations, compose check
   apps/
     api/                     # FastAPI backend
       app/
