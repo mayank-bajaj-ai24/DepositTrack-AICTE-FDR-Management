@@ -6,13 +6,10 @@
 row_tolerance_px: 18          # lines whose vertical centres differ by less than this share a row
 human_review_below: 0.8       # route a field to human confirmation below this confidence (P13 default)
 
-ignore_lines_containing:      # watermark text that is never a field value
-  - "SYNTHETIC SAMPLE"
-  - "NOT A REAL"
-ignore_lines_equal:           # watermark fragments OCR may read on their own
-  - "INSTRUMENT"
-  - "SYNTHETIC"
-  - "SAMPLE"
+# Text that is never a field value (e.g. a bank's watermark or stamp text), matched
+# case-insensitively. Empty until such text is seen on real FDRs.
+ignore_lines_containing: []
+ignore_lines_equal: []
 
 fields:
   fdr_no:
