@@ -7,7 +7,10 @@ GET  /keys                         public keys per bank code (AICTE pins these; 
 GET  /credentials?ifsc=&fdr_no=    signed FDRAttestation for one FDR
 GET  /status?ifsc=&fdr_no=         signed status record with last/next update (freshness)
 POST /lien/remove                  remove AICTE's lien (on release); revokes the credential
-POST /simulate/close               demo: the depositor closed the FDR early
+POST /simulate/close               operator, demo: the depositor closed the FDR early
+
+DepositTrack's token (MB_API_TOKEN) reads the bank's records and removes AICTE's lien on
+release; only the bank operator's token (MB_OPERATOR_TOKEN) writes the bank's own records.
 """
 
 import secrets
@@ -179,8 +182,9 @@ def remove_lien(ref: FdrRef, book: Ledger = Depends(ledger)) -> dict:
     return {"status": entry["status"], "lien_status": entry["lien_status"]}
 
 
-@app.post("/simulate/close", dependencies=[Depends(require_token)])
+@app.post("/simulate/close", dependencies=[Depends(require_operator)])
 def simulate_close(ref: FdrRef, book: Ledger = Depends(ledger)) -> dict:
+    """A bank-side event (the depositor closed the FDR early), so only the operator records it."""
     entry = _entry_or_404(
         book.set_status(ref.ifsc, ref.fdr_no, status="closed", lien_status="REMOVED")
     )
