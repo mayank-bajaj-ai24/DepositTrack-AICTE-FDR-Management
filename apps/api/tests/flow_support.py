@@ -72,6 +72,9 @@ def seed(session_factory, today: date) -> dict:
                 UserAccount(username="inst.a", institution_id=a.id),
                 UserAccount(username="inst.b", institution_id=b.id),
                 UserAccount(username="officer.west", region="West"),
+                UserAccount(username="bank.xnbk", bank_code="XNBK"),
+                # Mixed roles: a West officer whose own institution (B) is in the East.
+                UserAccount(username="officer.west.inst.b", region="West", institution_id=b.id),
             ]
         )
         s.commit()

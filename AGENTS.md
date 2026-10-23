@@ -114,8 +114,9 @@ python -m app.seed demo --institution-user-aicte-id <AICTE ID>   # dev accounts 
 
 # Mock bank (services/mock-bank)
 pip install -e ".[dev]"
-python -m mockbank seed --from ../../data/synthetic
-python -m mockbank serve --port 8090
+cp .env.example .env                                 # development-only placeholders
+python -m mockbank register --ifsc <IFSC> --fdr-no <no> --amount <INR> --issue-date <YYYY-MM-DD> --maturity-date <YYYY-MM-DD> --beneficiary "<text>" --depositor "<name>"   # the bank records an FDR it issued
+python -m mockbank serve --port 8090                 # operator page at http://localhost:8090 (needs MB_OPERATOR_TOKEN in .env)
 
 # Web (apps/web)
 cp .env.example .env.local
