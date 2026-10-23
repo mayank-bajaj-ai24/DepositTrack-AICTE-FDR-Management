@@ -23,9 +23,11 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
   data import, #3 mock bank records its own FDRs, #4 Next.js 16.4.3 security patch (squash),
   #5 officer coverage includes institutions with no deposit, #6 mock bank operator page,
   #7 immudb anchoring (receipt verified, `anchor_event` membership).
-- **Open PRs:** #8 open-dataset catalog + download helper; #9 LayoutLMv3 FUNSD proxy notebook and
-  removal of the synthetic generator; #10 renewal-risk proxy on BPI 2017 (stacked on #8); the
-  docs PR that added this file. A forgery-model PR (Find it again!) follows when its training ends.
+- **Also merged (23 Oct):** #8 open-dataset catalog + download helper, #10 renewal-risk proxy on
+  BPI 2017, #9 LayoutLMv3 FUNSD proxy notebook and removal of the synthetic generator (each fixed
+  after review first).
+- **Open PRs:** #11 docs (this file), #12 instrument-detail permission + default-deny role mixes.
+  The forgery branch `forgery-model-on-find-it-again` has no PR: its result was near chance.
 - **CI:** not set up. Pushing `.github/workflows/` needs the `workflow` scope on the `dreamybear66`
   gh token (user runs in PowerShell: `gh auth refresh -h github.com -s workflow`). The old CI file
   is kept on the local branch `main-local-with-ci` (`git show main-local-with-ci:.github/workflows/ci.yml`).
@@ -64,7 +66,7 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. **Run end
 to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak login, immudb anchor.
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 377 tests pass, ruff clean)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 394 tests pass, ruff clean; `ml/tests`: 18)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, ABAC via one `visible_institution_ids(scope)` used by instrument and institution scoping |
@@ -92,19 +94,24 @@ processes, atomic writes). Amount is a Decimal (paise allowed). Two tokens that 
 default) lists bank codes whose keys are published before any FDR. Settings in `.env.example`.
 
 ### ML — `ml/`
-- On `main`: `ml/synth`, `ml/forgery/{train,tamper}.py`, `ml/risk/{train,simulate}.py` and
-  `ml/layoutlm/train_layoutlmv3_fdr.ipynb` are the **old synthetic-data code, being replaced**:
-  - PR #9: `ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb` (FUNSD, free Colab T4; no `seqeval`, batch 4 × 4
-    accumulation to fit the T4), removes `ml/synth`. Maintainer's run: entity F1 0.906 (answer 0.928,
-    question 0.917, header 0.649) — proxy; paper reports 90.29.
-  - PR #10: `ml/risk/train.py` on BPI Challenge 2017 → `models/renewal_risk_proxy/` (not loaded live).
-    Measured (proxy): AUC 0.821, 80.1% of missed deadlines caught at 12.0% false alarms,
-    mean/median lead 14.6/16.6 days, regressor MAE 6.16 days.
-  - Forgery branch `forgery-model-on-find-it-again` (worktree `../wt-forgery`): `ml/forgery/train.py`
-    on Find it again! (train/val/test split), removes `tamper.py`; training was still running.
+- On `main` (all synthetic code removed except `ml/forgery/{train,tamper}.py`, which the
+  forgery branch replaces):
+  - `ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb` (FUNSD, free Colab T4; no `seqeval`, batch 4 × 4
+    accumulation). Maintainer's first run: entity F1 0.906 (answer 0.928, question 0.917, header 0.649)
+    with the best checkpoint picked on test; the merged notebook trains a fixed 1,000 steps and
+    evaluates once — **re-run needed**. API: `pass_a_enabled: false`, loader rejects non-FDR labels.
+  - `ml/risk/train.py` on BPI Challenge 2017 → `models/renewal_risk_proxy/` (not loaded live; the API
+    needs `live_scoring: true`). After review fixes (labels, censoring, decision points stop at the
+    first return): pooled AUC 0.789, by week 0.588/0.599/0.640/0.691/0.833, baseline "days since last
+    event" 0.767; 99.8% caught at 12.0% false alarms; lead 14.1/16.5 days; MAE 6.70 days.
+  - Forgery branch `forgery-model-on-find-it-again` (worktree `../wt-forgery`, not merged, no PR):
+    `ml/forgery/train.py` on Find it again! (one receipt listed in train and val is kept in train
+    only). Result: page AUC 0.534, recall 11.4% at 6.6% false alarms — near chance. Needs a decision
+    from the maintainer before anything else is done with it.
 - The old synthetic-trained models were moved out of `models/` to `../retired-synthetic-models/`.
-- Datasets live in the kagglehub cache (`~/.cache/kagglehub`); the Kaggle token is in
-  `~/.kaggle/access_token` (user's, never commit it).
+- Datasets: `ml/download_open_data.py <name>` writes to `data/<name>/` (git-ignored); earlier
+  downloads are also in the kagglehub cache (`~/.cache/kagglehub`). The Kaggle token is in
+  `~/.kaggle/access_token` (user's, never commit it). Tests for the ml scripts: `pytest ml/tests`.
 - Not built: discrepancy-risk XGBoost from the plan; officer assistant (skipped).
 
 ### Web — `apps/web` (Next.js 16.4.3, React 19; ESLint, tsc and build pass; npm pinned 11.6.2)
@@ -148,11 +155,11 @@ Port note: a Wondershare app listens on `0.0.0.0:8090`; the mock bank binds `127
 ## 6. Next steps (in order)
 
 1. **User (manual):** provide an FDR scan (real, with consent, personal details redacted) so the
-   upload → extraction → bank verification story can be tested. (The PR #9 notebook was run: F1 0.906.)
-2. Review and merge #8, #10, #9; open and merge the forgery PR when training finishes; then remove
-   the remaining synthetic mentions from the plan and README.
-3. Security follow-up found in review of #5: `GET /instruments/{id}` has no permission check, and
-   unusual role mixes (e.g. institution + bank_service) match no scoping rule.
+   upload → extraction → bank verification story can be tested; the user has none yet, so the flow
+   can be tested with any real document and typed values (everything except extraction accuracy).
+   Re-run the LayoutLMv3 notebook with the merged protocol.
+2. Decide the forgery signal's future (result near chance); merge #11 and #12.
+3. Live stack processes (API, mock bank, web) were stopped for low memory; restart when needed.
 4. Walk the demo story (plan §12) on the live stack; run taste-skill `inspect.mjs --app` on every
    screen (1440/768/390) and fix FAILs; show PR #7's anchor fields in the admin/audit UI.
 5. When the user grants the `workflow` scope: add the CI workflow.
