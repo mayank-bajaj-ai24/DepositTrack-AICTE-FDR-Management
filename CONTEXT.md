@@ -94,7 +94,9 @@ default) lists bank codes whose keys are published before any FDR. Settings in `
 ### ML — `ml/`
 - On `main`: `ml/synth`, `ml/forgery/{train,tamper}.py`, `ml/risk/{train,simulate}.py` and
   `ml/layoutlm/train_layoutlmv3_fdr.ipynb` are the **old synthetic-data code, being replaced**:
-  - PR #9: `ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb` (FUNSD, free Colab T4), removes `ml/synth`.
+  - PR #9: `ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb` (FUNSD, free Colab T4; no `seqeval`, batch 4 × 4
+    accumulation to fit the T4), removes `ml/synth`. Maintainer's run: entity F1 0.906 (answer 0.928,
+    question 0.917, header 0.649) — proxy; paper reports 90.29.
   - PR #10: `ml/risk/train.py` on BPI Challenge 2017 → `models/renewal_risk_proxy/` (not loaded live).
     Measured (proxy): AUC 0.821, 80.1% of missed deadlines caught at 12.0% false alarms,
     mean/median lead 14.6/16.6 days, regressor MAE 6.16 days.
@@ -146,8 +148,7 @@ Port note: a Wondershare app listens on `0.0.0.0:8090`; the mock bank binds `127
 ## 6. Next steps (in order)
 
 1. **User (manual):** provide an FDR scan (real, with consent, personal details redacted) so the
-   upload → extraction → bank verification story can be tested; run the PR #9 notebook on free
-   Colab (T4) and share `metrics.json`.
+   upload → extraction → bank verification story can be tested. (The PR #9 notebook was run: F1 0.906.)
 2. Review and merge #8, #10, #9; open and merge the forgery PR when training finishes; then remove
    the remaining synthetic mentions from the plan and README.
 3. Security follow-up found in review of #5: `GET /instruments/{id}` has no permission check, and
