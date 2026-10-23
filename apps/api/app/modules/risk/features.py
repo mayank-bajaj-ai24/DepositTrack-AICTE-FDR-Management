@@ -1,4 +1,4 @@
-"""Renewal-risk features (N9), shared by the training simulator and the live database.
+"""Renewal-risk features (N9) computed from DepositTrack's own database history.
 
 Features describe an institution's history at a decision point before an instrument
 matures (prefix encoding, as in the predictive-monitoring benchmark): past renewals and

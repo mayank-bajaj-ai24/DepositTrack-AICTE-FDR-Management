@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models import Event, Flag, Instrument
 from app.modules.lifecycle.states import InstrumentState as S
 from app.modules.risk.features import History
-from app.modules.risk.model import RiskResult, predict
+from app.modules.risk.model import RiskResult, is_available, predict
 
 SCORED_STATES = {S.ACTIVE, S.EXPIRING}
 
@@ -74,6 +74,15 @@ def history_for(session: Session, instrument: Instrument, as_of: date) -> Histor
 def score_live(
     session: Session, models_dir: str, today: date
 ) -> list[tuple[Instrument, RiskResult]]:
+    """Score active instruments; with no loadable model, clear scores left by an earlier one."""
+    if not is_available(models_dir):
+        for instrument in session.scalars(
+            select(Instrument).where(Instrument.risk_score.is_not(None))
+        ):
+            instrument.risk_score = None
+            instrument.risk_reasons = None
+        session.flush()
+        return []
     scored = []
     for instrument in session.scalars(
         select(Instrument).where(Instrument.state.in_(SCORED_STATES))

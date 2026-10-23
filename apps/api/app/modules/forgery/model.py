@@ -12,24 +12,23 @@ from pathlib import Path
 
 from PIL import Image
 
+from app.modules.extraction.rules import is_ignored
 from app.modules.forgery.features import FEATURE_NAMES, page_features
 
 MODEL_SUBDIR = "forgery"
 
 
 def text_regions(lines, rules: dict) -> list[tuple[str, tuple[int, int, int, int]]]:
-    """Every OCR text line except watermark fragments: the regions the model scores.
+    """Every OCR text line except configured ignore text: the regions the model scores.
 
     All lines are scored (not only the ones a field was read from), so a re-typed value
-    that extraction no longer recognises is still examined.
+    that extraction no longer recognises is still examined. The ignore rule is the one
+    extraction uses (rules.is_ignored), so both skip the same lines.
     """
-    contains = [s.lower() for s in rules.get("ignore_lines_containing", [])]
-    equal = {s.lower() for s in rules.get("ignore_lines_equal", [])}
     out = []
     for line in lines:
         text = line.text.strip()
-        low = text.lower()
-        if len(text) < 2 or low in equal or any(s in low for s in contains):
+        if len(text) < 2 or is_ignored(text, rules):
             continue
         out.append((text, line.box))
     return out

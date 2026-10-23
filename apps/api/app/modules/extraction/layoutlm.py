@@ -1,10 +1,16 @@
-"""Pass A of extraction (N6): a fine-tuned LayoutLMv3 token classifier, when available.
+"""Pass A of extraction (N6): a fine-tuned LayoutLMv3 token classifier, when enabled.
 
-The model is trained in ml/layoutlm/train_layoutlmv3_fdr.ipynb (run on a GPU) and saved
-to <models_dir>/layoutlmv3-fdr. Without that folder, or without `transformers` and
-`torch` installed, pass A is reported as unavailable and pass B is used alone.
+Pass A is off unless `pass_a_enabled: true` is set in config/extraction.yaml (it stays off
+until a model trained on labelled real FDRs exists). Such a model is saved to
+<models_dir>/layoutlmv3-fdr/ and must label words with "O" or B-/I- tags whose suffix,
+lower-cased, is a field in service.FIELDS (FDR_NO, BANK, ..., LIEN_TEXT); a folder whose
+labels do not map onto those fields, or whose metrics.json says "live_extraction": false
+(as the FUNSD proxy from ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb does), is refused.
+Without a valid folder, or without `transformers` and `torch` installed, pass A is
+reported as unavailable and pass B is used alone.
 """
 
+import json
 from functools import lru_cache
 from pathlib import Path
 
@@ -15,15 +21,48 @@ from app.modules.extraction.ocr import OcrLine
 MODEL_SUBDIR = "layoutlmv3-fdr"
 
 
+def labels_match_fields(id2label: dict, fields) -> bool:
+    """True when every label is "O" or B-/I- plus a field name (upper case), and some are."""
+    wanted = {f.upper() for f in fields}
+    tags = set()
+    for label in id2label.values():
+        if label == "O":
+            continue
+        prefix, _, tag = str(label).partition("-")
+        if prefix not in ("B", "I") or tag not in wanted:
+            return False
+        tags.add(tag)
+    return bool(tags)
+
+
+def model_is_usable(path: Path) -> bool:
+    """Checks on the saved files alone, before any model library is imported."""
+    from app.modules.extraction.service import FIELDS
+
+    try:
+        config = json.loads((path / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    metrics_path = path / "metrics.json"
+    if metrics_path.exists():
+        try:
+            metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+        except ValueError:
+            return False
+        if isinstance(metrics, dict) and metrics.get("live_extraction") is False:
+            return False
+    return labels_match_fields(config.get("id2label") or {}, FIELDS)
+
+
 @lru_cache
 def _load(model_dir: str):
+    path = Path(model_dir) / MODEL_SUBDIR
+    if not model_is_usable(path):
+        return None
     try:
         import torch  # noqa: F401
         from transformers import AutoModelForTokenClassification, AutoProcessor
     except ImportError:
-        return None
-    path = Path(model_dir) / MODEL_SUBDIR
-    if not (path / "config.json").exists():
         return None
     processor = AutoProcessor.from_pretrained(path, apply_ocr=False)
     model = AutoModelForTokenClassification.from_pretrained(path)
