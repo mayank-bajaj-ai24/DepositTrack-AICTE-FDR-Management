@@ -11,6 +11,15 @@ compare_fields: [fdr_no, ifsc, amount, issue_date, maturity_date]
 # same canonical bank, are flagged for review.
 near_duplicate_max_distance: 1
 
+# A bank merger (N7) gives the old and the acquiring bank one canonical key, but their FDR
+# numbers come from two separate series: Vijaya Bank FDR 123456 and Bank of Baroda FDR
+# 123456 are different deposits. When two instruments share a key only through such a
+# merger (different issuing banks), they are treated as the same deposit, and flagged as a
+# duplicate or near-duplicate, only if these instrument fields agree as well: the same
+# deposit keeps its issue date and amount. A field missing on either side does not count
+# as a disagreement (the duplicate is not ruled out; the missing field is flagged anyway).
+cross_merger_match_fields: [issue_date, amount]
+
 severity:
   missing_field: high
   missing_document: high

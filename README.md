@@ -360,6 +360,29 @@ uvicorn app.main:app --reload    # http://localhost:8000/docs
 pytest                           # unit tests (no services needed)
 ```
 
+**Master data (M12)** — real public sources only, downloaded to `data/open/` (not committed):
+
+```bash
+python -m app.masterdata fetch-institutions    # AICTE approved institutions (public dashboard), all states
+python -m app.masterdata import-institutions   # 13,088 institutions for 2024-25 at the time of writing
+python -m app.masterdata fetch-banks           # RBI IFSC master via the Razorpay IFSC dataset (MIT)
+python -m app.masterdata import-banks          # banks, sublet IFSCs, RBI-cited mergers (config/bank_mergers.yaml)
+python -m app.seed demo --institution-user-aicte-id <AICTE ID>   # links the dev institution user
+```
+
+Sources and parameters are in `config/master_data.yaml`. AICTE regional-office mapping is not published in a downloadable form, so `regions` stays empty (unconfirmed) and institutions import with no region.
+
+- `fetch-institutions` saves a snapshot only if the state lists add up to the all-India list: every institution in exactly one state, no AICTE ID repeated, none missing from the all-India list. `import-institutions` checks a saved snapshot the same way.
+- `import-banks` makes the `bank_merger` table exactly `config/bank_mergers.yaml` (a merger removed or corrected there is removed from the table) and rejects cycles in the result. It then recomputes the canonical bank of instruments already stored and records one audit event with the count per old and new bank.
+- Bank names come from `IFSC.csv`; sublet IFSCs (listed in `sublet.json`) never name the bank whose prefix they use.
+- A merger joins two banks' FDR number series. Two instruments that share a canonical bank only through a merger are flagged as a double pledge (or near-duplicate) only if their issue date and amount do not differ (`cross_merger_match_fields` in `config/checks.yaml`).
+
+**Upgrading a dev database seeded by the old fictional seed** (institutions `SYN-1-000x`): nothing is deleted automatically, and `app.seed` warns when `institution.demo` stays linked to one of them. Reset the database before importing:
+
+```bash
+alembic downgrade base && alembic upgrade head   # drops all data, including uploaded instruments
+```
+
 Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
 
 **3. Synthetic FDRs**
@@ -372,6 +395,24 @@ python -m fdrsynth --count 20 --out ../../data/synthetic
 ```
 
 Each sample is a PNG plus a JSON file with field values and word-level boxes and labels for LayoutLMv3. All samples use fictional banks and carry a `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT` watermark. Banks, cities, wording and value ranges come from `fdrsynth/data/synthetic_lists.json`; pass `--catalog other.json` to use a different list.
+
+**4. Mock bank** (simulation of the issuing bank's signed confirmation channel)
+
+```bash
+cd services/mock-bank
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env             # development-only placeholders; MB_API_TOKEN must equal DT_BANK_API_TOKEN
+python -m mockbank serve --port 8090   # bank operator page at http://localhost:8090
+# or, in a second terminal: the bank records an FDR it issued
+python -m mockbank register --ifsc XNBK0001234 --fdr-no <no> --amount 500000.50 --issue-date 2025-01-10 --maturity-date 2028-01-10 --beneficiary "<text>" --depositor "<name>"
+```
+
+The bank's ledger starts empty and nothing is generated: the bank side records each FDR it issued (on the operator page, with `register`, which is safe to run while `serve` runs, or with `POST /fdrs`). Records are insert-only.
+
+The mock bank has two tokens. `MB_API_TOKEN` is DepositTrack's: it reads the bank's keys, signed credentials and status, and removes AICTE's lien on release. `MB_OPERATOR_TOKEN` is the bank operator's: it records FDRs, lists the ledger and records an early closure (`POST /simulate/close`). The two must differ, and DepositTrack never gets the operator token. Endpoints for a token that is not set answer 503. An admin then pins the bank keys once in DepositTrack. `/keys` publishes a key for every bank code in `MB_BANK_CODES` from the start; if `MB_BANK_CODES` is empty, pin again after the first FDR of a new bank code. Keys already pinned never change.
+
+An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "Verify with bank" until the bank records it with its true values.
 
 ---
 
@@ -420,7 +461,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
 | T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal measured on synthetic data, see [Expected outcomes](#expected-outcomes) |
 | T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
-| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants) |
+| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants; unit tests for a same deposit across a bank merger and for unrelated same-number FDRs of two merged banks) |
 | T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
 | T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
 | T-10 | Overdue escalation | Escalated to the next role | Passing (API: overdue alert to competent authority) |
@@ -513,7 +554,8 @@ Immediate next steps, in order:
 4. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
 5. **Event-log simulator** for the renewal-risk model (N9) and conformance replay (N10).
 6. **Core vertical slice (Phase 2):** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
-7. **Idea submission** for the PS deadline (on hold).
+7. **Record the demo FDRs at the mock bank:** its ledger starts empty, so each FDR the demo submits must be recorded at the bank (operator page or `python -m mockbank register`) before "Verify with bank" can attest it.
+8. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
@@ -545,6 +587,8 @@ DepositTrack-AICTE-FDR-Management/
       tests/
   ml/
     synth/                   # synthetic FDR generator (fdrsynth)
+  services/
+    mock-bank/               # simulated issuing bank: records the FDRs it issued, signs credentials, lien status
   infra/
     docker-compose.yml
     keycloak/                # realm import
@@ -561,7 +605,6 @@ DepositTrack-AICTE-FDR-Management/
   apps/web/                  # Next.js: institution, officer, auditor, verifier UIs
   apps/api/app/workers/      # Celery tasks and schedules
   ml/                        # LayoutLMv3, forgery, risk models, RAG
-  services/mock-bank/        # issues and revokes signed FDR credentials
   docs/                      # ADRs, API spec, dataset cards
 ```
 

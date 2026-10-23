@@ -24,6 +24,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["mockbank*"]
 
+[tool.setuptools.package-data]
+mockbank = ["static/*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
