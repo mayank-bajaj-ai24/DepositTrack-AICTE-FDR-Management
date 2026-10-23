@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from mockbank.files import Busy
 from mockbank.ledger import AlreadyRecorded
-from mockbank.records import FdrRecord, record_issued_fdr
+from mockbank.records import FdrRecord, NotIssuedHere, record_issued_fdr
 from mockbank.settings import get_settings
 
 
@@ -32,7 +32,7 @@ def register(args: argparse.Namespace) -> dict:
             depositor=args.depositor,
         )
         return record_issued_fdr(record, get_settings())
-    except (ValidationError, AlreadyRecorded, Busy) as exc:
+    except (ValidationError, AlreadyRecorded, NotIssuedHere, Busy) as exc:
         raise SystemExit(f"Not recorded: {exc}") from exc
 
 

@@ -54,9 +54,20 @@ class FdrRecord(BaseModel):
         return int(amount) if amount == amount.to_integral_value() else float(amount)
 
 
+class NotIssuedHere(ValueError):
+    """The FDR's bank code is not one this mock bank issues for (MB_BANK_CODES)."""
+
+
 def record_issued_fdr(record: FdrRecord, settings: Settings) -> dict:
     """Add an FDR the bank issued to its ledger.
 
-    Insert-only: raises AlreadyRecorded if the FDR is on the ledger already.
+    Insert-only: raises AlreadyRecorded if the FDR is on the ledger already, NotIssuedHere if
+    MB_BANK_CODES is set and does not include the FDR's bank code.
     """
+    bank = record.ifsc[:4]
+    if settings.issuing_banks and bank not in settings.issuing_banks:
+        raise NotIssuedHere(
+            f"bank code {bank} is not one this mock bank issues FDRs for "
+            f"(MB_BANK_CODES={settings.bank_codes})"
+        )
     return Ledger(settings.ledger_file).insert(record.model_dump(mode="json"))

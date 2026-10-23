@@ -1,7 +1,7 @@
 """HTTP API of the mock bank.
 
 POST /fdrs                         the bank records an FDR it issued (its own ledger)
-GET  /keys                         public keys per bank code (AICTE pins these once)
+GET  /keys                         public keys per bank code (AICTE pins these; they never change)
 GET  /credentials?ifsc=&fdr_no=    signed FDRAttestation for one FDR
 GET  /status?ifsc=&fdr_no=         signed status record with last/next update (freshness)
 POST /lien/remove                  remove AICTE's lien (on release); revokes the credential
@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from mockbank.files import Busy
 from mockbank.ledger import AlreadyRecorded, Ledger
-from mockbank.records import FdrRecord, record_issued_fdr
+from mockbank.records import FdrRecord, NotIssuedHere, record_issued_fdr
 from mockbank.settings import Settings, get_settings
 from mockbank.signing import KeyStore
 
@@ -81,12 +81,22 @@ def register_fdr(record: FdrRecord, settings: Settings = Depends(get_settings)) 
         return record_issued_fdr(record, settings)
     except AlreadyRecorded as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except NotIssuedHere as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
 
 @app.get("/keys", dependencies=[Depends(require_token)])
-def public_keys(book: Ledger = Depends(ledger), store: KeyStore = Depends(keys)) -> dict:
-    banks = sorted({e["ifsc"][:4] for e in book.entries()})
-    return {store.key_id(b): store.public_b64(b) for b in banks}
+def public_keys(
+    book: Ledger = Depends(ledger),
+    store: KeyStore = Depends(keys),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """One key per bank code this bank manages: configured (MB_BANK_CODES), already keyed, or
+    on the ledger. Configured codes are published even while the ledger is empty, so a pin
+    right after start-up covers them. A key never changes once created."""
+    banks = set(settings.issuing_banks) | set(store.known_banks())
+    banks |= {e["ifsc"][:4] for e in book.entries()}
+    return {store.key_id(b): store.public_b64(b) for b in sorted(banks)}
 
 
 @app.get("/credentials", dependencies=[Depends(require_token)])
