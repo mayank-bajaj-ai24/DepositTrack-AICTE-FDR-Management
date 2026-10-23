@@ -16,6 +16,7 @@ import tempfile
 from pathlib import Path
 
 import httpx
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Bank, BankMerger, IfscLineage
@@ -89,14 +90,26 @@ def import_banks(session: Session, data_dir: Path, mergers: list[dict]) -> dict[
         raise MasterDataError(f"sublet.json names unknown bank codes: {unknown_sublet[:10]}")
     _check_mergers(mergers, set(banks))
 
+    # Existing rows are loaded once and updated in memory; the flush then sends batched
+    # INSERTs and UPDATEs (only for rows that changed) instead of one SELECT per row.
+    existing_banks = {b.code: b for b in session.scalars(select(Bank))}
     for code, info in banks.items():
-        session.merge(
-            Bank(code=code, name=names.get(code), bank_type=info.get("type"), source=source)
-        )
+        values = {"name": names.get(code), "bank_type": info.get("type"), "source": source}
+        row = existing_banks.get(code)
+        if row is None:
+            session.add(Bank(code=code, **values))
+            continue
+        for key, value in values.items():
+            if value is not None:
+                setattr(row, key, value)
+    existing_lineage = {row.old_ifsc: row for row in session.scalars(select(IfscLineage))}
     for ifsc, bank in sublet.items():
-        session.merge(
-            IfscLineage(old_ifsc=ifsc.upper(), current_ifsc=ifsc.upper(), canonical_bank=bank)
-        )
+        ifsc = ifsc.upper()
+        row = existing_lineage.get(ifsc)
+        if row is None:
+            session.add(IfscLineage(old_ifsc=ifsc, current_ifsc=ifsc, canonical_bank=bank))
+        else:
+            row.current_ifsc, row.canonical_bank = ifsc, bank
     for m in mergers:
         session.merge(
             BankMerger(
