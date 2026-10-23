@@ -12,10 +12,17 @@ from sqlalchemy.orm import Session
 from app.api import serializers as ser
 from app.api.deps import actor_of, bank_dep, extractor_dep, policy_dep, store_dep
 from app.core import clock
-from app.core.access import Scope, get_scope, get_visible_instrument, scope_instruments
+from app.core.access import (
+    INSTRUMENT_READ,
+    Scope,
+    get_scope,
+    get_visible_instrument,
+    require,
+    scope_instruments,
+)
 from app.core.config import Settings, get_settings
 from app.core.configfiles import load_config, workflow
-from app.core.permissions import Action, Role, is_allowed
+from app.core.permissions import Action, Role
 from app.core.policy import Policy
 from app.db.session import get_session
 from app.models import (
@@ -38,7 +45,7 @@ from app.modules.extraction.service import FIELDS
 from app.modules.instruments.intake import submit_instrument
 from app.modules.instruments.trust import instrument_level
 from app.modules.lifecycle import coverage
-from app.modules.lifecycle.service import move
+from app.modules.lifecycle.service import allowed_roles, move
 from app.modules.lifecycle.states import InstrumentKind, InstrumentState, TrustLevel
 from app.modules.release.service import blockers
 from app.modules.storage.store import DocumentStore
@@ -46,9 +53,9 @@ from app.modules.storage.store import DocumentStore
 router = APIRouter(prefix="/api/v1", tags=["instruments"])
 
 
-def _require(scope: Scope, action: Action) -> None:
-    if not is_allowed(scope.principal.roles, action):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Not permitted: {action.value}")
+def _holds_any(scope: Scope, roles: list[str]) -> bool:
+    """Whether the caller holds one of the roles a workflow step allows."""
+    return bool(set(scope.principal.roles) & set(roles))
 
 
 def _read_upload(file: UploadFile, settings: Settings) -> bytes:
@@ -70,7 +77,7 @@ def extract_preview(
     extractor=Depends(extractor_dep),
 ) -> dict:
     """Run OCR + extraction on a scan without saving anything (auto-fill for the form)."""
-    _require(scope, Action.INSTRUMENT_SUBMIT)
+    require(scope, (Action.INSTRUMENT_SUBMIT,))
     result = extractor(_read_upload(file, settings), file.content_type)
     if result is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Upload a PNG or JPG scan")
@@ -103,7 +110,7 @@ def submit(
     policy: Policy = Depends(policy_dep),
     extractor=Depends(extractor_dep),
 ) -> dict:
-    _require(scope, Action.INSTRUMENT_SUBMIT)
+    require(scope, (Action.INSTRUMENT_SUBMIT,))
     try:
         values = json.loads(declared)
     except json.JSONDecodeError as exc:
@@ -113,7 +120,11 @@ def submit(
         for k, v in values.items()
         if k in FIELDS
     }
-    replaces = get_visible_instrument(session, scope, replaces_id) if replaces_id else None
+    replaces = (
+        get_visible_instrument(session, scope, replaces_id, actions=(Action.RENEWAL_SUBMIT,))
+        if replaces_id
+        else None
+    )
     instrument = submit_instrument(
         session,
         store=store,
@@ -148,11 +159,7 @@ def list_instruments(
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ) -> dict:
-    if not (
-        is_allowed(scope.principal.roles, Action.INSTRUMENT_READ_ALL)
-        or is_allowed(scope.principal.roles, Action.INSTRUMENT_READ_OWN)
-    ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
+    require(scope, INSTRUMENT_READ)
     open_flags = (
         select(Flag.instrument_id, func.count().label("n"))
         .where(Flag.status == "open")
@@ -164,7 +171,7 @@ def list_instruments(
         .join(Institution, Institution.id == Instrument.institution_id)
         .outerjoin(open_flags, open_flags.c.instrument_id == Instrument.id)
     )
-    query = scope_instruments(query, scope)
+    query = scope_instruments(query, scope, INSTRUMENT_READ)
     if state:
         query = query.where(Instrument.state.in_(state))
     if institution_id:
@@ -192,25 +199,13 @@ def list_instruments(
     }
 
 
-def _require_instrument_read(scope: Scope) -> None:
-    """Opening one instrument (its fields, history, documents) needs a read permission;
-    visibility alone is not enough (a bank account may see that an instrument exists)."""
-    roles = scope.principal.roles
-    if not any(
-        is_allowed(roles, action)
-        for action in (Action.INSTRUMENT_READ_ALL, Action.INSTRUMENT_READ_OWN, Action.AUDIT_READ)
-    ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
-
-
 @router.get("/instruments/{instrument_id}")
 def detail(
     instrument_id: uuid.UUID,
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ) -> dict:
-    _require_instrument_read(scope)
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(session, scope, instrument_id, INSTRUMENT_READ)
     institution = session.get(Institution, instrument.institution_id)
     fields = session.scalars(
         select(FieldValue).where(FieldValue.instrument_id == instrument.id)
@@ -233,8 +228,16 @@ def detail(
         .where(Notification.instrument_id == instrument.id)
         .order_by(Notification.created_at)
     ).all()
-    can_audit = is_allowed(scope.principal.roles, Action.AUDIT_READ) or is_allowed(
-        scope.principal.roles, Action.INSTRUMENT_READ_ALL
+    # The history shows only if a role that reads it can itself see this instrument.
+    can_audit = (
+        session.scalars(
+            scope_instruments(
+                select(Instrument.id).where(Instrument.id == instrument.id),
+                scope,
+                (Action.AUDIT_READ, Action.INSTRUMENT_READ_ALL),
+            )
+        ).first()
+        is not None
     )
     cov = None
     obligation = session.scalars(
@@ -324,8 +327,7 @@ def download(
     session: Session = Depends(get_session),
     store: DocumentStore = Depends(store_dep),
 ) -> Response:
-    _require_instrument_read(scope)
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(session, scope, instrument_id, INSTRUMENT_READ)
     document = session.get(Document, document_id)
     if document is None or document.instrument_id != instrument.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
@@ -361,7 +363,21 @@ def change_state(
     session: Session = Depends(get_session),
     policy: Policy = Depends(policy_dep),
 ) -> dict:
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(session, scope, instrument_id, INSTRUMENT_READ)
+    # Only the caller's roles that may make this move decide which instruments it can reach.
+    movers = allowed_roles(InstrumentState(instrument.state), body.target)
+    if not _holds_any(scope, movers):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"Your role cannot move {instrument.state} -> {body.target.value}",
+        )
+    try:
+        get_visible_instrument(session, scope, instrument_id, roles=movers)
+    except HTTPException as exc:
+        # Visible to the caller, but not to the role that would make the move.
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Your role cannot move this instrument"
+        ) from exc
     if not body.reason.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A reason is required")
     if (
@@ -402,8 +418,9 @@ def add_observation(
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ) -> dict:
-    _require(scope, Action.OBSERVATION_RECORD)
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(
+        session, scope, instrument_id, actions=(Action.OBSERVATION_RECORD,)
+    )
     obs = Observation(
         instrument_id=instrument.id, officer_id=scope.principal.username, text=body.text.strip()
     )
@@ -433,8 +450,9 @@ def resolve_flag(
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ) -> dict:
-    _require(scope, Action.SCRUTINY_REVIEW)
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(
+        session, scope, instrument_id, actions=(Action.SCRUTINY_REVIEW,)
+    )
     flag = session.get(Flag, flag_id)
     if flag is None or flag.instrument_id != instrument.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Flag not found")
@@ -469,7 +487,16 @@ def edit_field(
     session: Session = Depends(get_session),
 ) -> dict:
     """Officer correction of a permitted field, or officer verification (Trust Ladder L2)."""
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    if body.verify:
+        editors = [Role.SCRUTINY_OFFICER.value, Role.VERIFYING_OFFICER.value]
+    else:
+        editors = [r for r, fields in workflow()["editable_fields"].items() if field in fields]
+    if not _holds_any(scope, editors):
+        detail = (
+            "Only officers can verify fields" if body.verify else f"Your role cannot edit {field}"
+        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
+    instrument = get_visible_instrument(session, scope, instrument_id, roles=editors)
     fv = session.scalars(
         select(FieldValue).where(
             FieldValue.instrument_id == instrument.id, FieldValue.field == field
@@ -479,16 +506,10 @@ def edit_field(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown field")
     if not body.reason.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A reason is required")
-    roles = scope.principal.roles
     before = ser.field_value(fv)
     if body.verify:
-        if not (Role.SCRUTINY_OFFICER.value in roles or Role.VERIFYING_OFFICER.value in roles):
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Only officers can verify fields")
         fv.trust_level = max(fv.trust_level, int(TrustLevel.OFFICER_VERIFIED))
     else:
-        editable = {f for role in roles for f in workflow()["editable_fields"].get(role, [])}
-        if field not in editable:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, f"Your role cannot edit {field}")
         fv.declared = body.value
         fv.trust_level = int(TrustLevel.OFFICER_VERIFIED)
         if field == "beneficiary":
@@ -518,13 +539,15 @@ def bank_verification(
     settings: Settings = Depends(get_settings),
     bank: BankClient | None = Depends(bank_dep),
 ) -> dict:
-    _require(scope, Action.VERIFICATION_RECORD)
+    require(scope, (Action.VERIFICATION_RECORD,))
     if bank is None:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "Bank channel is not configured (DT_BANK_API_TOKEN)",
         )
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(
+        session, scope, instrument_id, actions=(Action.VERIFICATION_RECORD,)
+    )
     result = verify_with_bank(session, instrument, actor_of(scope), bank, settings.bank_keys_file)
     session.commit()
     return result | {"trust_level": instrument.trust_level}
@@ -538,13 +561,15 @@ def bank_status(
     settings: Settings = Depends(get_settings),
     bank: BankClient | None = Depends(bank_dep),
 ) -> dict:
-    _require(scope, Action.VERIFICATION_RECORD)
+    require(scope, (Action.VERIFICATION_RECORD,))
     if bank is None:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "Bank channel is not configured (DT_BANK_API_TOKEN)",
         )
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(
+        session, scope, instrument_id, actions=(Action.VERIFICATION_RECORD,)
+    )
     result = refresh_status(session, instrument, actor_of(scope), bank, settings.bank_keys_file)
     session.commit()
     return result | {"trust_level": instrument.trust_level}
