@@ -52,8 +52,9 @@ def test_extracts_every_field_from_a_receipt():
     }
 
 
-def test_watermark_fragment_is_ignored():
-    got = extract_fields([line("INSTRUMENT", 10, 10), line("Real Bank", 10, 40)], RULES)
+def test_configured_ignore_text_is_never_a_value():
+    rules = RULES | {"ignore_lines_equal": ["INSTRUMENT"]}
+    got = extract_fields([line("INSTRUMENT", 10, 10), line("Real Bank", 10, 40)], rules)
     assert got["bank"].normalized == "Real Bank"
 
 
