@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from app.core.configfiles import load_config
 from app.models import Bank, BankMerger, Event, IfscLineage, Institution, Instrument
@@ -379,3 +379,25 @@ def test_import_refuses_a_snapshot_that_does_not_match_the_all_india_count(sessi
     path.write_text(json.dumps(snapshot), encoding="utf-8")
     with pytest.raises(SnapshotError, match="all-India list had 3"):
         import_institutions(session, path, load_config("master_data.yaml")["aicte"])
+
+
+def test_bank_import_does_not_query_once_per_row(session):
+    mergers = load_config("bank_mergers.yaml")["mergers"]
+    rows = sum(
+        len(json.loads((FIXTURES / name).read_text(encoding="utf-8")))
+        for name in ("banks.json", "sublet.json")
+    ) + len(mergers)
+    statements: list[str] = []
+
+    def count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    engine = session.get_bind()
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        for _ in range(2):  # first import inserts, the second one updates
+            statements.clear()
+            import_banks(session, FIXTURES, mergers)
+            assert len(statements) < rows / 2, statements
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
