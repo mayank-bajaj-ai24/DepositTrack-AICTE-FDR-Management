@@ -22,7 +22,7 @@ out/
 .env.*
 !.env.example
 
-# Generated data (synthetic samples are reproducible from ml/synth)
+# Downloaded and generated data (open datasets: ml/download_open_data.py)
 /data/
 
 # Editors and OS
