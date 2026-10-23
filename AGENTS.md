@@ -73,8 +73,8 @@ Decided by the maintainer on 23 Oct 2026; it replaces the earlier "synthetic dat
 
 - **No synthetic data and no hardcoded fake values** in code, config, seeds or the UI. Nothing is generated to look like an FDR, an institution or a bank record.
 - **Master data comes from public sources:** AICTE's approved-institutions dashboard and the RBI IFSC master (Razorpay IFSC dataset), imported with `python -m app.masterdata` (sources in `apps/api/config/master_data.yaml`). Bank mergers are listed in `apps/api/config/bank_mergers.yaml`, each with its RBI press release.
-- **Models are trained on open datasets, as proxies.** No public FDR dataset exists, so each model is trained on the closest open dataset and its results are reported as *proxy results on that dataset, not FDR results*. Datasets, licences and citations are listed in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` (both pending PR #8). Check a dataset's licence before using it and never commit downloaded data (`data/` and the kagglehub cache are not in git).
-- A model trained on a proxy that cannot speak for AICTE institutions (renewal risk, LayoutLMv3 pass A) stays **off** in the live system until it can be trained on DepositTrack's own data; one whose features do not depend on the document type (forgery signals) may run live, labelled with its training dataset. Ask the maintainer before switching a proxy model on.
+- **Models are trained on open datasets, as proxies.** No public FDR dataset exists, so each model is trained on the closest open dataset and its results are reported as *proxy results on that dataset, not FDR results*. Datasets (with pinned versions), licences and citations are listed in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` into the git-ignored `data/<name>/`; a dataset whose licence is not confirmed needs `--accept-unconfirmed-licence`. Check a dataset's licence before using it and never commit downloaded data (`data/` is not in git).
+- A model trained on a proxy that cannot speak for AICTE institutions (renewal risk, LayoutLMv3 pass A) stays **off** in the live system until it can be trained on DepositTrack's own data; one whose features do not depend on the document type (forgery signals) may run live, labelled with its training dataset, but only if its proxy result is useful. The code enforces this: the risk loader needs `"live_scoring": true` in the model's `meta.json`, and extraction needs `pass_a_enabled: true` plus a model with FDR labels. Ask the maintainer before switching a proxy model on.
 - **Real FDRs are confidential.** A real FDR is used only with the owner's consent and personal details redacted, and is never committed.
 - **The mock bank is a simulation**, clearly labelled as one. Its ledger starts empty; the bank operator records each FDR. Real bank names and IFSC codes may appear there, but never a bank's branding.
 - **Test fixtures** use excerpts of the real public data (for example `apps/api/tests/fixtures/masterdata`) or minimal values that a test needs to exercise a rule. They are never presented as real records.
@@ -99,7 +99,7 @@ Decided by the maintainer on 23 Oct 2026; it replaces the earlier "synthetic dat
 | Python tests | `pytest` |
 | Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `npm` |
 | Frontend lint / types | `npx eslint src`, `npx tsc --noEmit`, `npx next build` |
-| ML | scikit-learn, scikit-image, LightGBM (`ml` extra in `apps/api`); OCR with RapidOCR |
+| ML | scikit-learn, scikit-image, LightGBM (`ml` extra in `apps/api`); open datasets via `kagglehub` (`data` extra); OCR with RapidOCR |
 | Audit anchoring | immudb receipts via `immudb-py==1.5.0` (`anchoring` extra in `apps/api`; pinned because of its large dependency tree) |
 | Mock bank | `services/mock-bank` (FastAPI), simulation of a bank's signed confirmation channel |
 | Infrastructure | Docker Compose: PostgreSQL 16 + pgvector, SeaweedFS (S3), Redis, Keycloak, immudb |
@@ -138,12 +138,12 @@ npm run dev                                          # http://localhost:3000
 npx eslint src && npx tsc --noEmit && npx next build
 
 # Models on open data (repo root, API's virtual environment; outputs go to models/, not committed)
-# Pending PRs #8 (download helper), #10 (renewal risk), #9 (LayoutLMv3) and the forgery PR.
-apps/api/.venv/Scripts/python ml/download_open_data.py find-it-again   # Kaggle token needed (free)
-apps/api/.venv/Scripts/python ml/forgery/train.py --data <path>/findit2 --out models
-apps/api/.venv/Scripts/python ml/download_open_data.py bpi-2017
-apps/api/.venv/Scripts/python ml/risk/train.py --log <path>/bpi_2017_cleaned.csv   # proxy, live off
+pip install -e "apps/api[data,ml]"                                     # kagglehub + model libraries
+apps/api/.venv/Scripts/python ml/download_open_data.py bpi-2017        # Kaggle token needed (free)
+apps/api/.venv/Scripts/python ml/risk/train.py --out models            # proxy, writes renewal_risk_proxy/, live off
+apps/api/.venv/Scripts/python -m pytest ml/tests
 # LayoutLMv3: run ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb on the free Colab T4 GPU (proxy, live off)
+# Forgery (Find it again!): on branch forgery-model-on-find-it-again, not merged (result near chance)
 ```
 
 Run lint and tests before every push. CI is not set up yet, so these local checks are the only gate.
@@ -154,10 +154,11 @@ Run lint and tests before every push. CI is not set up yet, so these local check
 apps/api/        FastAPI backend (modules per plan §8), config/ holds every rule file
 apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
 services/mock-bank/  Mock bank (simulation): the operator records issued FDRs; signed credentials, lien status
-ml/forgery/      Forgery signal training (Find it again! receipts, pending PR)
-ml/risk/         Renewal-risk training (BPI Challenge 2017 proxy, pending PR #10)
-ml/layoutlm/     LayoutLMv3 notebook (FUNSD proxy, pending PR #9)
-ml/synth/        Synthetic FDR generator - being removed in PR #9; do not use
+ml/open_datasets.json, ml/download_open_data.py  Open-dataset catalog and download helper
+ml/forgery/      Forgery signal training (Find it again! retrain on an unmerged branch)
+ml/risk/         Renewal-risk proxy training (BPI Challenge 2017)
+ml/layoutlm/     LayoutLMv3 FUNSD proxy notebook
+ml/tests/        Tests for the ml scripts
 data/open/       Downloaded public master data (not committed)
 models/          Trained model files (generated, not committed)
 infra/           Docker Compose and service config (Keycloak realm, etc.)
