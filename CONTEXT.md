@@ -55,11 +55,11 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. Config
 validated; **never actually started** (Docker Desktop was not running).
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 294 tests pass, ruff clean)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 315 tests pass, ruff clean)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, ABAC: institution / region / bank scoping via `user_account` |
-| Data model | `app/models/`, migrations `0001`–`0003` | 18 tables incl. obligation/coverage, field_value (declared / extracted A+B / bank), notification, system_setting |
+| Data model | `app/models/`, migrations `0001`–`0004` | 19 tables incl. obligation/coverage, field_value (declared / extracted A+B / bank), notification, system_setting |
 | Intake M2 | `modules/instruments/intake.py`, `modules/storage/store.py` | Fernet-encrypted docs (local or S3), versioned, SHA-256 |
 | Extraction M3/N6 | `modules/extraction/` + `config/extraction.yaml` | RapidOCR; pass B = config rules; pass A = LayoutLMv3 when `models/layoutlmv3-fdr/` exists |
 | Checks M4/N7/N8 | `modules/checks/`, `config/checks.yaml` | Flags carry fact/rule/clause/reason; double pledge (+IFSC lineage), near-duplicate, amount-in-words, continuity gap on late renewal |
@@ -68,7 +68,7 @@ validated; **never actually started** (Docker Desktop was not running).
 | Lifecycle M7/N2 | `modules/lifecycle/` + `config/workflow.yaml` | State machine, role-gated transitions, coverage curves + first-gap forecast, daily sweep with demo clock |
 | Alerts M8 | `modules/alerts/`, `config/alerts.yaml` | One notification per threshold/audience; overdue, coverage gap, risk, case time boxes |
 | Release M9/N5 | `modules/release/` | Policy checklist, blockers, mandatory reason, release letter PDF (marked PROTOTYPE), bank lien removal |
-| Audit M6/N10 | `modules/audit/` + `config/conformance.yaml` | Hash chain per instrument, Merkle anchors (optional immudb), file verifier, conformance replay (constraints unvalidated) |
+| Audit M6/N10 | `modules/audit/` + `config/conformance.yaml` | Hash chain per instrument, Merkle anchors over `anchor_event` membership (optional immudb receipt, read back with a verified get on verification; `[anchoring]` extra), file verifier, conformance replay (constraints unvalidated) |
 | Risk N9 | `modules/risk/` | LightGBM + SHAP reasons from DB history; scored in the sweep |
 | Reports M10 | `app/api/dashboard.py` | Dashboard tiles, coverage endpoint, 4 reports as JSON/CSV/XLSX |
 | Seed | `app/seed.py`, `seed/demo_seed.json` | 5 fictional institutions, accounts for Keycloak dev users, demo obligations, synthetic FDRs through real intake |
