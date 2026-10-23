@@ -5,7 +5,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import IfscLineage
+from app.models import BankMerger, IfscLineage
 
 IFSC_RE = re.compile(r"^[A-Z]{4}0[A-Z0-9]{6}$")
 
@@ -15,14 +15,24 @@ def normalize_instrument_no(number: str) -> str:
 
 
 def canonical_bank(session: Session, ifsc: str | None) -> str | None:
-    """Current bank code for an IFSC, following merger lineage when it is recorded."""
+    """Current bank code for an IFSC, following recorded lineage.
+
+    An IFSC-level entry (a sublet IFSC, or a branch re-coded after a merger) wins; otherwise
+    the IFSC's bank prefix is followed through bank-level mergers.
+    """
     if not ifsc:
         return None
     ifsc = ifsc.upper()
     lineage = session.scalars(select(IfscLineage).where(IfscLineage.old_ifsc == ifsc)).first()
-    if lineage:
-        return lineage.canonical_bank
-    return ifsc[:4]
+    bank = lineage.canonical_bank if lineage else ifsc[:4]
+    # Follow merger chains (A -> B -> C); the importer rejects cycles, `seen` guards anyway.
+    seen = {bank}
+    while (
+        merger := session.get(BankMerger, bank)
+    ) is not None and merger.canonical_bank not in seen:
+        bank = merger.canonical_bank
+        seen.add(bank)
+    return bank
 
 
 def edit_distance(a: str, b: str) -> int:
