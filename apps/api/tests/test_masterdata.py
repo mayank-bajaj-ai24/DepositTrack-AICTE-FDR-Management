@@ -326,3 +326,56 @@ def test_cross_merger_duplicate_is_not_ruled_out_by_a_missing_field(merged):
     again = _submitted(merged, "BARB0AAMBUR", "123456", date(2018, 6, 1), None)
     [(_, spec)] = duplicate_flags(merged, again)
     assert spec.flag_type == "duplicate_pledge"
+
+
+def _by_state(rows: list[dict]) -> dict:
+    by_state: dict = {}
+    for r in rows:
+        by_state.setdefault(r["state"], []).append(r["row"])
+    return by_state
+
+
+def test_fetch_refuses_an_institution_listed_under_two_states(tmp_path):
+    rows = json.loads(SNAPSHOT.read_text(encoding="utf-8"))["rows"]
+    by_state = _by_state(rows)
+    by_state[rows[1]["state"]].append(rows[0]["row"])  # Kerala row also under Maharashtra
+    cfg = load_config("master_data.yaml")["aicte"]
+    client = _dashboard([r["row"] for r in rows], by_state)
+    with pytest.raises(SnapshotError, match="more than once"):
+        fetch_institutions(cfg, tmp_path, client=client)
+
+
+def test_fetch_refuses_an_institution_repeated_within_a_state(tmp_path):
+    rows = json.loads(SNAPSHOT.read_text(encoding="utf-8"))["rows"]
+    by_state = _by_state(rows)
+    by_state[rows[0]["state"]].append(rows[0]["row"])
+    cfg = load_config("master_data.yaml")["aicte"]
+    client = _dashboard([r["row"] for r in rows], by_state)
+    with pytest.raises(SnapshotError, match="more than once"):
+        fetch_institutions(cfg, tmp_path, client=client)
+
+
+def test_fetch_refuses_a_state_row_missing_from_the_all_india_list(tmp_path):
+    rows = json.loads(SNAPSHOT.read_text(encoding="utf-8"))["rows"]
+    all_india = [r["row"] for r in rows[1:]]  # the all-India list lacks the Kerala row
+    cfg = load_config("master_data.yaml")["aicte"]
+    with pytest.raises(SnapshotError, match="not in the all-India list"):
+        fetch_institutions(cfg, tmp_path, client=_dashboard(all_india, _by_state(rows)))
+
+
+def test_import_refuses_a_snapshot_that_repeats_an_institution(session, tmp_path):
+    snapshot = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+    snapshot["rows"].append(snapshot["rows"][0] | {"state": snapshot["rows"][1]["state"]})
+    path = tmp_path / "snapshot.json"
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    with pytest.raises(SnapshotError, match="repeats"):
+        import_institutions(session, path, load_config("master_data.yaml")["aicte"])
+
+
+def test_import_refuses_a_snapshot_that_does_not_match_the_all_india_count(session, tmp_path):
+    snapshot = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+    snapshot["rows"] = snapshot["rows"][1:]
+    path = tmp_path / "snapshot.json"
+    path.write_text(json.dumps(snapshot), encoding="utf-8")
+    with pytest.raises(SnapshotError, match="all-India list had 3"):
+        import_institutions(session, path, load_config("master_data.yaml")["aicte"])
