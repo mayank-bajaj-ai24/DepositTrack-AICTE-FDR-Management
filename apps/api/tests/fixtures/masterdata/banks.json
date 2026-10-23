@@ -193,5 +193,27 @@
   "nach_debit": false,
   "type": "O-UCB",
   "upi": true
+ },
+ "KNSB": {
+  "code": "KNSB",
+  "ifsc": "ICIC00KURLA",
+  "micr": "400077001",
+  "iin": "607799",
+  "ach_credit": true,
+  "ach_debit": true,
+  "apbs": true,
+  "nach_debit": false,
+  "type": "O-UCB"
+ },
+ "KUNS": {
+  "code": "KUNS",
+  "ifsc": "KNSB0000001",
+  "micr": "263846000",
+  "iin": "607156",
+  "ach_credit": true,
+  "ach_debit": true,
+  "apbs": true,
+  "nach_debit": false,
+  "type": "O-UCB"
  }
 }

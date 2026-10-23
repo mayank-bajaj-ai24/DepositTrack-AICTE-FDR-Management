@@ -193,3 +193,14 @@ def test_a_bank_listed_twice_in_the_merger_config_is_rejected(session):
     ]
     with pytest.raises(MasterDataError, match="more than once"):
         import_banks(session, FIXTURES, twice)
+
+
+def test_bank_names_skip_sublet_ifscs(session):
+    import_banks(session, FIXTURES, [])
+    # In the real IFSC.csv, KNSB0000001 (let to KUNS, named after it) is the first KNSB row.
+    assert session.get(Bank, "KNSB").name == "Kurla Nagarik Sahakari Bank"
+    # A sublet row ahead of the prefix owner's own branch does not rename HDFC either.
+    assert session.get(Bank, "HDFC").name == "HDFC Bank"
+    # A bank with no IFSC of its own is named from the IFSCs let to it.
+    assert session.get(Bank, "KUNS").name == "Kurmanchal Nagar Sahakari Bank"
+    assert session.get(Bank, "AACX").name == "Akhand Anand Co.op Bank"
