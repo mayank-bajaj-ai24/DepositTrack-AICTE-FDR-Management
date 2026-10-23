@@ -165,3 +165,31 @@ def test_merger_cycles_are_rejected(session):
     ]
     with pytest.raises(MasterDataError, match="cycle"):
         import_banks(session, FIXTURES, mergers)
+
+
+def test_mergers_removed_from_the_config_are_removed_from_the_table(session):
+    import_banks(session, FIXTURES, load_config("bank_mergers.yaml")["mergers"])
+    kept = [{"old_bank": "VIJB", "canonical_bank": "BARB", "source": "test"}]
+    result = import_banks(session, FIXTURES, kept)
+    assert result["mergers_removed"] == len(load_config("bank_mergers.yaml")["mergers"]) - 1
+    assert [m.old_bank for m in session.scalars(select(BankMerger))] == ["VIJB"]
+    assert canonical_bank(session, "SYNB0001234") == "SYNB"
+
+
+def test_a_reversed_merger_replaces_the_old_row_instead_of_forming_a_cycle(session):
+    import_banks(session, FIXTURES, [{"old_bank": "VIJB", "canonical_bank": "BARB", "source": "x"}])
+    import_banks(session, FIXTURES, [{"old_bank": "BARB", "canonical_bank": "VIJB", "source": "x"}])
+    assert [(m.old_bank, m.canonical_bank) for m in session.scalars(select(BankMerger))] == [
+        ("BARB", "VIJB")
+    ]
+    # One bank, one key: both prefixes resolve to the same canonical bank.
+    assert canonical_bank(session, "VIJB0001234") == canonical_bank(session, "BARB0AAMBUR")
+
+
+def test_a_bank_listed_twice_in_the_merger_config_is_rejected(session):
+    twice = [
+        {"old_bank": "VIJB", "canonical_bank": "BARB", "source": "x"},
+        {"old_bank": "VIJB", "canonical_bank": "BKDN", "source": "x"},
+    ]
+    with pytest.raises(MasterDataError, match="more than once"):
+        import_banks(session, FIXTURES, twice)
