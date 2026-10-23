@@ -29,6 +29,8 @@ EXPECTED_TABLES = {
     "anchor_event",
     "policy_version",
     "ifsc_lineage",
+    "bank",
+    "bank_merger",
     "field_permission",
 }
 

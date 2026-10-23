@@ -1,0 +1,56 @@
+{
+ "source": "AICTE approved institutions dashboard (excerpt for tests)",
+ "academic_year": "2024-2025",
+ "fetched_at": "2026-10-23T00:00:00+00:00",
+ "all_india_count": 3,
+ "columns": [
+  "aicte_id",
+  "name",
+  "address",
+  "district",
+  "institution_type",
+  "women",
+  "minority"
+ ],
+ "rows": [
+  {
+   "state": "Kerala",
+   "row": [
+    "1-44661939517",
+    "ORIENTAL SCHOOL OF HOTEL MANAGEMENT",
+    "OSHM     LAKKIDI PO VYTHIRI  WAYANAD",
+    "WAYANAD",
+    "Private-Self Financing",
+    "N",
+    "N",
+    "1-44661939517"
+   ]
+  },
+  {
+   "state": "Maharashtra",
+   "row": [
+    "1-44621475386",
+    "SHRI SHIV SHAHU MAHAVIDYALAYA SARUD",
+    "A/P- SARUD, TAL- SHAHUWADI, DIST- KOLHAPUR",
+    "KOLHAPUR",
+    "Govt aided",
+    "N",
+    "N",
+    "1-44621475386"
+   ]
+  },
+  {
+   "state": "Assam",
+   "row": [
+    "1-44529814073",
+    "NIELIT JORHAT EC",
+    "NIELIT JORHAT EC, MES GATE RD., ROWRIAH",
+    "JORHAT",
+    "Government",
+    "N",
+    "N",
+    "1-44529814073"
+   ]
+  }
+ ]
+}
