@@ -33,26 +33,27 @@ def _ledger_busy(_: Request, exc: Busy) -> JSONResponse:
     return JSONResponse({"detail": f"{exc}; try again"}, status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
+def _check_bearer(authorization: str | None, configured: str, env_name: str) -> None:
+    """Fail closed (503) while the token is not configured; constant-time comparison."""
+    if not configured:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, f"{env_name} is not configured")
+    expected = f"Bearer {configured}"
+    if authorization is None or not secrets.compare_digest(authorization, expected):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, f"Invalid token (expected {env_name})")
+
+
 def require_token(
     authorization: str | None = Header(default=None), settings: Settings = Depends(get_settings)
 ) -> None:
-    if not settings.api_token:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "MB_API_TOKEN is not configured")
-    expected = f"Bearer {settings.api_token}"
-    if authorization is None or not secrets.compare_digest(authorization, expected):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+    """DepositTrack: read the bank's records and remove AICTE's lien on release."""
+    _check_bearer(authorization, settings.api_token, "MB_API_TOKEN")
 
 
 def require_operator(
     authorization: str | None = Header(default=None), settings: Settings = Depends(get_settings)
 ) -> None:
-    if not settings.operator_token:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "MB_OPERATOR_TOKEN is not configured"
-        )
-    expected = f"Bearer {settings.operator_token}"
-    if authorization is None or not secrets.compare_digest(authorization, expected):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid operator token")
+    """The bank's own operator: record FDRs and bank-side events on the bank's ledger."""
+    _check_bearer(authorization, settings.operator_token, "MB_OPERATOR_TOKEN")
 
 
 def ledger(settings: Settings = Depends(get_settings)) -> Ledger:
