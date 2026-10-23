@@ -29,13 +29,13 @@ def bank(tmp_path):
     """Start the mock bank with the given settings and an empty ledger."""
 
     def start(**overrides) -> tuple[TestClient, Settings]:
-        settings = Settings(
-            api_token=TOKEN,
-            operator_token=OPERATOR,
-            ledger_file=str(tmp_path / "ledger.json"),
-            keys_dir=str(tmp_path / "keys"),
-            **overrides,
-        )
+        values = {
+            "api_token": TOKEN,
+            "operator_token": OPERATOR,
+            "ledger_file": str(tmp_path / "ledger.json"),
+            "keys_dir": str(tmp_path / "keys"),
+        }
+        settings = Settings(**(values | overrides))
         app.dependency_overrides[get_settings] = lambda: settings
         return TestClient(app), settings
 
@@ -232,3 +232,48 @@ def test_operator_sees_the_ledger_and_the_page(client):
     assert [r["fdr_no"] for r in rows] == [RECORD["fdr_no"]]
     page = client.get("/")
     assert page.status_code == 200 and "Simulation only" in page.text
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("post", "/fdrs", RECORD),
+        ("get", "/ledger", None),
+        ("post", "/simulate/close", {"ifsc": RECORD["ifsc"], "fdr_no": RECORD["fdr_no"]}),
+    ],
+)
+def test_operator_endpoints_fail_closed_without_an_operator_token(bank, method, path, body):
+    client, _ = bank(operator_token="")
+    kwargs = {"json": body} if body else {}
+    for headers in ({}, AUTH, {"Authorization": "Bearer "}):
+        r = getattr(client, method)(path, headers=headers, **kwargs)
+        assert r.status_code == 503
+        assert "MB_OPERATOR_TOKEN" in r.json()["detail"]
+
+
+def test_operator_token_cannot_use_depositrack_endpoints(client):
+    ref = {"ifsc": RECORD["ifsc"], "fdr_no": RECORD["fdr_no"]}
+    assert client.get("/keys", headers=OP).status_code == 401
+    assert client.get("/credentials", params=ref, headers=OP).status_code == 401
+    assert client.get("/status", params=ref, headers=OP).status_code == 401
+    assert client.post("/lien/remove", json=ref, headers=OP).status_code == 401
+    assert client.get("/status", params=ref, headers=AUTH).json()["lien_status"] == "MARKED"
+
+
+def test_only_the_operator_records_an_early_closure(client):
+    ref = {"ifsc": RECORD["ifsc"], "fdr_no": RECORD["fdr_no"]}
+    assert client.post("/simulate/close", json=ref).status_code == 401
+    assert client.post("/simulate/close", json=ref, headers=AUTH).status_code == 401
+    assert client.get("/status", params=ref, headers=AUTH).json()["status"] == "active"
+    r = client.post("/simulate/close", json=ref, headers=OP)
+    assert r.json() == {"status": "closed", "lien_status": "REMOVED"}
+    status = client.get("/status", params=ref, headers=AUTH).json()
+    assert (status["status"], status["lien_status"]) == ("closed", "REMOVED")
+    unknown = {"ifsc": RECORD["ifsc"], "fdr_no": "NOPE"}
+    assert client.post("/simulate/close", json=unknown, headers=OP).status_code == 404
+
+
+def test_operator_token_must_differ_from_the_depositrack_token():
+    with pytest.raises(ValueError, match="must differ") as excinfo:
+        Settings(api_token="same-value", operator_token="same-value", _env_file=None)
+    assert "same-value" not in str(excinfo.value)  # the error never echoes the token

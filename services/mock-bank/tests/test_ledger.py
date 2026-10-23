@@ -200,3 +200,13 @@ def test_cli_register_refuses_a_bank_not_configured(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "get_settings", lambda: s)
     with pytest.raises(SystemExit, match="MB_BANK_CODES"):
         cli.main(ARGS)
+
+
+def test_cli_refuses_equal_tokens(monkeypatch):
+    monkeypatch.setenv("MB_API_TOKEN", "same-value")
+    monkeypatch.setenv("MB_OPERATOR_TOKEN", "same-value")
+    monkeypatch.setattr(cli, "get_settings", lambda: Settings(_env_file=None))
+    with pytest.raises(SystemExit, match="must differ"):
+        cli.main(ARGS)
+    with pytest.raises(SystemExit, match="must differ"):
+        cli.main(["serve", "--port", "1"])
