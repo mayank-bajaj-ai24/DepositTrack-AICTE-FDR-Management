@@ -192,12 +192,24 @@ def list_instruments(
     }
 
 
+def _require_instrument_read(scope: Scope) -> None:
+    """Opening one instrument (its fields, history, documents) needs a read permission;
+    visibility alone is not enough (a bank account may see that an instrument exists)."""
+    roles = scope.principal.roles
+    if not any(
+        is_allowed(roles, action)
+        for action in (Action.INSTRUMENT_READ_ALL, Action.INSTRUMENT_READ_OWN, Action.AUDIT_READ)
+    ):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
+
+
 @router.get("/instruments/{instrument_id}")
 def detail(
     instrument_id: uuid.UUID,
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ) -> dict:
+    _require_instrument_read(scope)
     instrument = get_visible_instrument(session, scope, instrument_id)
     institution = session.get(Institution, instrument.institution_id)
     fields = session.scalars(
@@ -312,6 +324,7 @@ def download(
     session: Session = Depends(get_session),
     store: DocumentStore = Depends(store_dep),
 ) -> Response:
+    _require_instrument_read(scope)
     instrument = get_visible_instrument(session, scope, instrument_id)
     document = session.get(Document, document_id)
     if document is None or document.instrument_id != instrument.id:
