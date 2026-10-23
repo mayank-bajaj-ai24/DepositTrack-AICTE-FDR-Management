@@ -1,0 +1,26 @@
+{
+  "_comment": "Synthetic data source for fdrsynth. All banks, branches and institutions are fictional. IFSC prefixes start with X or Z so they cannot match a real bank code. Amounts, tenures and wording are random placeholders, NOT AICTE requirements (unconfirmed, see IMPLEMENTATION_PLAN.md section 14).",
+  "banks": [
+    {"name": "Example National Bank", "ifsc_prefix": "XNBK"},
+    {"name": "Sample Co-operative Bank", "ifsc_prefix": "XSCB"},
+    {"name": "Demo Federal Bank", "ifsc_prefix": "ZDFB"},
+    {"name": "Placeholder Union Bank", "ifsc_prefix": "ZPUB"},
+    {"name": "Mock Rural Bank", "ifsc_prefix": "XMRB"},
+    {"name": "Specimen City Bank", "ifsc_prefix": "ZSCB"}
+  ],
+  "branch_suffix": "Main Branch",
+  "cities": ["Nagpur", "Pune", "Bhopal", "Jaipur", "Lucknow", "Kochi", "Guwahati", "Indore"],
+  "institution_words": ["Synthetic", "Sample", "Demo", "Model"],
+  "institution_kinds": [
+    "Institute of Technology",
+    "College of Engineering",
+    "School of Management",
+    "Polytechnic"
+  ],
+  "beneficiary": "AICTE, New Delhi",
+  "lien_text": "Lien marked in favour of AICTE (synthetic placeholder wording)",
+  "amount": {"step_inr": 50000, "min_steps": 1, "max_steps": 100},
+  "tenure_months": [12, 24, 36, 60],
+  "deposit_date": {"start": "2024-01-01", "span_days": 900},
+  "date_format": "%d/%m/%Y"
+}

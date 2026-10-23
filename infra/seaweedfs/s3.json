@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "depositrack-api",
+      "credentials": [
+        {
+          "accessKey": "dev-only-access-key",
+          "secretKey": "dev-only-secret-key"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

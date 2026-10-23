@@ -1,0 +1,45 @@
+# DepositTrack policy configuration.
+#
+# Every AICTE-specific value below is UNCONFIRMED and left null on purpose.
+# The problem statement does not specify them; they are open questions in
+# IMPLEMENTATION_PLAN.md §14. Do not replace a null with a guess.
+# When AICTE confirms a value, fill it in and record the source in `source:`.
+
+policy_version: "0.0.0-unconfirmed"
+
+# §14 Q3 — which instrument kinds are accepted (fdr, security_deposit, bank_guarantee, demand_draft, other)
+accepted_instrument_kinds:
+  value: null
+  source: null
+
+# §14 Q1 — required amount and duration per institution type / approval case
+deposit_requirements:
+  value: null        # list of {institution_type, approval_case, amount_inr, duration_months, clause_ref}
+  source: null
+
+# §14 Q2 — required beneficiary / lien wording on the instrument
+beneficiary_wording:
+  value: null
+  source: null
+
+# §14 Q4 — conditions for release, discharge and refund, and approving authority per level
+release_conditions:
+  value: null
+  source: null
+
+# §14 Q5 — reminder thresholds (days before maturity) and escalation chain
+reminders:
+  days_before_maturity: null
+  escalation_chain: null
+  source: null
+
+# §14 Q6 — must an instrument be bank-attested (L3) before it becomes Active?
+require_bank_attestation_for_active:
+  value: null
+  source: null
+
+# Time boxes for queries and officer actions (N5), in days
+time_boxes:
+  institution_query_response_days: null
+  officer_action_days: null
+  source: null

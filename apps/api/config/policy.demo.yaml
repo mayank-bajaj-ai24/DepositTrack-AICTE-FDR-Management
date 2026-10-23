@@ -1,0 +1,58 @@
+# DEMO POLICY - FOR THE PROTOTYPE ONLY.
+#
+# Every value in this file is a DEMO PLACEHOLDER chosen by the team so the prototype
+# can run. NONE of them is an AICTE rule. The real file (policy.example.yaml) keeps
+# them null until AICTE confirms them (IMPLEMENTATION_PLAN.md §14).
+# Use it with: DT_POLICY_FILE=config/policy.demo.yaml
+# The API reports `demo: true` and the UI shows a "demo policy" banner while it is active.
+
+policy_version: "demo-0.1"
+demo: true
+
+accepted_instrument_kinds:
+  value: [fdr, security_deposit]
+  source: "DEMO PLACEHOLDER - not an AICTE rule"
+
+deposit_requirements:
+  value:
+    - institution_type: any
+      approval_case: demo
+      amount_inr: 500000
+      duration_months: 36
+      clause_ref: null
+  source: "DEMO PLACEHOLDER - not an AICTE rule"
+
+beneficiary_wording:
+  # Text that must appear in the instrument's beneficiary / lien wording (case-insensitive).
+  value: "AICTE"
+  source: "DEMO PLACEHOLDER - not an AICTE rule"
+
+release_conditions:
+  value:
+    approver_role: competent_authority
+    checklist:
+      - id: closure_order
+        label: "Order or letter justifying release uploaded"
+        evidence: document
+      - id: no_pending_dues
+        label: "Institution declares no pending dues"
+        evidence: declaration
+      - id: officer_scrutiny
+        label: "Scrutiny officer recommends release"
+        evidence: officer
+  source: "DEMO PLACEHOLDER - not an AICTE rule"
+
+reminders:
+  # Thresholds proposed in IMPLEMENTATION_PLAN.md (T-90/60/30/7); still a placeholder.
+  days_before_maturity: [90, 60, 30, 7]
+  escalation_chain: [scrutiny_officer, competent_authority]
+  source: "DEMO PLACEHOLDER - not an AICTE rule"
+
+require_bank_attestation_for_active:
+  value: false
+  source: "DEMO PLACEHOLDER - not an AICTE rule"
+
+time_boxes:
+  institution_query_response_days: 15
+  officer_action_days: 7
+  source: "DEMO PLACEHOLDER - not an AICTE rule"

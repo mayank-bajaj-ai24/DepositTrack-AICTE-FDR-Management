@@ -12,7 +12,11 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
-> **Current status:** research and design are complete; no application code has been written yet. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in this README are **targets**, not measured results.
+> **Current status:** prototype built end to end in code — backend (all modules M1–M10, M13), mock bank, ML components and the bilingual web app. Automated tests pass; the live stack (Docker) and the UI have not yet been run together. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in [Expected outcomes](#expected-outcomes) are **targets**, not measured results.
+>
+> Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
+>
+> **CI is not set up yet** on this branch: the workflow file needs a GitHub token with the `workflow` scope to be pushed. Run lint and tests locally before every push.
 
 ---
 
@@ -26,14 +30,15 @@
 6. [Key concepts](#key-concepts)
 7. [Modules](#modules)
 8. [Tech stack](#tech-stack)
-9. [Expected outcomes](#expected-outcomes)
-10. [Test scenarios](#test-scenarios)
-11. [Progress](#progress)
-12. [Work to be done](#work-to-be-done)
-13. [Repository structure](#repository-structure)
-14. [Research basis](#research-basis)
-15. [Open questions](#open-questions)
-16. [License](#license)
+9. [Getting started](#getting-started)
+10. [Expected outcomes](#expected-outcomes)
+11. [Test scenarios](#test-scenarios)
+12. [Progress](#progress)
+13. [Work to be done](#work-to-be-done)
+14. [Repository structure](#repository-structure)
+15. [Research basis](#research-basis)
+16. [Open questions](#open-questions)
+17. [License](#license)
 
 ---
 
@@ -160,7 +165,7 @@ flowchart TB
     subgraph Stores["Data stores"]
         direction LR
         D1[("PostgreSQL<br/>+ pgvector")]
-        D2[("MinIO<br/>encrypted files")]
+        D2[("SeaweedFS (S3)<br/>encrypted files")]
         D3[("immudb<br/>anchors, proofs")]
         D4[("Redis + Celery<br/>jobs, schedules")]
     end
@@ -319,7 +324,7 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | Authentication | Keycloak (OTP/MFA, roles) |
 | Background jobs | Celery + Redis, Celery beat |
 | Database | PostgreSQL 16 + pgvector |
-| File storage | MinIO (S3-compatible, server-side encryption) |
+| File storage | SeaweedFS (S3-compatible); replaces MinIO from the plan, which no longer publishes Docker images |
 | Tamper evidence | immudb (permissioned ledger as production option) |
 | OCR / document AI | docTR or PaddleOCR, LayoutLMv3 |
 | Machine learning | scikit-learn, scikit-image, XGBoost, LightGBM, SHAP, alibi (Anchors) |
@@ -327,6 +332,46 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | Assistant | Retrieval over pgvector + LLM, evaluated with ragas |
 | Reports | WeasyPrint (PDF), openpyxl (Excel) |
 | DevOps | Docker Compose, GitHub Actions, pytest, Playwright |
+
+---
+
+## Getting started
+
+Prerequisites: Python 3.11, Docker Desktop (running), Git.
+
+**1. Infrastructure** (PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb):
+
+```bash
+cp infra/.env.example infra/.env
+docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
+```
+
+Keycloak imports the `depositrack` realm with seven roles and one development user per role (for example `scrutiny.demo` / `dev-only-scrutiny`). These credentials are for local development only.
+
+**2. Backend**
+
+```bash
+cd apps/api
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+alembic upgrade head             # creates the schema
+uvicorn app.main:app --reload    # http://localhost:8000/docs
+pytest                           # unit tests (no services needed)
+```
+
+Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
+
+**3. Synthetic FDRs**
+
+```bash
+cd ml/synth
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+python -m fdrsynth --count 20 --out ../../data/synthetic
+```
+
+Each sample is a PNG plus a JSON file with field values and word-level boxes and labels for LayoutLMv3. All samples use fictional banks and carry a `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT` watermark. Banks, cities, wording and value ranges come from `fdrsynth/data/synthetic_lists.json`; pass `--catalog other.json` to use a different list.
 
 ---
 
@@ -338,16 +383,16 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 
 | Component | Metric | Target | Measured | Status |
 | --- | --- | --- | --- | --- |
-| Field extraction | Field exact-match after rules (overall) | ≥ 90% | — | Pending |
-| Field extraction | Exact-match on amount and dates | ≥ 95% | — | Pending |
-| Field extraction | Processing time per page (CPU) | < 5 s | — | Pending |
-| Forgery signals | Recall on tampered amount/date | ≥ 0.90 | — | Pending |
-| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | — | Pending |
-| Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Pending |
-| Renewal risk | AUC | ≥ 0.80 | — | Pending |
-| Renewal risk | Mean warning lead time | ≥ 21 days | — | Pending |
-| Officer assistant | RAGAS faithfulness | ≥ 0.85 | — | Pending |
-| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | — | Pending |
+| Field extraction | Field exact-match after rules (overall) | ≥ 90% | 100% (30 synthetic pages, pass B only) | Met on synthetic data |
+| Field extraction | Exact-match on amount and dates | ≥ 95% | 100% (30 synthetic pages) | Met on synthetic data |
+| Field extraction | Processing time per page (CPU) | < 5 s | 3.4 s median | Met |
+| Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.875 (180 synthetic test pages; copy-paste 0.53) | Below target |
+| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 5.4% | Slightly above target |
+| Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
+| Renewal risk | AUC | ≥ 0.80 | 0.780 (simulated event logs; 300 held-out institutions, early stopping on a separate validation set) | Below target; likely limited by the simulator's random lateness |
+| Renewal risk | Mean warning lead time | ≥ 21 days | 26 days (at the 0.7 alarm threshold; 33% of late renewals caught, 0% false alarms at T-30) | Met for lead time |
+| Officer assistant | RAGAS faithfulness | ≥ 0.85 | — | Not built (skipped for the prototype) |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 cases, plus scoping tests | Met |
 
 ### PS improvement areas
 
@@ -365,24 +410,24 @@ For the five areas the PS asks the prototype to improve, the plan measures a man
 
 ## Test scenarios
 
-Every test scenario named in the PS has an automated test:
+Every test scenario named in the PS has an automated test. "API" tests run the real API with an in-memory database, a fake OCR result and an in-process bank that signs with real Ed25519 keys; the live Docker stack and the browser UI have not yet been run together.
 
 | ID | Scenario | Pass condition | Status |
 | --- | --- | --- | --- |
-| T-01 | New FDR submission | Stored, hashed, versioned; fields extracted; L1 when clean | Not started |
-| T-02 | Repository completeness | All required fields stored and searchable | Not started |
-| T-03 | Validity tracking | Every instrument in the correct state | Not started |
-| T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Not started |
-| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Not started |
-| T-06 | Incomplete record | Flagged; listed in missing-documents report | Not started |
-| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Not started |
-| T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Not started |
-| T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Not started |
-| T-10 | Overdue escalation | Escalated to the next role | Not started |
-| T-11 | Dashboard drill-down | Tile numbers match underlying records | Not started |
-| T-12 | Audit integrity | Direct DB edit detected by verifier | Not started |
-| T-13 | Access control | All allow/deny cases pass | Not started |
-| T-14 | Credential forgery | Credential from unknown key rejected | Not started |
+| T-01 | New FDR submission | Stored, hashed, versioned; fields extracted; L1 when clean | Passing (API end-to-end test) |
+| T-02 | Repository completeness | All required fields stored and searchable | Passing (API: fields, search and filters) |
+| T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
+| T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
+| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal measured on synthetic data, see [Expected outcomes](#expected-outcomes) |
+| T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
+| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants) |
+| T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
+| T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
+| T-10 | Overdue escalation | Escalated to the next role | Passing (API: overdue alert to competent authority) |
+| T-11 | Dashboard drill-down | Tile numbers match underlying records | Passing for API counts; UI drill-down not yet tested in a browser |
+| T-12 | Audit integrity | Direct DB edit detected by verifier | Passing (API: chain break and anchor mismatch detected) |
+| T-13 | Access control | All allow/deny cases pass | Passing (28 role cases + institution and regional scoping) |
+| T-14 | Credential forgery | Credential from unknown key rejected | Passing (API) |
 
 ---
 
@@ -395,6 +440,8 @@ Every test scenario named in the PS has an automated test:
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
+- [x] Backend: 291 automated tests (unit + end-to-end API flows), lint clean
+- [x] LayoutLMv3 fine-tuning notebook for a GPU runtime (to be run by the team)
 
 ### Roadmap
 
@@ -410,39 +457,47 @@ flowchart LR
     P0 --> P1 --> P2 --> G1 --> P3 --> G2 --> P4
 ```
 
-**Phase 0: idea submission** (PS idea deadline listed as 28 Oct 2026)
-- [ ] Presentation built from the plan (summary, objectives, novelty)
+**Phase 0: idea submission** (PS idea deadline listed as 28 Oct 2026; on hold)
+- [ ] Presentation built from the plan (summary, objectives, novelty), using the official SIH 2026 idea template
 - [ ] Architecture diagram for the submission
 - [ ] Demo storyboard
 
 **Phase 1: foundations**
-- [ ] Repository scaffolding, CI, Docker Compose
-- [ ] Login with all roles (M1)
-- [ ] Database schema and migrations
-- [ ] Synthetic FDR generator, first batch rendered
+- [x] Contributor and AI agent rules ([AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md))
+- [x] Docker Compose for PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb (config validated; stack not yet run end to end)
+- [ ] CI workflow (backend, generator, mock bank, web, compose checks) — written, but not on this branch: pushing `.github/workflows/` needs a GitHub token with the `workflow` scope. Add it once that permission is granted; until then run the checks locally (see [Getting started](#getting-started))
+- [x] Backend skeleton: settings, health, policy status, `/api/v1/me`
+- [x] Keycloak realm with seven roles and development users; token verification and role-based permission checks (M1, backend side)
+- [x] Database schema for all 15 plan tables, with initial Alembic migration
+- [x] Lifecycle state machine with tests for every legal and illegal transition (M7 core)
+- [x] Audit hash chain and Merkle root with tamper-detection tests (M6 core)
+- [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
+- [x] Synthetic FDR generator (watermarked images + word-level labels)
+- [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
+- [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
 
 **Phase 2: core lifecycle**
-- [ ] Upload and document storage (M2)
-- [ ] Extraction with auto-fill (M3)
-- [ ] Completeness and policy rules with reasons (M4)
-- [ ] State machine and coverage sweep (M7)
-- [ ] Reminders and escalation (M8)
-- [ ] Dashboard tiles with drill-down (M10)
-- [ ] **Gate:** full story from upload to maturity reminder works
+- [x] Upload and encrypted, versioned document storage (M2)
+- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A plugs in when the Colab-trained model is added (M3)
+- [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
+- [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
+- [x] Reminders once per threshold, overdue / coverage-gap / time-box escalation (M8)
+- [x] Dashboard with drill-down, reports as Excel/CSV (M10)
+- [ ] **Gate:** full story from upload to maturity reminder works — passes in the API's end-to-end tests; not yet run on the live stack and UI (needs Docker)
 
 **Phase 3: trust layer**
-- [ ] Signed bank credential and Trust Ladder up to L3, with freshness decay (M5)
-- [ ] Hash chain, anchoring and verifier page (M6)
-- [ ] Release / discharge / refund workflow with checklist and letter (M9)
-- [ ] Duplicate and IFSC-lineage checks (M4)
-- [ ] Forgery baseline (M4)
+- [x] Signed bank credential via the mock bank, pinned keys, Trust Ladder up to L4 with freshness decay (M5, N3, N4)
+- [x] Hash chain, Merkle anchoring (optional immudb receipt) and file verifier (M6)
+- [x] Release / discharge / refund workflow with policy checklist, mandatory reason, release letter PDF and bank lien removal (M9, N5)
+- [x] Double-pledge and near-duplicate detection with IFSC lineage (N7)
+- [x] Forgery signal: RGB-GLCM + ELA + copy-move features, SVM classifier on synthetic tampering (N6)
 - [ ] **Gate:** feature freeze
 
 **Phase 4: intelligence and demo readiness**
-- [ ] Renewal-risk model with reasons (M11)
-- [ ] Conformance replay (M13)
-- [ ] Officer assistant with RAGAS score (M11)
+- [x] Renewal-risk model (LightGBM) with SHAP reasons, scored in the sweep (N9)
+- [x] Procedural conformance replay with proposed constraints (N10)
+- [ ] Officer assistant with RAGAS score (M11) — skipped for the prototype by decision
 - [ ] Manual-vs-portal timing runs; fill in [Expected outcomes](#expected-outcomes)
 - [ ] Recorded backup demo video
 
@@ -452,12 +507,13 @@ flowchart LR
 
 Immediate next steps, in order:
 
-1. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
-2. **Scaffold the repository:** `apps/web`, `apps/api`, `ml/`, `services/mock-bank`, `infra/docker-compose.yml`, `tests/`, plus CI.
-3. **Data model first:** create migrations for institution, obligation, instrument, coverage, field_value, document, attestation, flag, observation, case, event, anchor, policy_version, ifsc_lineage, field_permission.
-4. **Synthetic data:** FDR template renderer with scan artefacts; event-log simulator.
-5. **Core vertical slice:** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
-6. **Prepare the idea submission** for the PS deadline.
+1. **Run the Docker stack end to end** and confirm Keycloak login, PostgreSQL migrations and SeaweedFS bucket access locally.
+2. **Web app scaffold** (`apps/web`, Next.js) with Keycloak login, built with the taste-skill plugin.
+3. **Attribute-based access rules** on top of the role matrix (own institution, region, own bank).
+4. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
+5. **Event-log simulator** for the renewal-risk model (N9) and conformance replay (N10).
+6. **Core vertical slice (Phase 2):** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
+7. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
@@ -471,26 +527,42 @@ Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-mo
 DepositTrack-AICTE-FDR-Management/
   README.md
   IMPLEMENTATION_PLAN.md
+  AGENTS.md                  # rules for contributors and AI agents
+  CLAUDE.md                  # Claude Code entry point (imports AGENTS.md)
   LICENSE
+  apps/
+    api/                     # FastAPI backend
+      app/
+        core/                # settings, permissions, token verification, policy loader
+        db/                  # declarative base, session
+        models/              # 15 tables from plan §7.2
+        modules/
+          auth/              # /api/v1/me
+          lifecycle/         # states, trust levels, state machine
+          audit/             # hash chain, Merkle root
+      alembic/               # migrations
+      config/                # policy.example.yaml (AICTE values unconfirmed)
+      tests/
+  ml/
+    synth/                   # synthetic FDR generator (fdrsynth)
+  infra/
+    docker-compose.yml
+    keycloak/                # realm import
+    postgres/                # init SQL (pgvector)
+    seaweedfs/               # S3 identity config
   research/
-    README.md
-    krrish/          # 8 papers + earlier implementation plan (FDR Guardian)
-    Mayank_Kathe/    # 7 papers + research notes
+    krrish/                  # 8 papers + earlier implementation plan (FDR Guardian)
+    Mayank_Kathe/            # 7 papers + research notes
 ```
 
 **Planned additions:**
 
 ```
-  apps/
-    web/             # Next.js: institution, officer, auditor, verifier UIs
-    api/             # FastAPI modules + Celery workers
-  ml/                # synthetic data, LayoutLMv3, forgery, risk models, RAG
-  services/
-    mock-bank/       # issues and revokes signed FDR credentials
-  infra/
-    docker-compose.yml
-  docs/              # ADRs, API spec, dataset cards
-  tests/             # pytest + Playwright, SIH scenario suite
+  apps/web/                  # Next.js: institution, officer, auditor, verifier UIs
+  apps/api/app/workers/      # Celery tasks and schedules
+  ml/                        # LayoutLMv3, forgery, risk models, RAG
+  services/mock-bank/        # issues and revokes signed FDR credentials
+  docs/                      # ADRs, API spec, dataset cards
 ```
 
 ---

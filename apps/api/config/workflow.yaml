@@ -1,0 +1,30 @@
+# Who may move an instrument between states (M7). System design, not an AICTE rule.
+# "system" = scheduled jobs (lifecycle sweep). Transitions not listed here cannot be
+# triggered by a person through the API.
+
+transitions:
+  draft->submitted: [institution]
+  submitted->scrutiny: [scrutiny_officer, system]
+  scrutiny->discrepancy: [scrutiny_officer]
+  discrepancy->scrutiny: [institution, scrutiny_officer]
+  scrutiny->rejected: [scrutiny_officer]
+  scrutiny->verified: [scrutiny_officer, verifying_officer]
+  verified->active: [verifying_officer, system]
+  active->expiring: [system]
+  expiring->overdue: [system]
+  expiring->renewed: [system]
+  overdue->renewed: [system]
+  active->matured: [system]
+  active->releasing: [system]
+  matured->releasing: [system]
+  releasing->released: [system]
+  released->archived: [admin, system]
+
+# Fields an officer may correct after submission ("update permitted fields", R-i).
+# Every edit needs a reason and is audited; the institution's declared value is kept.
+editable_fields:
+  scrutiny_officer: [branch, depositor, beneficiary]
+  verifying_officer: [branch]
+
+# Fields whose trust level decides the instrument's trust level (weakest wins, N1).
+key_fields: [fdr_no, ifsc, amount, maturity_date]

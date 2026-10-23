@@ -1,0 +1,113 @@
+{
+  "realm": "depositrack",
+  "displayName": "DepositTrack (development)",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      { "name": "institution", "description": "Institution user: submits instruments, responds to queries, requests renewal/release" },
+      { "name": "scrutiny_officer", "description": "Regulation Bureau scrutiny officer" },
+      { "name": "verifying_officer", "description": "Verifying officer / finance: records bank verification" },
+      { "name": "competent_authority", "description": "Approves release, discharge and refund" },
+      { "name": "auditor", "description": "Read-only access to history and integrity proofs" },
+      { "name": "admin", "description": "System administration: users, rules, schedules" },
+      { "name": "bank_service", "description": "Bank integration service account: posts attestations" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "depositrack-web",
+      "name": "DepositTrack web app",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
+      "attributes": { "pkce.code.challenge.method": "S256" }
+    },
+    {
+      "clientId": "depositrack-dev-cli",
+      "name": "Development token client (password grant, local testing only)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true
+    }
+  ],
+  "users": [
+    {
+      "username": "institution.demo",
+      "email": "institution.demo@example.invalid",
+      "firstName": "Demo",
+      "lastName": "Institution",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-only-institution", "temporary": false }],
+      "realmRoles": ["institution"]
+    },
+    {
+      "username": "scrutiny.demo",
+      "email": "scrutiny.demo@example.invalid",
+      "firstName": "Demo",
+      "lastName": "Scrutiny",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-only-scrutiny", "temporary": false }],
+      "realmRoles": ["scrutiny_officer"]
+    },
+    {
+      "username": "verifier.demo",
+      "email": "verifier.demo@example.invalid",
+      "firstName": "Demo",
+      "lastName": "Verifier",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-only-verifier", "temporary": false }],
+      "realmRoles": ["verifying_officer"]
+    },
+    {
+      "username": "authority.demo",
+      "email": "authority.demo@example.invalid",
+      "firstName": "Demo",
+      "lastName": "Authority",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-only-authority", "temporary": false }],
+      "realmRoles": ["competent_authority"]
+    },
+    {
+      "username": "auditor.demo",
+      "email": "auditor.demo@example.invalid",
+      "firstName": "Demo",
+      "lastName": "Auditor",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-only-auditor", "temporary": false }],
+      "realmRoles": ["auditor"]
+    },
+    {
+      "username": "admin.demo",
+      "email": "admin.demo@example.invalid",
+      "firstName": "Demo",
+      "lastName": "Admin",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-only-admin", "temporary": false }],
+      "realmRoles": ["admin"]
+    },
+    {
+      "username": "bank.demo",
+      "email": "bank.demo@example.invalid",
+      "firstName": "Demo",
+      "lastName": "Bank",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "dev-only-bank", "temporary": false }],
+      "realmRoles": ["bank_service"]
+    }
+  ]
+}

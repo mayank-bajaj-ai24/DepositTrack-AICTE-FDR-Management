@@ -1,0 +1,43 @@
+# Procedural constraints replayed over each instrument's audit log (N10).
+# These describe the team's proposed procedure. They are NOT confirmed AICTE procedure
+# and must be reviewed by an AICTE official before use (prescriptive models are rarely
+# validated - Klessascheck & Pufahl).
+version: "proposed-0.1"
+validated_by: null
+
+constraints:
+  - id: scrutiny_before_verification
+    kind: precedence
+    description: "An officer records an observation or verifies a field before the instrument is marked verified"
+    target: {action: instrument.state_changed, state: verified}
+    requires_any: [observation.recorded, field.verified]
+
+  - id: request_before_decision
+    kind: precedence
+    description: "A release decision follows a release request"
+    target: {action: release.approved}
+    requires_any: [release.requested]
+
+  - id: letter_after_approval
+    kind: response
+    description: "A release letter is issued after every release approval"
+    trigger: {action: release.approved}
+    expects: release.letter_issued
+    within_days: 1
+
+  - id: lien_removed_after_letter
+    kind: response
+    description: "The bank confirms lien removal within 7 days of the release letter"
+    trigger: {action: release.letter_issued}
+    expects: bank.lien_removed
+    within_days: 7
+
+  - id: reason_on_flag_resolution
+    kind: reason_required
+    description: "Every resolved flag records a reason"
+    target: {action: flag.resolved}
+
+  - id: reason_on_field_edit
+    kind: reason_required
+    description: "Every officer edit of a field records a reason"
+    target: {action: field.edited}

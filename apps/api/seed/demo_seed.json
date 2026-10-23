@@ -1,0 +1,19 @@
+{
+  "_comment": "Demo seed data for the prototype. Institutions are fictional. Usernames match the development users in infra/keycloak/depositrack-realm.json.",
+  "institutions": [
+    {"aicte_id": "SYN-1-0001", "name": "Synthetic Institute of Technology, Pune", "institution_type": "any", "state": "Maharashtra", "region": "West"},
+    {"aicte_id": "SYN-1-0002", "name": "Sample College of Engineering, Bhopal", "institution_type": "any", "state": "Madhya Pradesh", "region": "Central"},
+    {"aicte_id": "SYN-1-0003", "name": "Demo School of Management, Kochi", "institution_type": "any", "state": "Kerala", "region": "South"},
+    {"aicte_id": "SYN-1-0004", "name": "Model Polytechnic, Guwahati", "institution_type": "any", "state": "Assam", "region": "North-East"},
+    {"aicte_id": "SYN-1-0005", "name": "Synthetic College of Engineering, Jaipur", "institution_type": "any", "state": "Rajasthan", "region": "North"}
+  ],
+  "accounts": [
+    {"username": "institution.demo", "institution_aicte_id": "SYN-1-0001"},
+    {"username": "scrutiny.demo"},
+    {"username": "verifier.demo"},
+    {"username": "authority.demo"},
+    {"username": "auditor.demo"},
+    {"username": "admin.demo"},
+    {"username": "bank.demo"}
+  ]
+}
