@@ -360,6 +360,8 @@ uvicorn app.main:app --reload    # http://localhost:8000/docs
 pytest                           # unit tests (no services needed)
 ```
 
+To anchor audit events in immudb (N4), install the optional client with `pip install -e ".[anchoring]"` and set `DT_IMMUDB_ENABLED=true` and `DT_IMMUDB_PASSWORD` in `apps/api/.env`. With `DT_IMMUDB_ENABLED=false` (the default) Merkle anchors are still computed and stored, without an immudb receipt.
+
 Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
 
 **3. Synthetic FDRs**
