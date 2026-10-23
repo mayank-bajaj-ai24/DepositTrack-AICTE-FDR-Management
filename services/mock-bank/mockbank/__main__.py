@@ -54,6 +54,10 @@ def main(argv: list[str] | None = None) -> None:
     else:
         import uvicorn
 
+        try:
+            get_settings()  # refuse to start on invalid settings, e.g. equal tokens
+        except ValidationError as exc:
+            raise SystemExit(f"Invalid mock bank settings: {exc}") from exc
         uvicorn.run("mockbank.app:app", host=args.host, port=args.port)
 
 

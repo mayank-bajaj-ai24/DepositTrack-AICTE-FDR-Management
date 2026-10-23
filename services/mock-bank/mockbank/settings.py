@@ -1,15 +1,24 @@
 import re
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MB_", env_file=".env", extra="ignore")
+    # hide_input_in_errors: a validation error must not print the tokens.
+    model_config = SettingsConfigDict(
+        env_prefix="MB_", env_file=".env", extra="ignore", hide_input_in_errors=True
+    )
 
-    # Shared token the DepositTrack API presents (stands in for mutual TLS). Required.
+    # Token the DepositTrack API presents (stands in for mutual TLS). Required. It reads the
+    # bank's records and signed confirmations and removes AICTE's lien on release (/lien/remove);
+    # it cannot record an FDR, list the ledger or record a bank-side event such as early closure.
     api_token: str = ""
+    # Token of the bank's own operator, who records the FDRs the bank issued and bank-side events
+    # (POST /fdrs, GET /ledger, POST /simulate/close). Required for those; must differ from
+    # api_token, otherwise DepositTrack's token could write the bank's records.
+    operator_token: str = ""
     # Bank codes (first four IFSC letters) this mock bank issues FDRs for, comma-separated
     # (fictional codes only). GET /keys publishes a key for each one even while the ledger is
     # empty, so AICTE can pin them before any FDR is recorded, and recording an FDR under any
@@ -29,6 +38,15 @@ class Settings(BaseSettings):
         if bad:
             raise ValueError(f"MB_BANK_CODES must be four-letter bank codes, got {bad}")
         return ",".join(sorted(set(codes)))
+
+    @model_validator(mode="after")
+    def _tokens_differ(self) -> "Settings":
+        if self.api_token and self.api_token == self.operator_token:
+            raise ValueError(
+                "MB_OPERATOR_TOKEN must differ from MB_API_TOKEN: with the same value, "
+                "DepositTrack's token could write the bank's ledger"
+            )
+        return self
 
     @property
     def issuing_banks(self) -> list[str]:
