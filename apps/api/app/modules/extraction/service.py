@@ -1,5 +1,7 @@
 """Dual-pass extraction (M3, N6): OCR, then rules (pass B) and LayoutLMv3 (pass A).
 
+Pass A runs only when config/extraction.yaml sets pass_a_enabled: true.
+
 A field is routed to human confirmation when the passes disagree, when its confidence
 is below the configured threshold, or when it is missing.
 """
@@ -27,7 +29,8 @@ FIELDS = (
     "beneficiary",
     "lien_text",
 )
-# A pass A model's labels (FDR_NO, ISSUE_DATE, ...) lower-cased are these field names.
+# A pass A model's labels (B-/I- + FDR_NO, ISSUE_DATE, ...) lower-cased are these field names;
+# layoutlm.model_is_usable refuses a model whose labels do not map onto them.
 
 
 @dataclass
@@ -52,7 +55,7 @@ class ExtractionResult:
 def extract(image: Image.Image, rules: dict, models_dir: str) -> ExtractionResult:
     lines = run_ocr(image)
     pass_b = extract_fields(lines, rules)
-    raw_a = layoutlm.extract(image, lines, models_dir)
+    raw_a = layoutlm.extract(image, lines, models_dir) if rules.get("pass_a_enabled") else None
     threshold = rules["human_review_below"]
     regions = forgery_model.text_regions(lines, rules)
     result = ExtractionResult(

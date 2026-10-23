@@ -5,6 +5,9 @@
 
 row_tolerance_px: 18          # lines whose vertical centres differ by less than this share a row
 human_review_below: 0.8       # route a field to human confirmation below this confidence (P13 default)
+# Pass A (LayoutLMv3) stays off until a model trained on labelled real FDRs exists
+# (maintainer decision); with false, a model in models/layoutlmv3-fdr/ is not used.
+pass_a_enabled: false
 
 # Text that is never a field value (e.g. a bank's watermark or stamp text), matched
 # case-insensitively. Empty until such text is seen on real FDRs.
