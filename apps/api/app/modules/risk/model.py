@@ -1,7 +1,10 @@
 """Serve the renewal-risk model (N9): probability of a missed renewal, with reasons.
 
-Trained by ml/risk/train.py into <models_dir>/renewal_risk/. Reasons are the features
-with the largest SHAP contributions towards "late", in plain language.
+Loads a model from <models_dir>/renewal_risk/ when one trained on DepositTrack's own
+renewal history is placed there; until then live scoring is off. ml/risk/train.py
+measures the method on a public proxy log and writes to renewal_risk_proxy/, which is
+not loaded here. Reasons are the features with the largest SHAP contributions towards
+"late", in plain language.
 """
 
 import json
