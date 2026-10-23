@@ -101,3 +101,25 @@ def test_instrument_and_institution_views_agree(db, roles, link, region):
     owners = set(session.scalars(scope_instruments(select(Instrument.institution_id), scope)))
     with_deposits = set(session.scalars(select(Instrument.institution_id)))
     assert owners == institutions & with_deposits
+
+
+@pytest.mark.parametrize(
+    ("roles", "link", "bank", "institutions", "instruments"),
+    [
+        # An institution that is also a bank account: its own institution, plus its bank's
+        # instruments; never every institution (an unknown mix used to be unrestricted).
+        (["institution", "bank_service"], "a", "YBNK", {"SYN-A"}, {"A1", "B1"}),
+        (["institution", "bank_service"], "a", None, {"SYN-A"}, {"A1"}),
+        # No DepositTrack role at all: nothing.
+        ([], None, None, set(), set()),
+        # A bank account that is not linked to a bank: nothing.
+        (["bank_service"], None, None, set(), set()),
+        # Admin reads reports and the audit trail across institutions: everything.
+        (["admin"], None, None, {"SYN-A", "SYN-B", "SYN-C"}, {"A1", "B1"}),
+        (["admin", "bank_service"], None, "XNBK", {"SYN-A", "SYN-B", "SYN-C"}, {"A1", "B1"}),
+    ],
+)
+def test_unusual_role_mixes_are_denied_by_default(db, roles, link, bank, institutions, instruments):
+    session, ids = db
+    scope = _scope(roles, institution_id=ids[link] if link else None, bank_code=bank)
+    assert _visible(session, scope) == (institutions, instruments)

@@ -598,3 +598,19 @@ def test_regional_officer_sees_only_their_regions_requirements(env):
     assert dash["total"] == 0
     everyone = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
     assert [i["institution"]["aicte_id"] for i in everyone] == ["SYN-A", "SYN-B"]
+
+
+@pytest.mark.parametrize(("who", "code"), [("bank", 403), ("nobody", 403), ("inst_b", 404)])
+def test_instrument_detail_and_documents_need_a_read_permission(env, who, code):
+    # The bank account's own bank (XNBK) issued this FDR, but its only permission is
+    # posting attestations: it may not open the instrument, its history or its scan.
+    instrument_id = submit(env.client, env.tokens["inst_a"], values()).json()["id"]
+    owner = env.client.get(f"/api/v1/instruments/{instrument_id}", headers=env.h("inst_a"))
+    assert owner.status_code == 200
+    document_id = owner.json()["documents"][0]["id"]
+    url = f"/api/v1/instruments/{instrument_id}"
+    assert env.client.get(url, headers=env.h(who)).status_code == code
+    download = env.client.get(f"{url}/documents/{document_id}", headers=env.h(who))
+    assert download.status_code == code
+    for reader in ("scrutiny", "auditor", "admin"):
+        assert env.client.get(url, headers=env.h(reader)).status_code == 200
