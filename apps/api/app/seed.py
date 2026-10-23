@@ -11,6 +11,8 @@ come only from AICTE's public master data, never from this script.
    the real policy (all values unconfirmed) no obligations are created.
 
 No instruments are seeded: FDRs enter through the normal intake (upload) during the demo.
+Nothing is deleted: a database seeded by the earlier fictional seed keeps its institutions
+until it is reset (alembic downgrade base && alembic upgrade head, see README).
 """
 
 import argparse
@@ -51,14 +53,23 @@ def seed_accounts(session, seed_file: Path, institution_aicte_id: str | None) ->
         if account is None:
             account = UserAccount(username=row["username"])
             session.add(account)
-        if row.get("institution_user"):
-            if institution is not None:
-                account.institution_id = institution.id
-            elif account.institution_id is None:
-                print(
-                    f"Warning: {row['username']} is not linked to an institution; pass "
-                    "--institution-user-aicte-id"
-                )
+        if not row.get("institution_user"):
+            account.institution_id = None
+        elif institution is not None:
+            account.institution_id = institution.id
+        elif account.institution_id is None:
+            print(
+                f"Warning: {row['username']} is not linked to an institution; pass "
+                "--institution-user-aicte-id"
+            )
+        else:
+            kept = session.get(Institution, account.institution_id)
+            print(
+                f"Warning: {row['username']} stays linked to {kept.name} "
+                f"(AICTE ID {kept.aicte_id}) from an earlier seed. Pass "
+                "--institution-user-aicte-id to link a real institution; a database seeded "
+                "with the old fictional institutions should be reset first (see README)."
+            )
         account.region = row.get("region")
         account.bank_code = row.get("bank_code")
     session.flush()
