@@ -1,14 +1,20 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import admin, audit, dashboard, instruments, release
 from app.core.config import get_settings
 from app.core.policy import load_policy, unconfirmed_keys
+from app.modules.audit.anchoring import immudb_status
 from app.modules.auth.router import router as auth_router
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    immudb_problem = immudb_status(settings).problem
+    if immudb_problem:
+        logging.getLogger("depositrack.anchoring").warning(immudb_problem)
     app = FastAPI(title=settings.app_name, version="0.1.0")
     app.add_middleware(
         CORSMiddleware,

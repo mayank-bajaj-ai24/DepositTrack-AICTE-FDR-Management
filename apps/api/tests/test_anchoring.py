@@ -346,6 +346,15 @@ def _listed(api):
     return api.client.get("/api/v1/audit/anchors", headers=api.h("auditor")).json()["items"]
 
 
+def test_missing_client_is_reported_in_system_status(api, monkeypatch):
+    monkeypatch.setattr(anchoring, "CLIENT_MODULE", "depositrack_no_such_module")
+    api.holder["settings"] = _settings(api.tmp_path)
+    status = api.client.get("/api/v1/system/status").json()
+    assert status["immudb_enabled"] is True
+    assert status["immudb_client_installed"] is False
+    assert '.[anchoring]"' in status["immudb_problem"]
+
+
 def test_missing_client_makes_anchoring_return_503(api, monkeypatch):
     monkeypatch.setattr(anchoring, "CLIENT_MODULE", "depositrack_no_such_module")
     api.holder["settings"] = _settings(api.tmp_path)
@@ -354,6 +363,15 @@ def test_missing_client_makes_anchoring_return_503(api, monkeypatch):
     assert "immudb client is not installed" in r.json()["detail"]
     with api.factory() as s:
         assert s.scalar(select(func.count()).select_from(Anchor)) == 0
+
+
+def test_status_has_no_problem_when_disabled_or_installed(api, immudb):
+    status = api.client.get("/api/v1/system/status").json()
+    assert (status["immudb_enabled"], status["immudb_problem"]) == (False, None)
+    api.holder["settings"] = _settings(api.tmp_path)
+    status = api.client.get("/api/v1/system/status").json()
+    assert status["immudb_client_installed"] is True
+    assert status["immudb_problem"] is None
 
 
 def test_anchor_without_immudb_has_no_external_receipt(api):
