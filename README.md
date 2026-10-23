@@ -360,6 +360,29 @@ uvicorn app.main:app --reload    # http://localhost:8000/docs
 pytest                           # unit tests (no services needed)
 ```
 
+**Master data (M12)** — real public sources only, downloaded to `data/open/` (not committed):
+
+```bash
+python -m app.masterdata fetch-institutions    # AICTE approved institutions (public dashboard), all states
+python -m app.masterdata import-institutions   # 13,088 institutions for 2024-25 at the time of writing
+python -m app.masterdata fetch-banks           # RBI IFSC master via the Razorpay IFSC dataset (MIT)
+python -m app.masterdata import-banks          # banks, sublet IFSCs, RBI-cited mergers (config/bank_mergers.yaml)
+python -m app.seed demo --institution-user-aicte-id <AICTE ID>   # links the dev institution user
+```
+
+Sources and parameters are in `config/master_data.yaml`. AICTE regional-office mapping is not published in a downloadable form, so `regions` stays empty (unconfirmed) and institutions import with no region.
+
+- `fetch-institutions` saves a snapshot only if the state lists add up to the all-India list: every institution in exactly one state, no AICTE ID repeated, none missing from the all-India list. `import-institutions` checks a saved snapshot the same way.
+- `import-banks` makes the `bank_merger` table exactly `config/bank_mergers.yaml` (a merger removed or corrected there is removed from the table) and rejects cycles in the result. It then recomputes the canonical bank of instruments already stored and records one audit event with the count per old and new bank.
+- Bank names come from `IFSC.csv`; sublet IFSCs (listed in `sublet.json`) never name the bank whose prefix they use.
+- A merger joins two banks' FDR number series. Two instruments that share a canonical bank only through a merger are flagged as a double pledge (or near-duplicate) only if their issue date and amount do not differ (`cross_merger_match_fields` in `config/checks.yaml`).
+
+**Upgrading a dev database seeded by the old fictional seed** (institutions `SYN-1-000x`): nothing is deleted automatically, and `app.seed` warns when `institution.demo` stays linked to one of them. Reset the database before importing:
+
+```bash
+alembic downgrade base && alembic upgrade head   # drops all data, including uploaded instruments
+```
+
 Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
 
 **3. Synthetic FDRs**
@@ -436,7 +459,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
 | T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal measured on synthetic data, see [Expected outcomes](#expected-outcomes) |
 | T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
-| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants) |
+| T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants; unit tests for a same deposit across a bank merger and for unrelated same-number FDRs of two merged banks) |
 | T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
 | T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
 | T-10 | Overdue escalation | Escalated to the next role | Passing (API: overdue alert to competent authority) |

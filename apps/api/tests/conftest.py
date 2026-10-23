@@ -7,8 +7,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 from app.core import security
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.main import create_app
+
+# Tests must not pick up a developer's apps/api/.env (settings for the local stack); modules
+# imported above may already have cached settings read from it.
+Settings.model_config["env_file"] = None
+get_settings.cache_clear()
 
 
 @pytest.fixture(scope="session")
