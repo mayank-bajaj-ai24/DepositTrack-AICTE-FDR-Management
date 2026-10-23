@@ -3,7 +3,7 @@
 import csv
 import io
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -26,14 +26,19 @@ router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 PENDING_STATES = {S.SUBMITTED, S.SCRUTINY, S.DISCREPANCY}
 
 
-def _open_obligations(session: Session, scope: Scope) -> list[tuple[Obligation, Institution]]:
-    """Open obligations of every institution the caller may see, with or without deposits."""
+def _open_coverage(
+    session: Session, scope: Scope, today: date
+) -> list[tuple[Obligation, Institution, coverage.CoverageReport]]:
+    """Coverage of the open obligations of every institution the caller may see, with or
+    without deposits. A fixed number of queries, however many obligations there are."""
     query = (
         select(Obligation, Institution)
         .join(Institution, Institution.id == Obligation.institution_id)
         .where(Obligation.status == "open")
     )
-    return list(session.execute(scope_institutions(query, scope)).all())
+    rows = session.execute(scope_institutions(query, scope)).all()
+    reports = coverage.reports(session, [o for o, _ in rows], today)
+    return [(o, inst, rep) for (o, inst), rep in zip(rows, reports, strict=True)]
 
 
 def _visible(session: Session, scope: Scope) -> list[tuple[Instrument, Institution]]:
@@ -78,8 +83,7 @@ def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_
     # Coverage across the visible institutions' obligations (N2)
     required = declared = attested = 0
     gaps = []
-    for obligation, inst in _open_obligations(session, scope):
-        rep = coverage.report(session, obligation, today)
+    for _, inst, rep in _open_coverage(session, scope, today):
         required += rep.required
         declared += rep.declared_today
         attested += rep.attested_today
@@ -311,12 +315,12 @@ def coverage_reports(
     _require_coverage_view(scope)
     today = clock.today(session)
     items = []
-    for obligation, institution in _open_obligations(session, scope):
+    for obligation, institution, rep in _open_coverage(session, scope, today):
         items.append(
             {
                 "institution": ser.institution(institution),
                 "basis_ref": obligation.basis_ref,
-                "coverage": coverage_payload(coverage.report(session, obligation, today)),
+                "coverage": coverage_payload(rep),
             }
         )
     return {"today": today.isoformat(), "items": items}

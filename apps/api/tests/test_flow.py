@@ -4,14 +4,22 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, update
+from sqlalchemy import event, select, update
 
 from app.api import deps
 from app.core import security
 from app.core.config import get_settings
 from app.db.session import get_session
 from app.main import create_app
-from app.models import Event, FieldValue, Notification
+from app.models import (
+    Coverage,
+    Event,
+    FieldValue,
+    Institution,
+    Instrument,
+    Notification,
+    Obligation,
+)
 from tests.flow_support import (
     FakeBank,
     fake_extractor,
@@ -475,3 +483,71 @@ def test_mixed_role_user_keeps_their_own_institution_outside_their_region(env):
     assert sorted(i["institution"]["aicte_id"] for i in items) == ["SYN-A", "SYN-B"]
     listing = env.client.get("/api/v1/instruments", headers=env.h("west_inst_b")).json()
     assert [i["institution"]["aicte_id"] for i in listing["items"]] == ["SYN-B"]
+
+
+def _add_institutions_with_deposits(env, numbers):
+    """Synthetic West institutions, each with an obligation fully covered by one deposit."""
+    today = date.today()
+    with env.factory() as s:
+        for n in numbers:
+            inst = Institution(
+                aicte_id=f"SYN-X{n:03}",
+                name=f"Synthetic {n}",
+                institution_type="any",
+                region="West",
+            )
+            s.add(inst)
+            s.flush()
+            obligation = Obligation(
+                institution_id=inst.id,
+                basis_ref="demo approval case",
+                required_amount=500000,
+                required_from=today - timedelta(days=30),
+                required_until=today + timedelta(days=365),
+            )
+            instrument = Instrument(
+                institution_id=inst.id,
+                kind="fdr",
+                instrument_no=f"X{n}",
+                instrument_no_norm=f"X{n}",
+                amount=500000,
+                state="active",
+            )
+            s.add_all([obligation, instrument])
+            s.flush()
+            s.add(
+                Coverage(
+                    obligation_id=obligation.id,
+                    instrument_id=instrument.id,
+                    allocated_amount=500000,
+                    valid_from=today - timedelta(days=30),
+                    valid_to=today + timedelta(days=365),
+                )
+            )
+        s.commit()
+
+
+def _queries(env, path, who="scrutiny"):
+    engine = env.factory.kw["bind"]
+    statements = []
+
+    def count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        assert env.client.get(path, headers=env.h(who)).status_code == 200
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
+    return len(statements)
+
+
+@pytest.mark.parametrize("path", ["/api/v1/coverage", "/api/v1/dashboard"])
+def test_coverage_query_count_does_not_grow_with_obligations(env, path):
+    # Allocations are loaded in bulk, not once per obligation (no N+1).
+    _add_institutions_with_deposits(env, range(0, 2))
+    few = _queries(env, path)
+    _add_institutions_with_deposits(env, range(2, 30))
+    assert _queries(env, path) == few
+    items = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert len(items) == 32
