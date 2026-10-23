@@ -382,7 +382,7 @@ pip install -e ".[dev]"
 cp .env.example .env             # development-only placeholders; MB_API_TOKEN must equal DT_BANK_API_TOKEN
 python -m mockbank serve --port 8090
 # in a second terminal: the bank records an FDR it issued
-python -m mockbank register --ifsc XNBK0001234 --fdr-no <no> --amount 500000.50   --issue-date 2025-01-10 --maturity-date 2028-01-10 --beneficiary "<text>" --depositor "<name>"
+python -m mockbank register --ifsc XNBK0001234 --fdr-no <no> --amount 500000.50 --issue-date 2025-01-10 --maturity-date 2028-01-10 --beneficiary "<text>" --depositor "<name>"
 ```
 
 The bank's ledger starts empty and nothing is generated: the bank side records each FDR it issued (`register`, which is safe to run while `serve` runs, or `POST /fdrs`). Records are insert-only. An admin then pins the bank keys once in DepositTrack. `/keys` publishes a key for every bank code in `MB_BANK_CODES` from the start; if `MB_BANK_CODES` is empty, pin again after the first FDR of a new bank code. Keys already pinned never change.
