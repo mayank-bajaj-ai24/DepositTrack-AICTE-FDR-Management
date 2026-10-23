@@ -27,7 +27,7 @@ FIELDS = (
     "beneficiary",
     "lien_text",
 )
-# Model labels (ml/synth: FDR_NO, ISSUE_DATE, ...) lower-cased are these field names.
+# A pass A model's labels (FDR_NO, ISSUE_DATE, ...) lower-cased are these field names.
 
 
 @dataclass
