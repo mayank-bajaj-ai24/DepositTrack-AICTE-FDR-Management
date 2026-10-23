@@ -53,6 +53,12 @@ def env(tmp_path, rsa_key, monkeypatch, make_token):
         "authority": make_token(["competent_authority"], username="authority"),
         "auditor": make_token(["auditor"], username="auditor"),
         "admin": make_token(["admin"], username="admin"),
+        "bank": make_token(["bank_service"], username="bank.xnbk"),
+        # Only Keycloak default roles, which DepositTrack ignores: no role at all.
+        "nobody": make_token(["offline_access", "uma_authorization"], username="nobody"),
+        "west_inst_b": make_token(
+            ["institution", "scrutiny_officer"], username="officer.west.inst.b"
+        ),
     }
 
     class Env:
