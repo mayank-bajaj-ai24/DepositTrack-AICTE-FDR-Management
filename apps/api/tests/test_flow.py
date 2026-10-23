@@ -466,3 +466,12 @@ def test_coverage_needs_report_view_or_own_read(env, who):
     submit(env.client, env.tokens["inst_a"], values())  # XNBK instrument, the bank's own
     assert env.client.get("/api/v1/coverage", headers=env.h(who)).status_code == 403
     assert env.client.get("/api/v1/dashboard", headers=env.h(who)).status_code == 403
+
+
+def test_mixed_role_user_keeps_their_own_institution_outside_their_region(env):
+    # A West officer who is also institution B (East) sees West plus their own B.
+    submit(env.client, env.tokens["inst_b"], values(depositor="Synthetic Institute B"))
+    items = env.client.get("/api/v1/coverage", headers=env.h("west_inst_b")).json()["items"]
+    assert sorted(i["institution"]["aicte_id"] for i in items) == ["SYN-A", "SYN-B"]
+    listing = env.client.get("/api/v1/instruments", headers=env.h("west_inst_b")).json()
+    assert [i["institution"]["aicte_id"] for i in listing["items"]] == ["SYN-B"]

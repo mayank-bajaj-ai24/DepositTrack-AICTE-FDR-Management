@@ -1,7 +1,8 @@
 """Attribute-based access rules on top of the role matrix (M1 ABAC).
 
 - institution users see only their own institution's instruments;
-- officers with a region see only institutions in that region (no region = all);
+- officers with a region see only institutions in that region (no region = all), plus
+  their own institution when they also hold the institution role;
 - auditors, competent authority and admins see everything (read rights per role matrix);
 - bank service accounts see only instruments of their own bank, and no institution-level
   data (obligations, coverage) because their only permission is posting attestations.
@@ -11,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import Select, false, select
+from sqlalchemy import Select, false, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.permissions import Role
@@ -73,7 +74,11 @@ def visible_institution_ids(scope: Scope) -> Select | None:
         # institution as a whole (its obligations, or coverage summed over every bank).
         return select(Institution.id).where(false())
     if scope.region and (scope.has(Role.SCRUTINY_OFFICER) or scope.has(Role.VERIFYING_OFFICER)):
-        return select(Institution.id).where(Institution.region == scope.region)
+        visible = Institution.region == scope.region
+        if scope.has(Role.INSTITUTION) and scope.institution_id:
+            # Mixed roles: the institution role still reads its own records, in any region.
+            visible = or_(visible, Institution.id == scope.institution_id)
+        return select(Institution.id).where(visible)
     return None
 
 

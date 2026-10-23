@@ -57,6 +57,15 @@ def _visible(session, scope) -> tuple[set[str], set[str]]:
         (["scrutiny_officer"], None, None, {"SYN-A", "SYN-B", "SYN-C"}, {"A1", "B1"}),
         (["auditor"], None, None, {"SYN-A", "SYN-B", "SYN-C"}, {"A1", "B1"}),
         (["competent_authority"], None, None, {"SYN-A", "SYN-B", "SYN-C"}, {"A1", "B1"}),
+        # West officer who is also institution B (East): region plus their own institution.
+        (
+            ["institution", "scrutiny_officer"],
+            "b",
+            "West",
+            {"SYN-A", "SYN-B", "SYN-C"},
+            {"A1", "B1"},
+        ),
+        (["institution", "verifying_officer"], "a", "East", {"SYN-A", "SYN-B"}, {"A1", "B1"}),
     ],
 )
 def test_scope_by_role(db, roles, link, region, institutions, instruments):
