@@ -1,16 +1,18 @@
 """Attribute-based access rules on top of the role matrix (M1 ABAC).
 
 - institution users see only their own institution's instruments;
-- officers with a region see only institutions in that region (no region = all);
+- officers with a region see only institutions in that region (no region = all), plus
+  their own institution when they also hold the institution role;
 - auditors, competent authority and admins see everything (read rights per role matrix);
-- bank service accounts see only instruments of their own bank.
+- bank service accounts see only instruments of their own bank, and no institution-level
+  data (obligations, coverage) because their only permission is posting attestations.
 """
 
 import uuid
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import Select, select
+from sqlalchemy import Select, false, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.permissions import Role
@@ -54,16 +56,49 @@ def get_scope(
     )
 
 
+def _only(scope: Scope, role: Role) -> bool:
+    return scope.has(role) and len(scope.principal.roles) == 1
+
+
+def visible_institution_ids(scope: Scope) -> Select | None:
+    """Ids of the institutions the caller may see, as a subquery; None means no restriction.
+
+    This is the one place where the institution-level ABAC rules live. `scope_instruments`
+    and `scope_institutions` both filter against it, so the instrument views and the
+    coverage views cannot drift apart.
+    """
+    if _only(scope, Role.INSTITUTION):
+        return select(Institution.id).where(Institution.id == scope.institution_id)
+    if _only(scope, Role.BANK_SERVICE):
+        # The role matrix gives bank accounts attestation only, no reporting: they see no
+        # institution as a whole (its obligations, or coverage summed over every bank).
+        return select(Institution.id).where(false())
+    if scope.region and (scope.has(Role.SCRUTINY_OFFICER) or scope.has(Role.VERIFYING_OFFICER)):
+        visible = Institution.region == scope.region
+        if scope.has(Role.INSTITUTION) and scope.institution_id:
+            # Mixed roles: the institution role still reads its own records, in any region.
+            visible = or_(visible, Institution.id == scope.institution_id)
+        return select(Institution.id).where(visible)
+    return None
+
+
 def scope_instruments(query: Select, scope: Scope) -> Select:
     """Restrict an Instrument query to what the caller may see."""
-    if scope.has(Role.INSTITUTION) and len(scope.principal.roles) == 1:
-        return query.where(Instrument.institution_id == scope.institution_id)
-    if scope.has(Role.BANK_SERVICE) and len(scope.principal.roles) == 1:
+    if _only(scope, Role.BANK_SERVICE):
+        # Bank accounts are scoped per instrument: their own bank's only.
         return query.where(Instrument.canonical_bank == scope.bank_code)
-    if scope.region and (scope.has(Role.SCRUTINY_OFFICER) or scope.has(Role.VERIFYING_OFFICER)):
-        regional = select(Institution.id).where(Institution.region == scope.region)
-        return query.where(Instrument.institution_id.in_(regional))
-    return query
+    visible = visible_institution_ids(scope)
+    return query if visible is None else query.where(Instrument.institution_id.in_(visible))
+
+
+def scope_institutions(query: Select, scope: Scope) -> Select:
+    """Restrict an Institution query to what the caller may see.
+
+    Unlike deriving institutions from visible instruments, this includes institutions that
+    have submitted nothing yet, whose whole requirement is uncovered.
+    """
+    visible = visible_institution_ids(scope)
+    return query if visible is None else query.where(Institution.id.in_(visible))
 
 
 def get_visible_instrument(session: Session, scope: Scope, instrument_id: uuid.UUID) -> Instrument:

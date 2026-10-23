@@ -30,7 +30,19 @@ ml = [
     "scikit-learn>=1.5",
     "lightgbm>=4.3",
     "shap>=0.45",
+]
+# Fetches the open training datasets (ml/download_open_data.py); nothing under app/ imports it.
+data = [
     "kagglehub>=1.0",
+]
+# immudb receipts for Merkle anchors (N4); needed only with DT_IMMUDB_ENABLED=true.
+# Pinned exactly: immudb-py is the only official Python client (it does the client-side
+# proof checks), but its metadata is a `pip freeze` dump with open lower bounds that pulls
+# in ~29 packages, among them appier (a web framework), Hive Solutions' `google-api` and
+# Google API/auth clients. At runtime it only imports grpcio, protobuf,
+# googleapis-common-protos and ecdsa. Review the tree before bumping.
+anchoring = [
+    "immudb-py==1.5.0",
 ]
 dev = [
     "pytest>=8.0",

@@ -17,6 +17,7 @@ from app.core.permissions import Action, is_allowed
 from app.core.policy import Policy
 from app.db.session import get_session
 from app.models import Institution
+from app.modules.audit.anchoring import immudb_status
 from app.modules.audit.service import SYSTEM, record_event
 from app.modules.bank.client import BankChannelError, BankClient
 from app.modules.bank.credentials import load_pinned, save_pinned
@@ -45,6 +46,7 @@ def system_status(
     policy: Policy = Depends(policy_dep),
 ) -> dict:
     """Public status for the UI banner: demo policy, unconfirmed values, clock, integrations."""
+    immudb = immudb_status(settings)
     return {
         "policy_version": policy.version,
         "demo_policy": policy.is_demo,
@@ -56,7 +58,11 @@ def system_status(
         "layoutlm_available": layoutlm.is_available(settings.models_dir),
         "forgery_model_available": forgery_model.is_available(settings.models_dir),
         "risk_model_available": risk_model.is_available(settings.models_dir),
-        "immudb_enabled": settings.immudb_enabled,
+        "immudb_enabled": immudb.enabled,
+        # Detected with importlib.util.find_spec, without importing the client.
+        "immudb_client_installed": immudb.client_installed,
+        # Set when anchoring cannot write receipts as configured (e.g. the client is missing).
+        "immudb_problem": immudb.problem,
     }
 
 

@@ -1,15 +1,17 @@
 {
-  "_comment": "Open datasets used to train the prototype's models. Downloaded with ml/download_open_data.py into the kagglehub cache (not committed). Each is a proxy: none of them contains FDRs.",
+  "_comment": "Open datasets planned for training the prototype's models. ml/download_open_data.py downloads a pinned version of each into data/<name>/ (git-ignored, not committed). Each is a proxy: none of them contains FDRs. 'planned_for' names the script meant to read it; a script reads it only once its own change lands.",
   "find-it-again": {
-    "kaggle": "nikita2998/find-it-again-dataset",
-    "used_by": "ml/forgery/train.py",
-    "licence": "Not stated on the Kaggle page (research dataset); cite the paper",
+    "kaggle": "nikita2998/find-it-again-dataset/versions/1",
+    "planned_for": "ml/forgery/train.py",
+    "licence": "Not stated on the Kaggle page (research dataset); all rights reserved until the authors confirm terms. Cite the paper.",
+    "licence_confirmed": false,
     "citation": "B. Martinez Tornes et al., Receipt Dataset for Document Forgery Detection, ICDAR 2023"
   },
   "bpi-2017": {
-    "kaggle": "rascanudragos/bpi-challenge-2017",
-    "used_by": "ml/risk/train.py",
+    "kaggle": "rascanudragos/bpi-challenge-2017/versions/1",
+    "planned_for": "ml/risk/train.py",
     "licence": "CC BY 4.0 as stated by the Kaggle mirror; original on 4TU.ResearchData (check its terms before redistribution)",
+    "licence_confirmed": true,
     "citation": "B.F. van Dongen, BPI Challenge 2017, 4TU.ResearchData, doi:10.4121/uuid:5f3067df-f10b-45da-b98b-86ae4c7a310b"
   }
 }
