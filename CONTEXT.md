@@ -66,10 +66,10 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. **Run end
 to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak login, immudb anchor.
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 394 tests pass, ruff clean; `ml/tests`: 18)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 412 tests pass, ruff clean; `ml/tests`: 18)
 | Area | Where | Notes |
 | --- | --- | --- |
-| Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, ABAC via one `visible_institution_ids(scope)` used by instrument and institution scoping |
+| Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, action-aware ABAC: every lookup names its action (or workflow roles) and only the caller's roles that grant it contribute visibility (`acting_roles`, `visible_institution_ids`); bank_service only ever reaches its own bank's instruments for attestation |
 | Data model | `app/models/`, migrations `0001`–`0005` | 21 tables incl. `bank`, `bank_merger`, `anchor_event` |
 | Master data M12 | `app/masterdata.py`, `modules/masterdata/`, `config/master_data.yaml`, `config/bank_mergers.yaml` | AICTE institutions (13,088 for 2024-25; snapshot refused unless state lists add up), RBI IFSC banks + sublet IFSCs, 9 RBI-cited mergers; re-keys stored instruments; audited |
 | Intake M2 | `modules/instruments/intake.py`, `modules/storage/store.py` | Fernet-encrypted docs (local or S3), versioned, SHA-256 |

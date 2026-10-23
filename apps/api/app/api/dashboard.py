@@ -8,14 +8,22 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from openpyxl import Workbook
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.api import serializers as ser
 from app.api.instruments import coverage_payload
 from app.core import clock
-from app.core.access import Scope, get_scope, scope_institutions, scope_instruments
-from app.core.permissions import Action, Role, is_allowed
+from app.core.access import (
+    INSTRUMENT_READ,
+    REPORT_READ,
+    Scope,
+    acting_roles,
+    get_scope,
+    require,
+    scope_institutions,
+    scope_instruments,
+)
 from app.db.session import get_session
 from app.models import Case, Event, Flag, Institution, Instrument, Notification, Obligation
 from app.modules.lifecycle import coverage
@@ -38,26 +46,23 @@ def _open_coverage(
         # Stable order for the coverage strips and for ties in the dashboard's gap list.
         .order_by(Institution.aicte_id, Obligation.required_from, Obligation.id)
     )
-    rows = session.execute(scope_institutions(query, scope)).all()
+    rows = session.execute(scope_institutions(query, scope, REPORT_READ)).all()
     reports = coverage.reports(session, [o for o, _ in rows], today)
     return [(o, inst, rep) for (o, inst), rep in zip(rows, reports, strict=True)]
 
 
 def _visible(session: Session, scope: Scope) -> list[tuple[Instrument, Institution]]:
+    """Instruments behind the dashboard and reports: what the reporting roles may see."""
     query = select(Instrument, Institution).join(
         Institution, Institution.id == Instrument.institution_id
     )
-    return list(session.execute(scope_instruments(query, scope)).all())
+    return list(session.execute(scope_instruments(query, scope, REPORT_READ)).all())
 
 
 def _require_coverage_view(scope: Scope) -> None:
     """Dashboard and coverage figures need report view (officers, reviewers) or read-own
     (institutions). Bank service accounts and callers with no DepositTrack role are refused."""
-    if not (
-        is_allowed(scope.principal.roles, Action.REPORT_VIEW)
-        or is_allowed(scope.principal.roles, Action.INSTRUMENT_READ_OWN)
-    ):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
+    require(scope, REPORT_READ)
 
 
 @router.get("/dashboard")
@@ -166,11 +171,19 @@ def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_
 def notifications(
     scope: Scope = Depends(get_scope), session: Session = Depends(get_session)
 ) -> dict:
-    ids = {i.id for i, _ in _visible(session, scope)}
-    roles = set(scope.principal.roles)
+    # A notification addressed to a role is shown only if that same role may see its
+    # instrument, so one role's reach never shows another role's notifications.
+    conditions = []
+    for role in acting_roles(scope, INSTRUMENT_READ):
+        visible = scope_instruments(select(Instrument.id), scope, acting=frozenset({role}))
+        conditions.append(
+            and_(Notification.audience_role == role.value, Notification.instrument_id.in_(visible))
+        )
+    if not conditions:
+        return {"items": []}
     rows = session.scalars(
         select(Notification)
-        .where(Notification.instrument_id.in_(ids), Notification.audience_role.in_(roles))
+        .where(or_(*conditions))
         .order_by(Notification.created_at.desc())
         .limit(200)
     ).all()
@@ -277,8 +290,7 @@ def report(
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ):
-    if not (is_allowed(scope.principal.roles, Action.REPORT_VIEW) or scope.has(Role.INSTITUTION)):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
+    require(scope, REPORT_READ)
     header, rows = _report_rows(name, session, scope)
     if format == "json":
         return {"name": name, "title": REPORTS[name], "header": header, "rows": rows}
