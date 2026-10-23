@@ -26,6 +26,7 @@ EXPECTED_TABLES = {
     "case",
     "event",
     "anchor",
+    "anchor_event",
     "policy_version",
     "ifsc_lineage",
     "field_permission",

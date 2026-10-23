@@ -488,7 +488,8 @@ flowchart LR
 | `observation` | id, instrument_id, officer_id, text, created_at | R-i scrutiny observations |
 | `case` | id, type (scrutiny / renewal / release / discharge / refund / query), instrument_id, state, assignee_role, due_at, escalation_level, policy_version | M8 / M9 |
 | `event` | id, case_id, instrument_id, actor_id, role, action, before_json, after_json, reason, ts, prev_hash, hash | Append-only audit log; also the process-mining log |
-| `anchor` | id, batch_start, batch_end, merkle_root, store_tx, ts | N4 |
+| `anchor` | id, batch_start, batch_end, merkle_root, store_key, store_tx, store_error, ts | N4; `store_tx` is the immudb receipt, `store_error` why it is missing |
+| `anchor_event` | event_id (unique), anchor_id, position | N4; which events an anchor covers, in leaf order |
 | `policy_version` | id, case_type, rules_json, clause_refs, valid_from, approved_by | N5, N10 |
 | `ifsc_lineage` | old_ifsc, current_ifsc, canonical_bank, effective_from | N7 |
 | `field_permission` | role, field, can_edit | R-i "update permitted fields" |
