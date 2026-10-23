@@ -44,6 +44,9 @@ class Ledger:
             self._write(data)
             return record
 
+    def entries(self) -> list[dict]:
+        return list(self._read()["entries"].values())
+
     def get(self, ifsc: str, fdr_no: str) -> dict | None:
         return self._read()["entries"].get(_key(ifsc, fdr_no))
 

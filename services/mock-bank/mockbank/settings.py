@@ -8,6 +8,9 @@ class Settings(BaseSettings):
 
     # Shared token the DepositTrack API presents (stands in for mutual TLS). Required.
     api_token: str = ""
+    # Token of the bank's own operator, who records the FDRs the bank issued. Kept separate
+    # from api_token so DepositTrack can read and verify the bank's records but never write them.
+    operator_token: str = ""
     ledger_file: str = "var/ledger.json"
     keys_dir: str = "var/keys"
     # How long a status confirmation stays fresh before it must be re-checked (N4).
