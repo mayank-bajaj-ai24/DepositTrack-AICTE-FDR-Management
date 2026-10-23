@@ -354,11 +354,21 @@ Keycloak imports the `depositrack` realm with seven roles and one development us
 cd apps/api
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
+pip install -e ".[dev,ml,anchoring]"
 alembic upgrade head             # creates the schema
 uvicorn app.main:app --reload    # http://localhost:8000/docs
 pytest                           # unit tests (no services needed)
 ```
+
+The `ml` extra holds the forgery and renewal-risk model libraries; `anchoring` holds the immudb client (`immudb-py`, pinned).
+
+To write immudb receipts for Merkle anchors (N4), set these in `apps/api/.env`:
+
+- `DT_IMMUDB_ENABLED=true`
+- `DT_IMMUDB_PASSWORD` set to the `IMMUDB_ADMIN_PASSWORD` value from `infra/.env` (`dev-only-change-me` by default, for local development only). Any other value makes the immudb login fail.
+- `DT_IMMUDB_USER` only if you changed it; it defaults to `immudb`, the server's admin user.
+
+Anchors are always stored in the database. If immudb is down or the login fails, the anchor is kept without a receipt, and the reason is returned and listed with it (`store_error`). When an anchor has a receipt, verification reads the root back from immudb with a verified get and compares it with the root recomputed from the events, so editing the events and the anchor row together is detected. With `DT_IMMUDB_ENABLED=false` (the default) anchors are checked locally only and listed as "No external receipt". If immudb is enabled but the client is not installed, `GET /api/v1/system/status` reports it in `immudb_problem` and `POST /api/v1/audit/anchors` returns 503.
 
 **Master data (M12)** — real public sources only, downloaded to `data/open/` (not committed):
 
@@ -466,7 +476,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
 | T-10 | Overdue escalation | Escalated to the next role | Passing (API: overdue alert to competent authority) |
 | T-11 | Dashboard drill-down | Tile numbers match underlying records | Passing for API counts; UI drill-down not yet tested in a browser |
-| T-12 | Audit integrity | Direct DB edit detected by verifier | Passing (API: chain break and anchor mismatch detected) |
+| T-12 | Audit integrity | Direct DB edit detected by verifier | Passing (API: chain break and anchor mismatch detected; editing events and the anchor row together is caught by the immudb receipt, tested with a mocked immudb) |
 | T-13 | Access control | All allow/deny cases pass | Passing (28 role cases + institution and regional scoping) |
 | T-14 | Credential forgery | Credential from unknown key rejected | Passing (API) |
 
@@ -481,7 +491,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 291 automated tests (unit + end-to-end API flows), lint clean
+- [x] Backend: 315 automated tests (unit + end-to-end API flows), lint clean
 - [x] LayoutLMv3 fine-tuning notebook for a GPU runtime (to be run by the team)
 
 ### Roadmap
