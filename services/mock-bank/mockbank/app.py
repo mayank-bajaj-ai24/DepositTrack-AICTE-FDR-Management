@@ -9,16 +9,24 @@ POST /simulate/close               demo: the depositor closed the FDR early
 """
 
 import secrets
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
-from pydantic import BaseModel, Field, model_validator
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
-from mockbank.ledger import Ledger
+from mockbank.files import Busy
+from mockbank.ledger import AlreadyRecorded, Ledger
+from mockbank.records import FdrRecord, record_issued_fdr
 from mockbank.settings import Settings, get_settings
 from mockbank.signing import KeyStore
 
 app = FastAPI(title="Mock bank (simulation only)", version="0.1.0")
+
+
+@app.exception_handler(Busy)
+def _ledger_busy(_: Request, exc: Busy) -> JSONResponse:
+    return JSONResponse({"detail": f"{exc}; try again"}, status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 def require_token(
@@ -44,26 +52,7 @@ class FdrRef(BaseModel):
     fdr_no: str
 
 
-class FdrRecord(BaseModel):
-    """What the issuing bank knows about an FDR it issued (entered by the bank, not AICTE)."""
-
-    fdr_no: str = Field(min_length=1, max_length=64)
-    ifsc: str = Field(pattern=r"^[A-Z]{4}0[A-Z0-9]{6}$")
-    amount: int = Field(gt=0)
-    issue_date: date
-    maturity_date: date
-    beneficiary: str = Field(min_length=1)
-    depositor: str = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def _maturity_after_issue(self) -> "FdrRecord":
-        if self.maturity_date <= self.issue_date:
-            raise ValueError("maturity_date must be after issue_date")
-        return self
-
-
-def _entry_or_404(book: Ledger, ifsc: str, fdr_no: str) -> dict:
-    entry = book.get(ifsc, fdr_no)
+def _entry_or_404(entry: dict | None) -> dict:
     if entry is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such FDR at this bank")
     return entry
@@ -87,15 +76,16 @@ def health() -> dict:
 
 
 @app.post("/fdrs", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_token)])
-def register_fdr(record: FdrRecord, book: Ledger = Depends(ledger)) -> dict:
-    if book.get(record.ifsc, record.fdr_no) is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This FDR is already on the bank's ledger")
-    return book.upsert(record.model_dump(mode="json"))
+def register_fdr(record: FdrRecord, settings: Settings = Depends(get_settings)) -> dict:
+    try:
+        return record_issued_fdr(record, settings)
+    except AlreadyRecorded as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 
 
 @app.get("/keys", dependencies=[Depends(require_token)])
 def public_keys(book: Ledger = Depends(ledger), store: KeyStore = Depends(keys)) -> dict:
-    banks = sorted({e["ifsc"][:4] for e in book._read()["entries"].values()})
+    banks = sorted({e["ifsc"][:4] for e in book.entries()})
     return {store.key_id(b): store.public_b64(b) for b in banks}
 
 
@@ -107,7 +97,7 @@ def credential(
     store: KeyStore = Depends(keys),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    entry = _entry_or_404(book, ifsc, fdr_no)
+    entry = _entry_or_404(book.get(ifsc, fdr_no))
     bank = entry["ifsc"][:4]
     payload = {
         "type": "FDRAttestation",
@@ -135,7 +125,7 @@ def status_record(
     store: KeyStore = Depends(keys),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    entry = _entry_or_404(book, ifsc, fdr_no)
+    entry = _entry_or_404(book.get(ifsc, fdr_no))
     record = _status_record(entry, settings) | {
         "instrument_no": entry["fdr_no"],
         "ifsc": entry["ifsc"],
@@ -146,13 +136,15 @@ def status_record(
 
 @app.post("/lien/remove", dependencies=[Depends(require_token)])
 def remove_lien(ref: FdrRef, book: Ledger = Depends(ledger)) -> dict:
-    _entry_or_404(book, ref.ifsc, ref.fdr_no)
-    entry = book.set_status(ref.ifsc, ref.fdr_no, status="revoked", lien_status="REMOVED")
+    entry = _entry_or_404(
+        book.set_status(ref.ifsc, ref.fdr_no, status="revoked", lien_status="REMOVED")
+    )
     return {"status": entry["status"], "lien_status": entry["lien_status"]}
 
 
 @app.post("/simulate/close", dependencies=[Depends(require_token)])
 def simulate_close(ref: FdrRef, book: Ledger = Depends(ledger)) -> dict:
-    _entry_or_404(book, ref.ifsc, ref.fdr_no)
-    entry = book.set_status(ref.ifsc, ref.fdr_no, status="closed", lien_status="REMOVED")
+    entry = _entry_or_404(
+        book.set_status(ref.ifsc, ref.fdr_no, status="closed", lien_status="REMOVED")
+    )
     return {"status": entry["status"], "lien_status": entry["lien_status"]}
