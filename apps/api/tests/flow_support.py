@@ -75,6 +75,10 @@ def seed(session_factory, today: date) -> dict:
                 UserAccount(username="bank.xnbk", bank_code="XNBK"),
                 # Mixed roles: a West officer whose own institution (B) is in the East.
                 UserAccount(username="officer.west.inst.b", region="West", institution_id=b.id),
+                # Mixed with a bank role (XNBK issues the test FDRs): institution A + bank, and
+                # an East verifier + bank. The bank role must widen neither of them.
+                UserAccount(username="inst.a.bank", institution_id=a.id, bank_code="XNBK"),
+                UserAccount(username="verifier.east.bank", region="East", bank_code="XNBK"),
             ]
         )
         s.commit()
