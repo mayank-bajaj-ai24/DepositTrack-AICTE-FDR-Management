@@ -1,5 +1,6 @@
 """HTTP API of the mock bank.
 
+POST /fdrs                         the bank records an FDR it issued (its own ledger)
 GET  /keys                         public keys per bank code (AICTE pins these once)
 GET  /credentials?ifsc=&fdr_no=    signed FDRAttestation for one FDR
 GET  /status?ifsc=&fdr_no=         signed status record with last/next update (freshness)
@@ -8,10 +9,10 @@ POST /simulate/close               demo: the depositor closed the FDR early
 """
 
 import secrets
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from mockbank.ledger import Ledger
 from mockbank.settings import Settings, get_settings
@@ -43,6 +44,24 @@ class FdrRef(BaseModel):
     fdr_no: str
 
 
+class FdrRecord(BaseModel):
+    """What the issuing bank knows about an FDR it issued (entered by the bank, not AICTE)."""
+
+    fdr_no: str = Field(min_length=1, max_length=64)
+    ifsc: str = Field(pattern=r"^[A-Z]{4}0[A-Z0-9]{6}$")
+    amount: int = Field(gt=0)
+    issue_date: date
+    maturity_date: date
+    beneficiary: str = Field(min_length=1)
+    depositor: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _maturity_after_issue(self) -> "FdrRecord":
+        if self.maturity_date <= self.issue_date:
+            raise ValueError("maturity_date must be after issue_date")
+        return self
+
+
 def _entry_or_404(book: Ledger, ifsc: str, fdr_no: str) -> dict:
     entry = book.get(ifsc, fdr_no)
     if entry is None:
@@ -65,6 +84,13 @@ def _status_record(entry: dict, settings: Settings) -> dict:
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "simulation": True}
+
+
+@app.post("/fdrs", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_token)])
+def register_fdr(record: FdrRecord, book: Ledger = Depends(ledger)) -> dict:
+    if book.get(record.ifsc, record.fdr_no) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This FDR is already on the bank's ledger")
+    return book.upsert(record.model_dump(mode="json"))
 
 
 @app.get("/keys", dependencies=[Depends(require_token)])
