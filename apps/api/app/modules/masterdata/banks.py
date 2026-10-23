@@ -5,8 +5,9 @@
   another bank (sublet.json), so the canonical key uses the real bank.
 - `bank_merger`: bank-level amalgamations from config/bank_mergers.yaml, each cited to RBI.
 
-Imports add and update rows; rows that disappear from a later release are kept (an FDR
-issued under a since-withdrawn IFSC must still resolve to its bank).
+Bank and sublet rows are added and updated; rows that disappear from a later release are
+kept (an FDR issued under a since-withdrawn IFSC must still resolve to its bank). Merger
+rows are replaced by the config's list, which is their only source.
 """
 
 import csv
@@ -59,14 +60,50 @@ def _check_mergers(mergers: list[dict], known: set[str]) -> None:
     unknown = sorted({m[k] for m in mergers for k in ("old_bank", "canonical_bank")} - known)
     if unknown:
         raise MasterDataError(f"bank_mergers.yaml names codes not in the IFSC master: {unknown}")
-    target = {m["old_bank"]: m["canonical_bank"] for m in mergers}
+    old = [m["old_bank"] for m in mergers]
+    repeated = sorted({code for code in old if old.count(code) > 1})
+    if repeated:
+        raise MasterDataError(f"bank_mergers.yaml lists a bank more than once: {repeated}")
+
+
+def _check_cycles(target: dict[str, str]) -> None:
     for start in target:
         seen, bank = {start}, target[start]
         while bank in target:
             if bank in seen:
-                raise MasterDataError(f"bank_mergers.yaml has a cycle through {start}")
+                raise MasterDataError(f"bank mergers form a cycle through {start}")
             seen.add(bank)
             bank = target[bank]
+
+
+def _sync_mergers(session: Session, mergers: list[dict]) -> int:
+    """Make `bank_merger` exactly the config's list; return how many rows were removed.
+
+    config/bank_mergers.yaml is the source of truth: a merger corrected or withdrawn there
+    must not linger in the table that canonical_bank() reads.
+    """
+    wanted = {m["old_bank"]: m for m in mergers}
+    existing = {row.old_bank: row for row in session.scalars(select(BankMerger))}
+    stale = [row for code, row in existing.items() if code not in wanted]
+    for row in stale:
+        session.delete(row)
+    for code, m in wanted.items():
+        values = {
+            "canonical_bank": m["canonical_bank"],
+            "effective_from": m.get("effective_from"),
+            "source": m["source"],
+        }
+        row = existing.get(code)
+        if row is None:
+            session.add(BankMerger(old_bank=code, **values))
+        else:
+            for key, value in values.items():
+                setattr(row, key, value)
+    session.flush()
+    # Check the table canonical_bank() actually reads, not only the config list.
+    rows = session.execute(select(BankMerger.old_bank, BankMerger.canonical_bank))
+    _check_cycles({old: new for old, new in rows})
+    return len(stale)
 
 
 def _bank_names(ifsc_csv: Path) -> dict[str, str]:
@@ -110,17 +147,13 @@ def import_banks(session: Session, data_dir: Path, mergers: list[dict]) -> dict[
             session.add(IfscLineage(old_ifsc=ifsc, current_ifsc=ifsc, canonical_bank=bank))
         else:
             row.current_ifsc, row.canonical_bank = ifsc, bank
-    for m in mergers:
-        session.merge(
-            BankMerger(
-                old_bank=m["old_bank"],
-                canonical_bank=m["canonical_bank"],
-                effective_from=m.get("effective_from"),
-                source=m["source"],
-            )
-        )
-    session.flush()
-    counts = {"banks": len(banks), "sublet_ifsc": len(sublet), "mergers": len(mergers)}
+    removed = _sync_mergers(session, mergers)
+    counts = {
+        "banks": len(banks),
+        "sublet_ifsc": len(sublet),
+        "mergers": len(mergers),
+        "mergers_removed": removed,
+    }
     record_event(
         session, actor=SYSTEM, action="masterdata.banks_imported", after=counts | {"source": source}
     )
