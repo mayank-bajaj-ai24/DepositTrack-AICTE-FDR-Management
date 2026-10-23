@@ -10,6 +10,7 @@ from mockbank.settings import Settings, get_settings
 from mockbank.signing import canonical_json
 
 TOKEN = "test-token"
+OPERATOR = "test-operator-token"
 RECORD = {
     "fdr_no": "XN1234567890",
     "ifsc": "XNBK0001234",
@@ -23,7 +24,10 @@ RECORD = {
 @pytest.fixture
 def client(tmp_path):
     settings = Settings(
-        api_token=TOKEN, ledger_file=str(tmp_path / "ledger.json"), keys_dir=str(tmp_path / "keys")
+        api_token=TOKEN,
+        operator_token=OPERATOR,
+        ledger_file=str(tmp_path / "ledger.json"),
+        keys_dir=str(tmp_path / "keys"),
     )
     app.dependency_overrides[get_settings] = lambda: settings
     Ledger(settings.ledger_file).upsert(dict(RECORD))
@@ -32,6 +36,7 @@ def client(tmp_path):
 
 
 AUTH = {"Authorization": f"Bearer {TOKEN}"}
+OP = {"Authorization": f"Bearer {OPERATOR}"}
 
 
 def _verify(public_b64: str, payload: dict) -> None:
@@ -81,9 +86,9 @@ def test_lien_removal_revokes(client):
     assert status["next_update"] > status["last_update"]
 
 
-def test_bank_registers_an_fdr_it_issued(client):
+def test_bank_operator_records_an_fdr_it_issued(client):
     record = RECORD | {"fdr_no": "NEW0000001", "depositor": "Depositor"}
-    r = client.post("/fdrs", json=record, headers=AUTH)
+    r = client.post("/fdrs", json=record, headers=OP)
     assert r.status_code == 201
     assert r.json()["lien_status"] == "MARKED"
     cred = client.get(
@@ -92,14 +97,27 @@ def test_bank_registers_an_fdr_it_issued(client):
     assert cred.json()["subject"]["amount_inr"] == record["amount"]
 
 
-def test_registering_needs_the_token_and_valid_values(client):
+def test_depositrack_token_cannot_write_the_bank_ledger(client):
     record = RECORD | {"fdr_no": "NEW0000002", "depositor": "Depositor"}
+    assert client.post("/fdrs", json=record, headers=AUTH).status_code == 401
     assert client.post("/fdrs", json=record).status_code == 401
+    assert client.get("/ledger", headers=AUTH).status_code == 401
+
+
+def test_recorded_values_are_validated(client):
+    record = RECORD | {"fdr_no": "NEW0000003", "depositor": "Depositor"}
     bad = record | {"maturity_date": record["issue_date"]}
-    assert client.post("/fdrs", json=bad, headers=AUTH).status_code == 422
-    assert client.post("/fdrs", json=record | {"ifsc": "bad"}, headers=AUTH).status_code == 422
+    assert client.post("/fdrs", json=bad, headers=OP).status_code == 422
+    assert client.post("/fdrs", json=record | {"ifsc": "bad"}, headers=OP).status_code == 422
 
 
-def test_an_fdr_cannot_be_registered_twice(client):
+def test_an_fdr_cannot_be_recorded_twice(client):
     record = RECORD | {"depositor": "Depositor"}
-    assert client.post("/fdrs", json=record, headers=AUTH).status_code == 409
+    assert client.post("/fdrs", json=record, headers=OP).status_code == 409
+
+
+def test_operator_sees_the_ledger_and_the_page(client):
+    rows = client.get("/ledger", headers=OP).json()
+    assert [r["fdr_no"] for r in rows] == [RECORD["fdr_no"]]
+    page = client.get("/")
+    assert page.status_code == 200 and "Simulation only" in page.text
