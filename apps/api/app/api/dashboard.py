@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.api import serializers as ser
 from app.api.instruments import coverage_payload
 from app.core import clock
-from app.core.access import Scope, get_scope, scope_instruments
+from app.core.access import Scope, get_scope, scope_institutions, scope_instruments
 from app.core.permissions import Action, Role, is_allowed
 from app.db.session import get_session
 from app.models import Case, Event, Flag, Institution, Instrument, Notification, Obligation
@@ -24,6 +24,16 @@ from app.modules.lifecycle.states import InstrumentState as S
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 
 PENDING_STATES = {S.SUBMITTED, S.SCRUTINY, S.DISCREPANCY}
+
+
+def _open_obligations(session: Session, scope: Scope) -> list[tuple[Obligation, Institution]]:
+    """Open obligations of every institution the caller may see, with or without deposits."""
+    query = (
+        select(Obligation, Institution)
+        .join(Institution, Institution.id == Obligation.institution_id)
+        .where(Obligation.status == "open")
+    )
+    return list(session.execute(scope_institutions(query, scope)).all())
 
 
 def _visible(session: Session, scope: Scope) -> list[tuple[Instrument, Institution]]:
@@ -59,20 +69,14 @@ def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_
         )
 
     # Coverage across the visible institutions' obligations (N2)
-    institution_ids = {inst.id for _, inst in rows}
     required = declared = attested = 0
     gaps = []
-    for obligation in session.scalars(
-        select(Obligation).where(
-            Obligation.institution_id.in_(institution_ids), Obligation.status == "open"
-        )
-    ):
+    for obligation, inst in _open_obligations(session, scope):
         rep = coverage.report(session, obligation, today)
         required += rep.required
         declared += rep.declared_today
         attested += rep.attested_today
         if rep.first_gap:
-            inst = session.get(Institution, obligation.institution_id)
             gaps.append(
                 {
                     "institution": ser.institution(inst),
@@ -298,15 +302,8 @@ def coverage_reports(
 ) -> dict:
     """Coverage of every open obligation the caller may see (N2): one strip per obligation."""
     today = clock.today(session)
-    institution_ids = {inst.id for _, inst in _visible(session, scope)}
-    if scope.institution_id:
-        institution_ids.add(scope.institution_id)
     items = []
-    query = select(Obligation).where(
-        Obligation.institution_id.in_(institution_ids), Obligation.status == "open"
-    )
-    for obligation in session.scalars(query):
-        institution = session.get(Institution, obligation.institution_id)
+    for obligation, institution in _open_obligations(session, scope):
         items.append(
             {
                 "institution": ser.institution(institution),
