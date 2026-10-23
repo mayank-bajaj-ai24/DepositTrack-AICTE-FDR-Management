@@ -5,7 +5,9 @@
   their own institution when they also hold the institution role;
 - auditors, competent authority and admins see everything (read rights per role matrix);
 - bank service accounts see only instruments of their own bank, and no institution-level
-  data (obligations, coverage) because their only permission is posting attestations.
+  data (obligations, coverage) because their only permission is posting attestations;
+- anything else is denied: a caller without a broad read permission sees only its own
+  institution (with the institution role) or nothing, whatever mix of roles it holds.
 """
 
 import uuid
@@ -15,7 +17,7 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy import Select, false, or_, select
 from sqlalchemy.orm import Session
 
-from app.core.permissions import Role
+from app.core.permissions import Action, Role, is_allowed
 from app.core.security import Principal, get_current_principal
 from app.db.session import get_session
 from app.models import Institution, Instrument, UserAccount
@@ -56,8 +58,12 @@ def get_scope(
     )
 
 
-def _only(scope: Scope, role: Role) -> bool:
-    return scope.has(role) and len(scope.principal.roles) == 1
+# Permissions that read across institutions; without one, a caller sees at most its own.
+BROAD_READ = (Action.INSTRUMENT_READ_ALL, Action.REPORT_VIEW, Action.AUDIT_READ)
+
+
+def reads_broadly(scope: Scope) -> bool:
+    return any(is_allowed(scope.principal.roles, action) for action in BROAD_READ)
 
 
 def visible_institution_ids(scope: Scope) -> Select | None:
@@ -67,11 +73,13 @@ def visible_institution_ids(scope: Scope) -> Select | None:
     and `scope_institutions` both filter against it, so the instrument views and the
     coverage views cannot drift apart.
     """
-    if _only(scope, Role.INSTITUTION):
-        return select(Institution.id).where(Institution.id == scope.institution_id)
-    if _only(scope, Role.BANK_SERVICE):
-        # The role matrix gives bank accounts attestation only, no reporting: they see no
-        # institution as a whole (its obligations, or coverage summed over every bank).
+    own = scope.institution_id if scope.has(Role.INSTITUTION) else None
+    if not reads_broadly(scope):
+        # Default deny. An institution sees itself; a bank account (attestation only) or a
+        # caller with no DepositTrack role sees no institution as a whole, so never another
+        # bank's amounts summed into an institution's coverage. Unknown role mixes land here.
+        if own:
+            return select(Institution.id).where(Institution.id == own)
         return select(Institution.id).where(false())
     if scope.region and (scope.has(Role.SCRUTINY_OFFICER) or scope.has(Role.VERIFYING_OFFICER)):
         visible = Institution.region == scope.region
@@ -84,11 +92,14 @@ def visible_institution_ids(scope: Scope) -> Select | None:
 
 def scope_instruments(query: Select, scope: Scope) -> Select:
     """Restrict an Instrument query to what the caller may see."""
-    if _only(scope, Role.BANK_SERVICE):
-        # Bank accounts are scoped per instrument: their own bank's only.
-        return query.where(Instrument.canonical_bank == scope.bank_code)
     visible = visible_institution_ids(scope)
-    return query if visible is None else query.where(Instrument.institution_id.in_(visible))
+    if visible is None:
+        return query
+    allowed = Instrument.institution_id.in_(visible)
+    if scope.has(Role.BANK_SERVICE) and scope.bank_code:
+        # Bank accounts are scoped per instrument: their own bank's, never other banks'.
+        allowed = or_(allowed, Instrument.canonical_bank == scope.bank_code)
+    return query.where(allowed)
 
 
 def scope_institutions(query: Select, scope: Scope) -> Select:
