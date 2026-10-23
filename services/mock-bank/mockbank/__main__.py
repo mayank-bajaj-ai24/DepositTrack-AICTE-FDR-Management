@@ -6,23 +6,34 @@ python -m mockbank register --ifsc ... --fdr-no ... --amount ... --issue-date YY
 python -m mockbank serve [--port 8090] run the HTTP API
 
 The ledger starts empty: the bank side records each FDR it issued (here, or with POST /fdrs),
-the way a real bank's core system would hold it. Nothing is generated.
+the way a real bank's core system would hold it. Nothing is generated. `register` is safe to
+run while `serve` is running: both go through the same locked, insert-only ledger write.
 """
 
 import argparse
 
 from pydantic import ValidationError
 
-from mockbank.app import FdrRecord
-from mockbank.ledger import Ledger
+from mockbank.files import Busy
+from mockbank.ledger import AlreadyRecorded
+from mockbank.records import FdrRecord, NotIssuedHere, record_issued_fdr
 from mockbank.settings import get_settings
 
 
-def register(record: FdrRecord) -> dict:
-    book = Ledger(get_settings().ledger_file)
-    if book.get(record.ifsc, record.fdr_no) is not None:
-        raise SystemExit("This FDR is already on the bank's ledger")
-    return book.upsert(record.model_dump(mode="json"))
+def register(args: argparse.Namespace) -> dict:
+    try:
+        record = FdrRecord(
+            fdr_no=args.fdr_no,
+            ifsc=args.ifsc,
+            amount=args.amount,
+            issue_date=args.issue_date,
+            maturity_date=args.maturity_date,
+            beneficiary=args.beneficiary,
+            depositor=args.depositor,
+        )
+        return record_issued_fdr(record, get_settings())
+    except (ValidationError, AlreadyRecorded, NotIssuedHere, Busy) as exc:
+        raise SystemExit(f"Not recorded: {exc}") from exc
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -38,19 +49,7 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     if args.command == "register":
-        try:
-            record = FdrRecord(
-                fdr_no=args.fdr_no,
-                ifsc=args.ifsc.upper(),
-                amount=args.amount,
-                issue_date=args.issue_date,
-                maturity_date=args.maturity_date,
-                beneficiary=args.beneficiary,
-                depositor=args.depositor,
-            )
-        except ValidationError as exc:
-            raise SystemExit(str(exc)) from exc
-        entry = register(record)
+        entry = register(args)
         print(f"Recorded FDR {entry['fdr_no']} ({entry['ifsc']}) in the mock bank ledger")
     else:
         import uvicorn

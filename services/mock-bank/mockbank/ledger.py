@@ -1,11 +1,19 @@
-"""The mock bank's own records: one entry per FDR, keyed by IFSC + FDR number."""
+"""The mock bank's own records: one entry per FDR, keyed by IFSC + FDR number.
+
+The file is shared by the HTTP server and the `register` CLI, which run as separate
+processes. Every read-modify-write holds the inter-process lock in `mockbank.files`, and
+every write replaces the file atomically, so readers never see a partial ledger.
+"""
 
 import json
-import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
-_lock = threading.Lock()
+from mockbank.files import locked, read_bytes, write_atomic
+
+
+class AlreadyRecorded(ValueError):
+    """The bank already has this FDR on its ledger (records are insert-only)."""
 
 
 def _key(ifsc: str, fdr_no: str) -> str:
@@ -17,32 +25,35 @@ class Ledger:
         self.path = Path(path)
 
     def _read(self) -> dict:
-        if not self.path.exists():
+        raw = read_bytes(self.path)
+        if raw is None:
             return {"entries": {}, "next_index": 1}
-        return json.loads(self.path.read_text(encoding="utf-8"))
+        return json.loads(raw.decode("utf-8"))
 
     def _write(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        write_atomic(self.path, json.dumps(data, indent=2).encode("utf-8"))
 
-    def upsert(self, record: dict) -> dict:
-        with _lock:
+    def insert(self, record: dict) -> dict:
+        """Add an FDR the bank issued. Raises AlreadyRecorded if it is on the ledger already.
+
+        The existence check and the write happen under one lock, so two concurrent
+        submissions of the same FDR cannot both succeed or overwrite each other.
+        """
+        key = _key(record["ifsc"], record["fdr_no"])
+        with locked(self.path):
             data = self._read()
-            key = _key(record["ifsc"], record["fdr_no"])
-            existing = data["entries"].get(key)
-            if existing is None:
-                record = record | {
-                    "status_index": data["next_index"],
-                    "status": "active",
-                    "lien_status": "MARKED",
-                    "last_update": datetime.now(UTC).isoformat(),
-                }
-                data["next_index"] += 1
-            else:
-                record = existing | record
-            data["entries"][key] = record
+            if key in data["entries"]:
+                raise AlreadyRecorded("This FDR is already on the bank's ledger")
+            entry = record | {
+                "status_index": data["next_index"],
+                "status": "active",
+                "lien_status": "MARKED",
+                "last_update": datetime.now(UTC).isoformat(),
+            }
+            data["next_index"] += 1
+            data["entries"][key] = entry
             self._write(data)
-            return record
+            return entry
 
     def entries(self) -> list[dict]:
         return list(self._read()["entries"].values())
@@ -51,7 +62,7 @@ class Ledger:
         return self._read()["entries"].get(_key(ifsc, fdr_no))
 
     def set_status(self, ifsc: str, fdr_no: str, status: str, lien_status: str) -> dict | None:
-        with _lock:
+        with locked(self.path):
             data = self._read()
             entry = data["entries"].get(_key(ifsc, fdr_no))
             if entry is None:
