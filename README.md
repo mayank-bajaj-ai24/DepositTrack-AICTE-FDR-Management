@@ -445,7 +445,7 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 | Field extraction | Field exact-match after rules (overall) | ≥ 90% | — | Not measured: needs labelled real FDRs |
 | Field extraction | Exact-match on amount and dates | ≥ 95% | — | Not measured: needs labelled real FDRs |
 | Field extraction | Processing time per page (CPU) | < 5 s | — | To be measured on real scans |
-| Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | — | Proxy notebook ready (PR #9); the maintainer runs it on free Colab |
+| Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | Reproduces the paper's 90.29 (PR #9); checkpoint picked on test (FUNSD has no validation split); pass A off live |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | — | Training on Find it again! receipts (proxy) in progress |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | — | As above |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
@@ -572,12 +572,11 @@ Immediate next steps, in order:
 
 1. **A real FDR scan** (with the owner's consent, personal details redacted) from the maintainer, to walk the upload → extraction → bank verification story on the live stack. Record the same FDR at the mock bank (its operator page) before "Verify with bank".
 2. **Merge the open-data PRs:** #8 (dataset helper), #10 (renewal-risk proxy), #9 (LayoutLMv3 FUNSD notebook, removes the synthetic generator), then the forgery PR when its training finishes.
-3. **Run the LayoutLMv3 FUNSD notebook** on free Colab (T4) and record its proxy score.
-4. **Security follow-up:** `GET /instruments/{id}` has no permission check, and unusual role mixes (for example institution + bank service) match no scoping rule.
-5. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
-6. **CI workflow** once the GitHub token has the `workflow` scope.
-7. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
-8. **Idea submission** for the PS deadline (on hold).
+3. **Security follow-up:** `GET /instruments/{id}` has no permission check, and unusual role mixes (for example institution + bank service) match no scoping rule.
+4. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
+5. **CI workflow** once the GitHub token has the `workflow` scope.
+6. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
+7. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
