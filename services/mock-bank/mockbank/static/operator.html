@@ -86,7 +86,7 @@
         </div>
         <div>
           <label for="amount">Amount (₹)</label>
-          <input id="amount" name="amount" required type="number" min="1" step="1" inputmode="numeric" class="num">
+          <input id="amount" name="amount" required type="number" min="0.01" step="0.01" inputmode="decimal" class="num">
         </div>
         <div aria-hidden="true"></div>
         <div>
@@ -125,7 +125,9 @@
   const ledgerBox = document.getElementById("ledger");
   const form = document.getElementById("record");
   const save = document.getElementById("save");
-  const inr = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+  const rupees = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+  const paise = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const inr = (amount) => { const n = Number(amount); return Number.isInteger(n) ? rupees.format(n) : paise.format(n); };
   try { tokenInput.value = sessionStorage.getItem("mb-operator-token") || ""; } catch (e) { /* storage unavailable */ }
 
   const headers = () => {
@@ -143,19 +145,24 @@
   };
   const cell = (text, cls) => { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; return td; };
 
+  const showMessage = (text) => { ledgerBox.innerHTML = ""; const p = document.createElement("p"); p.className = "empty"; p.textContent = text; ledgerBox.append(p); };
+
   async function loadLedger() {
-    const r = await fetch("/ledger", { headers: headers() });
-    if (!r.ok) { ledgerBox.innerHTML = ""; const p = document.createElement("p"); p.className = "empty"; p.textContent = `Could not load the ledger: ${await errorText(r)}`; ledgerBox.append(p); return; }
-    const rows = await r.json();
+    let rows;
+    try {
+      const r = await fetch("/ledger", { headers: headers() });
+      if (!r.ok) { showMessage(`Could not load the ledger: ${await errorText(r)}`); return; }
+      rows = await r.json();
+    } catch (e) { showMessage("Could not load the ledger: the mock bank could not be reached or sent an unreadable answer."); return; }
     ledgerBox.innerHTML = "";
-    if (!rows.length) { const p = document.createElement("p"); p.className = "empty"; p.textContent = "No FDRs recorded yet."; ledgerBox.append(p); return; }
+    if (!rows.length) { showMessage("No FDRs recorded yet."); return; }
     const wrap = document.createElement("div"); wrap.className = "table-wrap";
     const table = document.createElement("table");
     table.innerHTML = "<thead><tr><th scope='col'>FDR number</th><th scope='col'>IFSC</th><th scope='col' style='text-align:right'>Amount</th><th scope='col'>Matures</th><th scope='col'>Depositor</th><th scope='col'>Status</th><th scope='col'>Lien</th></tr></thead>";
     const body = document.createElement("tbody");
     for (const e of rows) {
       const tr = document.createElement("tr");
-      tr.append(cell(e.fdr_no), cell(e.ifsc), cell(inr.format(e.amount), "amount"), cell(e.maturity_date), cell(e.depositor || ""), cell(e.status), cell(e.lien_status));
+      tr.append(cell(e.fdr_no), cell(e.ifsc), cell(inr(e.amount), "amount"), cell(e.maturity_date), cell(e.depositor || ""), cell(e.status), cell(e.lien_status));
       body.append(tr);
     }
     table.append(body); wrap.append(table); ledgerBox.append(wrap);
@@ -165,18 +172,21 @@
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!form.reportValidity()) return;
+    // Amount stays the typed text, so paise reach the bank exactly (no float rounding).
     const data = Object.fromEntries(new FormData(form));
-    data.ifsc = data.ifsc.toUpperCase();
-    data.amount = Number(data.amount);
+    data.ifsc = data.ifsc.trim().toUpperCase();
     save.disabled = true; say("Recording…");
+    let recorded = false;
     try {
       const r = await fetch("/fdrs", { method: "POST", headers: headers(), body: JSON.stringify(data) });
       if (!r.ok) { say(`Not recorded: ${await errorText(r)}`, true); return; }
-      say(`Recorded FDR ${data.fdr_no}.`);
+      say(`Recorded FDR ${data.fdr_no.trim()}.`);
       form.reset();
-      await loadLedger();
-    } catch (e) { say("Not recorded: the mock bank could not be reached.", true); }
+      recorded = true;
+    } catch (e) { say("Not confirmed: the mock bank could not be reached. Check the ledger before recording this FDR again.", true); }
     finally { save.disabled = false; }
+    // Refreshing the ledger is separate: if it fails, the box says so and the record stays reported as recorded.
+    if (recorded) await loadLedger();
   });
 })();
 </script>
