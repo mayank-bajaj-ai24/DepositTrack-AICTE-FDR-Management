@@ -689,14 +689,14 @@ Each module lists what it does and its **definition of done (DoD)**.
 | --- | --- | --- | --- | --- |
 | AICTE approved institutions | 13,088 institutions (2024-25) | AICTE public dashboard | M12 master data | Yes |
 | RBI IFSC master | 1,344 banks, 1,156 sublet IFSCs | Razorpay IFSC dataset (MIT), from RBI lists; mergers cited to RBI | M12, N7 | Yes |
-| Find it again! | 988 scanned receipts, 163 with real manual forgeries, forged regions annotated | Martínez Tornés et al., ICDAR 2023 (Kaggle; licence not stated, research dataset) | M4 forgery signal | Yes, labelled as trained on receipts |
+| Find it again! | 988 scanned receipts, 163 with real manual forgeries, forged regions annotated | Martínez Tornés et al., ICDAR 2023 (Kaggle; licence not stated, research dataset) | M4 forgery signal | No: the retrain reached page AUC 0.534 (near chance), so it is not used |
 | BPI Challenge 2017 | 31,509 loan applications (event log) | Dutch bank, 4TU.ResearchData (CC BY 4.0 per the Kaggle mirror) | N9 renewal-risk method | No (proxy only) |
 | FUNSD | 199 scanned forms, question/answer/header labels | Jaume et al., 2019 (research and educational use) | M3 LayoutLMv3 method | No (proxy only) |
 | Real redacted FDRs | Whatever can be obtained with consent | Owners, redacted | M3, M4 final validation | — |
 | Regulation corpus | Public AICTE handbook + circulars | Chunk by clause | N8, M11 | — |
 | Assistant eval set | ~40 Q&A | Written by the team | M11 (not built) | — |
 
-Datasets, licences and citations are kept in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py`; downloaded data is never committed.
+Datasets (pinned versions), licences and citations are kept in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` into `data/<name>/`; downloaded data is never committed.
 
 ### 9.2 Models and targets
 
