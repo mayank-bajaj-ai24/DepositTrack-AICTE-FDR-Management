@@ -79,16 +79,22 @@ def _match_pattern(spec: dict, text: str) -> str | None:
     return found.group(0) if found else None
 
 
+def is_ignored(text: str, rules: dict) -> bool:
+    """True for text that is never a field value (configured watermark or stamp text).
+
+    Compared stripped and case-insensitively. A list key that is present but empty or null
+    in the YAML means "nothing to ignore".
+    """
+    low = text.strip().lower()
+    if not low:
+        return True
+    if low in {s.lower() for s in rules.get("ignore_lines_equal") or []}:
+        return True
+    return any(s.lower() in low for s in rules.get("ignore_lines_containing") or [])
+
+
 def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedField]:
-    contains = [s.lower() for s in rules.get("ignore_lines_containing", [])]
-    equal = {s.lower() for s in rules.get("ignore_lines_equal", [])}
-    usable = [
-        line
-        for line in lines
-        if line.text
-        and line.text.lower() not in equal
-        and not any(s in line.text.lower() for s in contains)
-    ]
+    usable = [line for line in lines if line.text and not is_ignored(line.text, rules)]
     rows = _rows(usable, rules["row_tolerance_px"])
     out: dict[str, ExtractedField] = {}
 
