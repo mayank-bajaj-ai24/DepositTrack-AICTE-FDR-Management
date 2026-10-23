@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api import serializers as ser
 from app.api.deps import actor_of
-from app.core.access import Scope, get_scope, scope_instruments
+from app.core.access import INSTRUMENT_READ, Scope, get_scope, scope_instruments
 from app.core.config import Settings, get_settings
 from app.core.configfiles import load_config
 from app.core.permissions import Action, is_allowed
@@ -47,6 +47,7 @@ def check_all_chains(
                 Institution, Institution.id == Instrument.institution_id
             ),
             scope,
+            (Action.AUDIT_READ,),
         )
     ):
         chain = verify_chain(session, instrument.id)
@@ -79,7 +80,9 @@ def verify_file(
     for document in session.scalars(select(Document).where(Document.sha256 == digest)):
         instrument = session.scalars(
             scope_instruments(
-                select(Instrument).where(Instrument.id == document.instrument_id), scope
+                select(Instrument).where(Instrument.id == document.instrument_id),
+                scope,
+                INSTRUMENT_READ,
             )
         ).first()
         if instrument is None:
@@ -191,7 +194,9 @@ def conformance(scope: Scope = Depends(get_scope), session: Session = Depends(ge
     query = select(Instrument, Institution).join(
         Institution, Institution.id == Instrument.institution_id
     )
-    for instrument, institution in session.execute(scope_instruments(query, scope)):
+    for instrument, institution in session.execute(
+        scope_instruments(query, scope, (Action.AUDIT_READ,))
+    ):
         events = list(
             session.scalars(
                 select(Event).where(Event.instrument_id == instrument.id).order_by(Event.seq)
@@ -216,7 +221,7 @@ def conformance(scope: Scope = Depends(get_scope), session: Session = Depends(ge
                     ],
                 }
             )
-    total = len(session.execute(scope_instruments(query, scope)).all())
+    total = len(session.execute(scope_instruments(query, scope, (Action.AUDIT_READ,))).all())
     return {
         "constraints_version": config["version"],
         "validated_by": config["validated_by"],
