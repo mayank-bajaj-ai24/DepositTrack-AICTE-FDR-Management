@@ -1,0 +1,15 @@
+# Bank amalgamations used for IFSC lineage (N7): an FDR issued under the old bank's IFSC
+# resolves to the bank that took it over, so a double pledge is caught across a merger.
+# Each entry is cited to the RBI press release that announced it. Bank codes are the
+# 4-letter IFSC prefixes from the RBI IFSC master (via the Razorpay IFSC dataset).
+
+mergers:
+  - {old_bank: VIJB, canonical_bank: BARB, effective_from: 2019-04-01, source: "https://rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=46687"}
+  - {old_bank: BKDN, canonical_bank: BARB, effective_from: 2019-04-01, source: "https://rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=46687"}
+  - {old_bank: ORBC, canonical_bank: PUNB, effective_from: 2020-04-01, source: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=49590"}
+  - {old_bank: UTBI, canonical_bank: PUNB, effective_from: 2020-04-01, source: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=49590"}
+  - {old_bank: ALLA, canonical_bank: IDIB, effective_from: 2020-04-01, source: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=49588"}
+  - {old_bank: ANDB, canonical_bank: UBIN, effective_from: 2020-04-01, source: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=49589"}
+  - {old_bank: CORP, canonical_bank: UBIN, effective_from: 2020-04-01, source: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=49589"}
+  - {old_bank: SYNB, canonical_bank: CNRB, effective_from: 2020-04-01, source: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=49591"}
+  - {old_bank: LAVB, canonical_bank: DBSS, effective_from: 2020-11-27, source: "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx?prid=50713"}

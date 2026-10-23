@@ -55,11 +55,11 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. Config
 validated; **never actually started** (Docker Desktop was not running).
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 294 tests pass, ruff clean)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 315 tests pass, ruff clean)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, ABAC: institution / region / bank scoping via `user_account` |
-| Data model | `app/models/`, migrations `0001`–`0003` | 18 tables incl. obligation/coverage, field_value (declared / extracted A+B / bank), notification, system_setting |
+| Data model | `app/models/`, migrations `0001`–`0004` | 19 tables incl. obligation/coverage, field_value (declared / extracted A+B / bank), notification, system_setting |
 | Intake M2 | `modules/instruments/intake.py`, `modules/storage/store.py` | Fernet-encrypted docs (local or S3), versioned, SHA-256 |
 | Extraction M3/N6 | `modules/extraction/` + `config/extraction.yaml` | RapidOCR; pass B = config rules; pass A = LayoutLMv3 when `models/layoutlmv3-fdr/` exists |
 | Checks M4/N7/N8 | `modules/checks/`, `config/checks.yaml` | Flags carry fact/rule/clause/reason; double pledge (+IFSC lineage), near-duplicate, amount-in-words, continuity gap on late renewal |
@@ -68,14 +68,21 @@ validated; **never actually started** (Docker Desktop was not running).
 | Lifecycle M7/N2 | `modules/lifecycle/` + `config/workflow.yaml` | State machine, role-gated transitions, coverage curves + first-gap forecast, daily sweep with demo clock |
 | Alerts M8 | `modules/alerts/`, `config/alerts.yaml` | One notification per threshold/audience; overdue, coverage gap, risk, case time boxes |
 | Release M9/N5 | `modules/release/` | Policy checklist, blockers, mandatory reason, release letter PDF (marked PROTOTYPE), bank lien removal |
-| Audit M6/N10 | `modules/audit/` + `config/conformance.yaml` | Hash chain per instrument, Merkle anchors (optional immudb), file verifier, conformance replay (constraints unvalidated) |
+| Audit M6/N10 | `modules/audit/` + `config/conformance.yaml` | Hash chain per instrument, Merkle anchors over `anchor_event` membership (optional immudb receipt, read back with a verified get on verification; `[anchoring]` extra), file verifier, conformance replay (constraints unvalidated) |
 | Risk N9 | `modules/risk/` | LightGBM + SHAP reasons from DB history; scored in the sweep |
 | Reports M10 | `app/api/dashboard.py` | Dashboard tiles, coverage endpoint, 4 reports as JSON/CSV/XLSX |
 | Seed | `app/seed.py`, `seed/demo_seed.json` | 5 fictional institutions, accounts for Keycloak dev users, demo obligations, synthetic FDRs through real intake |
 
-### Mock bank — `services/mock-bank` (5 tests)
-Separate FastAPI service: ledger seeded from synthetic FDRs, per-bank signing keys, `/credentials`,
-`/status`, `/lien/remove`, `/simulate/close`; shared token `MB_API_TOKEN`.
+### Mock bank — `services/mock-bank` (48 tests)
+Separate FastAPI service. The ledger starts empty: the bank records each FDR it issued (operator
+page at `/`, `python -m mockbank register` or `POST /fdrs`; insert-only, one `Ledger.insert`;
+writes are locked across processes and replaced atomically, so `register` is safe while `serve`
+runs).
+Per-bank signing keys; `/keys` publishes every code in `MB_BANK_CODES` from the start (empty:
+codes appear with their first FDR, then re-pin). `/credentials`, `/status`, `/lien/remove`,
+`/simulate/close`. Two tokens: `MB_API_TOKEN` (DepositTrack: `/keys`, `/credentials`, `/status`,
+`/lien/remove`) and `MB_OPERATOR_TOKEN` (bank operator: `/fdrs`, `/ledger`, `/simulate/close`);
+they must differ. Settings documented in `.env.example`.
 
 ### ML — `ml/`
 - `ml/synth`: synthetic watermarked FDR generator with word-level labels (22 tests).
@@ -105,13 +112,18 @@ cp infra/.env.example infra/.env && docker compose -f infra/docker-compose.yml -
 #      (match infra/seaweedfs/s3.json), DT_POLICY_FILE=config/policy.demo.yaml, DT_BANK_API_TOKEN, DT_MODELS_DIR=../../models
 cd apps/api && .venv/Scripts/alembic upgrade head && .venv/Scripts/python -m app.seed demo --synthetic ../../data/forgery-src --count 12
 .venv/Scripts/uvicorn app.main:app --reload
-# Mock bank: services/mock-bank/.env with MB_API_TOKEN (same as DT_BANK_API_TOKEN)
-cd services/mock-bank && .venv/Scripts/python -m mockbank seed --from ../../data/forgery-src && .venv/Scripts/python -m mockbank serve --port 8090
+# Mock bank: cp services/mock-bank/.env.example services/mock-bank/.env (MB_API_TOKEN = DT_BANK_API_TOKEN;
+#            MB_OPERATOR_TOKEN is the bank operator's own, different token for the page at http://localhost:8090)
+cd services/mock-bank && .venv/Scripts/python -m mockbank serve --port 8090
+# The bank ledger starts empty; record each FDR the bank issued on the operator page, or (safe while serve runs):
+.venv/Scripts/python -m mockbank register --ifsc <IFSC> --fdr-no <no> --amount <INR> --issue-date <YYYY-MM-DD> --maturity-date <YYYY-MM-DD> --beneficiary "<text>" --depositor "<name>"
 # Web
 cd apps/web && npm run dev
 ```
-Then: admin → pin bank keys; verifying officer → "Verify with bank". Virtualenvs already exist in
-`apps/api/.venv`, `ml/synth/.venv`, `services/mock-bank/.venv`. Synthetic data in `data/` (gitignored).
+Then: admin → pin bank keys; verifying officer → "Verify with bank". An FDR gets "the bank has no
+record of this FDR" until it is registered at the mock bank with its true values.
+Virtualenvs already exist in `apps/api/.venv`, `ml/synth/.venv`, `services/mock-bank/.venv`.
+Synthetic data in `data/` (gitignored).
 
 ## 6. Next steps (in order)
 

@@ -7,6 +7,8 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from mockbank.files import locked, read_bytes, write_atomic
+
 
 def canonical_json(payload: dict) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
@@ -20,18 +22,20 @@ class KeyStore:
 
     def _private(self, bank_code: str) -> Ed25519PrivateKey:
         path = self.dir / f"{bank_code.upper()}.pem"
-        if path.exists():
-            return serialization.load_pem_private_key(path.read_bytes(), password=None)
-        key = Ed25519PrivateKey.generate()
-        self.dir.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(
-            key.private_bytes(
-                serialization.Encoding.PEM,
-                serialization.PrivateFormat.PKCS8,
-                serialization.NoEncryption(),
-            )
-        )
-        return key
+        pem = read_bytes(path)
+        if pem is None:
+            # Create under the lock and swap in atomically: a published (and pinned) key must
+            # never be replaced by a second key created concurrently by another thread or process.
+            with locked(self.dir / "keys"):
+                pem = read_bytes(path)
+                if pem is None:
+                    pem = Ed25519PrivateKey.generate().private_bytes(
+                        serialization.Encoding.PEM,
+                        serialization.PrivateFormat.PKCS8,
+                        serialization.NoEncryption(),
+                    )
+                    write_atomic(path, pem)
+        return serialization.load_pem_private_key(pem, password=None)
 
     def key_id(self, bank_code: str) -> str:
         return f"bank:{bank_code.upper()}:key-1"

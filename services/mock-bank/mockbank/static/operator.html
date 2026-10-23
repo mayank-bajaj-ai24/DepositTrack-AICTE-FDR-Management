@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock bank · FDR ledger (simulation)</title>
+<style>
+  :root {
+    --ground: #ffffff;
+    --surface: #f1f3f2;
+    --ink: #16201c;
+    --muted: #4d5a54;
+    --accent: #0f6b4f;
+    --accent-ink: #ffffff;
+    --danger: #a3241b;
+    --field: #ffffff;
+    --field-line: #9aa6a0;
+    --gap: 24px;
+    --margin: clamp(16px, 4vw, 40px);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ground); color: var(--ink); font-size: 16px; line-height: 1.5; }
+  header, main { padding: 0 var(--margin); max-width: 1200px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: baseline; gap: var(--gap); padding-top: 20px; padding-bottom: 20px; flex-wrap: wrap; }
+  .wordmark { font-weight: 700; font-size: 18px; }
+  .notice { background: var(--surface); padding: 12px 16px; margin: 0 0 32px; }
+  h1 { font-size: clamp(22px, 3vw, 30px); line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 8px; }
+  h2 { font-size: 22px; line-height: 1.2; margin: 0 0 16px; }
+  .lead { color: var(--muted); margin: 0 0 32px; max-width: 60ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 48px; align-items: start; padding-bottom: 64px; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; gap: 40px; } }
+  form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .wide { grid-column: 1 / -1; }
+  label { display: block; font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  input { width: 100%; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--field-line); border-radius: 0; padding: 10px 12px; }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .num { font-variant-numeric: tabular-nums; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 0; padding: 12px 20px; cursor: pointer; background: var(--accent); color: var(--accent-ink); }
+  button:hover { filter: brightness(1.1); }
+  button:active { transform: translateY(1px); }
+  button[disabled] { opacity: 0.6; cursor: progress; }
+  button.quiet { background: var(--surface); color: var(--ink); }
+  .status { min-height: 24px; margin: 8px 0 0; }
+  .status.error { color: var(--danger); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--surface); vertical-align: top; }
+  th { font-size: 14px; color: var(--muted); font-weight: 600; }
+  td.amount { text-align: right; }
+  .empty { background: var(--surface); padding: 24px; color: var(--muted); }
+  .token-row { display: flex; gap: 12px; align-items: end; margin-bottom: 32px; flex-wrap: wrap; }
+  .token-row > div { flex: 1 1 260px; }
+  .table-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<header>
+  <span class="wordmark">Mock bank</span>
+  <span>Bank operator console</span>
+</header>
+<main>
+  <p class="notice" role="note">Simulation only. This stands in for an issuing bank's own system so DepositTrack can verify FDRs against a record it does not control. It is not a real bank.</p>
+
+  <h1>FDRs this bank issued</h1>
+  <p class="lead">Record each fixed deposit exactly as the bank issued it. DepositTrack can only read these records and their signed confirmations; it cannot change them.</p>
+
+  <div class="token-row">
+    <div>
+      <label for="token">Operator token</label>
+      <input id="token" type="password" autocomplete="off" placeholder="MB_OPERATOR_TOKEN from services/mock-bank/.env">
+    </div>
+    <button type="button" class="quiet" id="load">Show ledger</button>
+  </div>
+
+  <div class="layout">
+    <section aria-labelledby="record-title">
+      <h2 id="record-title">Record an issued FDR</h2>
+      <form id="record" novalidate>
+        <div>
+          <label for="fdr_no">FDR number</label>
+          <input id="fdr_no" name="fdr_no" required maxlength="64" class="num">
+        </div>
+        <div>
+          <label for="ifsc">Branch IFSC</label>
+          <input id="ifsc" name="ifsc" required pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}" maxlength="11" class="num" autocapitalize="characters">
+        </div>
+        <div>
+          <label for="amount">Amount (₹)</label>
+          <input id="amount" name="amount" required type="number" min="0.01" step="0.01" inputmode="decimal" class="num">
+        </div>
+        <div aria-hidden="true"></div>
+        <div>
+          <label for="issue_date">Issue date</label>
+          <input id="issue_date" name="issue_date" required type="date">
+        </div>
+        <div>
+          <label for="maturity_date">Maturity date</label>
+          <input id="maturity_date" name="maturity_date" required type="date">
+        </div>
+        <div class="wide">
+          <label for="depositor">Depositor</label>
+          <input id="depositor" name="depositor" required>
+        </div>
+        <div class="wide">
+          <label for="beneficiary">Beneficiary / lien in favour of</label>
+          <input id="beneficiary" name="beneficiary" required>
+        </div>
+        <div class="wide">
+          <button type="submit" id="save">Record FDR</button>
+          <p class="status" id="record-status" role="status" aria-live="polite"></p>
+        </div>
+      </form>
+    </section>
+
+    <section aria-labelledby="ledger-title">
+      <h2 id="ledger-title">Ledger</h2>
+      <div id="ledger"><p class="empty">Enter the operator token and choose “Show ledger”.</p></div>
+    </section>
+  </div>
+</main>
+<script>
+(() => {
+  const tokenInput = document.getElementById("token");
+  const status = document.getElementById("record-status");
+  const ledgerBox = document.getElementById("ledger");
+  const form = document.getElementById("record");
+  const save = document.getElementById("save");
+  const rupees = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
+  const paise = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const inr = (amount) => { const n = Number(amount); return Number.isInteger(n) ? rupees.format(n) : paise.format(n); };
+  try { tokenInput.value = sessionStorage.getItem("mb-operator-token") || ""; } catch (e) { /* storage unavailable */ }
+
+  const headers = () => {
+    const token = tokenInput.value.trim();
+    try { sessionStorage.setItem("mb-operator-token", token); } catch (e) { /* storage unavailable */ }
+    return { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
+  };
+  const say = (text, isError) => { status.textContent = text; status.className = isError ? "status error" : "status"; };
+  const errorText = async (r) => {
+    try {
+      const body = await r.json();
+      if (Array.isArray(body.detail)) return body.detail.map((d) => `${d.loc.at(-1)}: ${d.msg}`).join("; ");
+      return body.detail || r.statusText;
+    } catch (e) { return r.statusText; }
+  };
+  const cell = (text, cls) => { const td = document.createElement("td"); td.textContent = text; if (cls) td.className = cls; return td; };
+
+  const showMessage = (text) => { ledgerBox.innerHTML = ""; const p = document.createElement("p"); p.className = "empty"; p.textContent = text; ledgerBox.append(p); };
+
+  async function loadLedger() {
+    let rows;
+    try {
+      const r = await fetch("/ledger", { headers: headers() });
+      if (!r.ok) { showMessage(`Could not load the ledger: ${await errorText(r)}`); return; }
+      rows = await r.json();
+    } catch (e) { showMessage("Could not load the ledger: the mock bank could not be reached or sent an unreadable answer."); return; }
+    ledgerBox.innerHTML = "";
+    if (!rows.length) { showMessage("No FDRs recorded yet."); return; }
+    const wrap = document.createElement("div"); wrap.className = "table-wrap";
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th scope='col'>FDR number</th><th scope='col'>IFSC</th><th scope='col' style='text-align:right'>Amount</th><th scope='col'>Matures</th><th scope='col'>Depositor</th><th scope='col'>Status</th><th scope='col'>Lien</th></tr></thead>";
+    const body = document.createElement("tbody");
+    for (const e of rows) {
+      const tr = document.createElement("tr");
+      tr.append(cell(e.fdr_no), cell(e.ifsc), cell(inr(e.amount), "amount"), cell(e.maturity_date), cell(e.depositor || ""), cell(e.status), cell(e.lien_status));
+      body.append(tr);
+    }
+    table.append(body); wrap.append(table); ledgerBox.append(wrap);
+  }
+
+  document.getElementById("load").addEventListener("click", loadLedger);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    // Amount stays the typed text, so paise reach the bank exactly (no float rounding).
+    const data = Object.fromEntries(new FormData(form));
+    data.ifsc = data.ifsc.trim().toUpperCase();
+    save.disabled = true; say("Recording…");
+    let recorded = false;
+    try {
+      const r = await fetch("/fdrs", { method: "POST", headers: headers(), body: JSON.stringify(data) });
+      if (!r.ok) { say(`Not recorded: ${await errorText(r)}`, true); return; }
+      say(`Recorded FDR ${data.fdr_no.trim()}.`);
+      form.reset();
+      recorded = true;
+    } catch (e) { say("Not confirmed: the mock bank could not be reached. Check the ledger before recording this FDR again.", true); }
+    finally { save.disabled = false; }
+    // Refreshing the ledger is separate: if it fails, the box says so and the record stays reported as recorded.
+    if (recorded) await loadLedger();
+  });
+})();
+</script>
+</body>
+</html>

@@ -13,7 +13,12 @@ from app.core.configfiles import checks, load_config
 from app.core.policy import Policy
 from app.models import Document, FieldValue, Flag, Institution, Instrument
 from app.modules.audit.service import SYSTEM, Actor, record_event
-from app.modules.checks.canonical import canonical_bank, edit_distance, normalize_instrument_no
+from app.modules.checks.canonical import (
+    canonical_bank,
+    edit_distance,
+    issuing_bank,
+    normalize_instrument_no,
+)
 from app.modules.checks.engine import FlagSpec, Snapshot, amount_below_requirement, evaluate
 from app.modules.extraction.service import FIELDS, ExtractionResult
 from app.modules.instruments.trust import instrument_level, machine_level
@@ -64,38 +69,71 @@ def requirement_for(policy: Policy, institution: Institution) -> dict | None:
     return None
 
 
+def _same_deposit(a: Instrument, b: Instrument, fields: list[str]) -> bool:
+    """No configured field disagrees (a value missing on either side is no disagreement)."""
+    for name in fields:
+        left, right = getattr(a, name), getattr(b, name)
+        if left is not None and right is not None and left != right:
+            return False
+    return True
+
+
 def duplicate_flags(session: Session, instrument: Instrument) -> list[tuple[Instrument, FlagSpec]]:
-    """Same FDR already held for any institution (critical), or a near-identical number."""
-    sev = checks()["severity"]
-    max_distance = checks()["near_duplicate_max_distance"]
+    """Same FDR already held for any institution (critical), or a near-identical number.
+
+    Instruments that share a canonical bank only through a merger (different issuing banks,
+    so different number series) must also agree on `cross_merger_match_fields`.
+    """
+    cfg = checks()
+    sev = cfg["severity"]
+    max_distance = cfg["near_duplicate_max_distance"]
+    match_fields = cfg["cross_merger_match_fields"]
+    issuer = issuing_bank(session, instrument.bank_ifsc)
     found: list[tuple[Instrument, FlagSpec]] = []
     others = session.scalars(
         select(Instrument).where(
             Instrument.canonical_bank == instrument.canonical_bank,
             Instrument.id != instrument.id,
         )
-    )
+    ).all()
     for other in others:
-        if other.instrument_no_norm == instrument.instrument_no_norm:
+        exact = other.instrument_no_norm == instrument.instrument_no_norm
+        if not exact and (
+            edit_distance(other.instrument_no_norm, instrument.instrument_no_norm) > max_distance
+        ):
+            continue
+        fact: dict = {}
+        note = ""
+        other_issuer = issuing_bank(session, other.bank_ifsc)
+        if other_issuer != issuer:
+            if not _same_deposit(instrument, other, match_fields):
+                continue  # same number in two banks' series that a merger later joined
+            fact = {"issuing_banks": [issuer, other_issuer]}
+            note = (
+                f"; issued under {issuer} and {other_issuer}, joined by a bank merger, "
+                f"with no difference in {', '.join(match_fields)}"
+            )
+        if exact:
             spec = FlagSpec(
                 "duplicate_pledge",
                 sev["duplicate_pledge"],
                 f"the same FDR {instrument.instrument_no} at bank {instrument.canonical_bank} "
-                f"is already recorded (instrument {other.id})",
-                fact={"other_instrument_id": str(other.id), "fdr_no": instrument.instrument_no},
+                f"is already recorded (instrument {other.id}){note}",
+                fact={"other_instrument_id": str(other.id), "fdr_no": instrument.instrument_no}
+                | fact,
                 rule_id="duplicate_pledge",
             )
-            found.append((other, spec))
-        elif edit_distance(other.instrument_no_norm, instrument.instrument_no_norm) <= max_distance:
+        else:
             spec = FlagSpec(
                 "near_duplicate",
                 sev["near_duplicate"],
                 f"FDR number {instrument.instrument_no} is one character away from "
-                f"{other.instrument_no} at the same bank",
-                fact={"other_instrument_id": str(other.id), "other_fdr_no": other.instrument_no},
+                f"{other.instrument_no} at the same bank{note}",
+                fact={"other_instrument_id": str(other.id), "other_fdr_no": other.instrument_no}
+                | fact,
                 rule_id="near_duplicate",
             )
-            found.append((other, spec))
+        found.append((other, spec))
     return found
 
 

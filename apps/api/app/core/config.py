@@ -42,12 +42,16 @@ class Settings(BaseSettings):
     bank_keys_file: str = "var/bank-keys/pinned.json"
     models_dir: str = "../../models"
 
-    # immudb anchoring (N4); anchoring is skipped when disabled.
+    # immudb receipts for Merkle anchors (N4). Anchors are stored either way; when enabled,
+    # each root is also written to immudb and read back on verification. Needs the
+    # `[anchoring]` extra. The password must match IMMUDB_ADMIN_PASSWORD in infra/.env.
     immudb_enabled: bool = False
     immudb_host: str = "localhost"
     immudb_port: int = 3322
     immudb_user: str = "immudb"
     immudb_password: str = ""
+    # Per-request gRPC timeout, so an unreachable immudb fails fast instead of hanging.
+    immudb_timeout_seconds: float = 5.0
 
     @property
     def jwks_url(self) -> str:
