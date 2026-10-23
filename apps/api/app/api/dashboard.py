@@ -43,12 +43,19 @@ def _visible(session: Session, scope: Scope) -> list[tuple[Instrument, Instituti
     return list(session.execute(scope_instruments(query, scope)).all())
 
 
-@router.get("/dashboard")
-def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_session)) -> dict:
-    if not is_allowed(scope.principal.roles, Action.REPORT_VIEW) and not is_allowed(
-        scope.principal.roles, Action.INSTRUMENT_READ_OWN
+def _require_coverage_view(scope: Scope) -> None:
+    """Dashboard and coverage figures need report view (officers, reviewers) or read-own
+    (institutions). Bank service accounts and callers with no DepositTrack role are refused."""
+    if not (
+        is_allowed(scope.principal.roles, Action.REPORT_VIEW)
+        or is_allowed(scope.principal.roles, Action.INSTRUMENT_READ_OWN)
     ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
+
+
+@router.get("/dashboard")
+def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_session)) -> dict:
+    _require_coverage_view(scope)
     today = clock.today(session)
     rows = _visible(session, scope)
     ids = {i.id for i, _ in rows}
@@ -301,6 +308,7 @@ def coverage_reports(
     scope: Scope = Depends(get_scope), session: Session = Depends(get_session)
 ) -> dict:
     """Coverage of every open obligation the caller may see (N2): one strip per obligation."""
+    _require_coverage_view(scope)
     today = clock.today(session)
     items = []
     for obligation, institution in _open_obligations(session, scope):

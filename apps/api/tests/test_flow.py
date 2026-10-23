@@ -458,3 +458,11 @@ def test_officers_see_requirements_of_institutions_with_no_deposit(env):
     assert len(items) == 2
     own = env.client.get("/api/v1/coverage", headers=env.h("inst_a")).json()["items"]
     assert [i["institution"]["aicte_id"] for i in own] == ["SYN-A"]
+
+
+@pytest.mark.parametrize("who", ["nobody", "bank"])
+def test_coverage_needs_report_view_or_own_read(env, who):
+    # No DepositTrack role, or a bank service account (attestation only): no amounts at all.
+    submit(env.client, env.tokens["inst_a"], values())  # XNBK instrument, the bank's own
+    assert env.client.get("/api/v1/coverage", headers=env.h(who)).status_code == 403
+    assert env.client.get("/api/v1/dashboard", headers=env.h(who)).status_code == 403
