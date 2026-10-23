@@ -4,6 +4,8 @@ Fixtures are small excerpts of the real public downloads (tests/fixtures/masterd
 """
 
 import json
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import httpx
@@ -13,6 +15,7 @@ from sqlalchemy import select
 from app.core.configfiles import load_config
 from app.models import Bank, BankMerger, Event, IfscLineage, Institution, Instrument
 from app.modules.checks.canonical import canonical_bank
+from app.modules.instruments.intake import duplicate_flags
 from app.modules.lifecycle.states import InstrumentKind
 from app.modules.masterdata.aicte import (
     SnapshotError,
@@ -259,3 +262,67 @@ def test_reimport_without_changes_rekeys_nothing_and_records_no_event(session):
     assert import_banks(session, FIXTURES, mergers)["instruments_rekeyed"] == 0
     events = session.scalars(select(Event).where(Event.action == "masterdata.instruments_rekeyed"))
     assert len(events.all()) == 1
+
+
+def _submitted(session, ifsc: str, number: str, issued: date | None, amount: str | None):
+    """An instrument keyed the way intake keys it, for a synthetic institution."""
+    inst = Institution(aicte_id=f"SYN-DUP-{ifsc}-{number}-{issued}", name="Synthetic Institute")
+    session.add(inst)
+    session.flush()
+    fdr = Instrument(
+        institution_id=inst.id,
+        kind=InstrumentKind.FDR,
+        bank_ifsc=ifsc,
+        canonical_bank=canonical_bank(session, ifsc),
+        instrument_no=number,
+        instrument_no_norm=number,
+        issue_date=issued,
+        amount=Decimal(amount) if amount else None,
+    )
+    session.add(fdr)
+    session.flush()
+    return fdr
+
+
+@pytest.fixture
+def merged(session):
+    import_banks(session, FIXTURES, load_config("bank_mergers.yaml")["mergers"])
+    return session
+
+
+def test_same_deposit_pledged_across_a_merger_is_a_critical_duplicate(merged):
+    # A Vijaya Bank FDR pledged, then pledged again quoting the Bank of Baroda IFSC.
+    _submitted(merged, "VIJB0009502", "123456", date(2018, 6, 1), "500000")
+    again = _submitted(merged, "BARB0AAMBUR", "123456", date(2018, 6, 1), "500000.00")
+    [(_, spec)] = duplicate_flags(merged, again)
+    assert spec.flag_type == "duplicate_pledge"
+    assert spec.severity == "critical"
+    assert spec.fact["issuing_banks"] == ["BARB", "VIJB"]
+
+
+def test_same_number_in_two_banks_series_joined_by_a_merger_is_not_a_duplicate(merged):
+    # Vijaya Bank FDR 123456 and an unrelated Bank of Baroda FDR 123456, both pre-merger.
+    _submitted(merged, "VIJB0009502", "123456", date(2017, 3, 1), "500000")
+    other = _submitted(merged, "BARB0AAMBUR", "123456", date(2018, 9, 15), "750000")
+    assert duplicate_flags(merged, other) == []
+
+
+def test_near_number_in_a_merged_banks_series_is_not_a_near_duplicate(merged):
+    _submitted(merged, "VIJB0009502", "123456", date(2017, 3, 1), "500000")
+    other = _submitted(merged, "BARB0AAMBUR", "123457", date(2018, 9, 15), "750000")
+    assert duplicate_flags(merged, other) == []
+
+
+def test_same_bank_duplicate_does_not_need_matching_dates_or_amounts(merged):
+    _submitted(merged, "BARB0AAMBUR", "123456", date(2017, 3, 1), "500000")
+    again = _submitted(merged, "BARB0AAMBUR", "123456", date(2018, 9, 15), "750000")
+    [(_, spec)] = duplicate_flags(merged, again)
+    assert spec.flag_type == "duplicate_pledge"
+    assert "issuing_banks" not in spec.fact
+
+
+def test_cross_merger_duplicate_is_not_ruled_out_by_a_missing_field(merged):
+    _submitted(merged, "VIJB0009502", "123456", date(2018, 6, 1), "500000")
+    again = _submitted(merged, "BARB0AAMBUR", "123456", date(2018, 6, 1), None)
+    [(_, spec)] = duplicate_flags(merged, again)
+    assert spec.flag_type == "duplicate_pledge"
