@@ -116,8 +116,8 @@ cd services/mock-bank && .venv/Scripts/python -m mockbank serve --port 8090
 # Web
 cd apps/web && npm run dev
 ```
-Then: admin → pin bank keys; verifying officer → "Verify with bank". The seed's synthetic FDRs get
-"the bank has no record of this FDR" until each is registered at the mock bank with its true values.
+Then: admin → pin bank keys; verifying officer → "Verify with bank". An FDR gets "the bank has no
+record of this FDR" until it is registered at the mock bank with its true values.
 Virtualenvs already exist in `apps/api/.venv`, `ml/synth/.venv`, `services/mock-bank/.venv`.
 Synthetic data in `data/` (gitignored).
 

@@ -387,7 +387,7 @@ python -m mockbank register --ifsc XNBK0001234 --fdr-no <no> --amount 500000.50 
 
 The bank's ledger starts empty and nothing is generated: the bank side records each FDR it issued (`register`, which is safe to run while `serve` runs, or `POST /fdrs`). Records are insert-only. An admin then pins the bank keys once in DepositTrack. `/keys` publishes a key for every bank code in `MB_BANK_CODES` from the start; if `MB_BANK_CODES` is empty, pin again after the first FDR of a new bank code. Keys already pinned never change.
 
-FDRs submitted to DepositTrack, including the synthetic ones from `python -m app.seed demo --synthetic`, get "the bank has no record of this FDR" on "Verify with bank" until the bank records them with their true values.
+An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "Verify with bank" until the bank records it with its true values.
 
 ---
 
