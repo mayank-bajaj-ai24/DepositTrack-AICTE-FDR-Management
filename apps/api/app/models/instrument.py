@@ -91,3 +91,25 @@ class IfscLineage(Base):
     current_ifsc: Mapped[str] = mapped_column(String(11))
     canonical_bank: Mapped[str] = mapped_column(String(50))
     effective_from: Mapped[date | None] = mapped_column(Date)
+
+
+class Bank(Base):
+    """A bank from the RBI IFSC master (M12): 4-letter IFSC prefix, name and RBI type."""
+
+    __tablename__ = "bank"
+
+    code: Mapped[str] = mapped_column(String(4), primary_key=True)
+    name: Mapped[str | None] = mapped_column(String(200))
+    bank_type: Mapped[str | None] = mapped_column(String(20))
+    source: Mapped[str] = mapped_column(Text)
+
+
+class BankMerger(Base):
+    """Bank-level lineage (N7): every IFSC of `old_bank` now belongs to `canonical_bank`."""
+
+    __tablename__ = "bank_merger"
+
+    old_bank: Mapped[str] = mapped_column(String(4), primary_key=True)
+    canonical_bank: Mapped[str] = mapped_column(String(4))
+    effective_from: Mapped[date | None] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(Text)
