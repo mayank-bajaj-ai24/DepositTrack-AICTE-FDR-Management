@@ -4,7 +4,8 @@ import hashlib
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api import serializers as ser
@@ -14,8 +15,14 @@ from app.core.config import Settings, get_settings
 from app.core.configfiles import load_config
 from app.core.permissions import Action, is_allowed
 from app.db.session import get_session
-from app.models import Anchor, Document, Event, Institution, Instrument
-from app.modules.audit.anchoring import anchor_new_events, verify_anchor
+from app.models import Anchor, AnchorEvent, Document, Event, Institution, Instrument
+from app.modules.audit.anchoring import (
+    ImmudbStore,
+    anchor_new_events,
+    immudb_status,
+    verify_anchor,
+    write_receipt,
+)
 from app.modules.audit.conformance import replay
 from app.modules.audit.service import record_event, verify_chain
 
@@ -97,40 +104,80 @@ def create_anchor(
     session: Session = Depends(get_session),
     settings: Settings = Depends(get_settings),
 ) -> dict:
+    """Anchor every event not anchored yet; with immudb on, also write an immudb receipt.
+
+    The anchor row is committed first, so an immudb outage or failed login leaves the anchor
+    stored without a receipt and the reason in `store_error`, instead of losing it.
+    """
     if not is_allowed(scope.principal.roles, Action.CONFIG_MANAGE):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
-    anchor = anchor_new_events(session, settings)
-    if anchor is None:
-        return {"anchored": False, "message": "No new events since the last anchor"}
+    problem = immudb_status(settings).problem
+    if problem:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, problem)
+    try:
+        anchor = anchor_new_events(session)
+        if anchor is None:
+            return {"anchored": False, "message": "No new events since the last anchor"}
+        session.commit()
+    except IntegrityError as exc:  # another anchor took the same events first
+        session.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Another anchor was created at the same time; try again"
+        ) from exc
+    if settings.immudb_enabled:
+        with ImmudbStore(settings) as store:
+            write_receipt(anchor, store)
     record_event(
         session,
         actor=actor_of(scope),
         action="audit.anchored",
-        after={"merkle_root": anchor.merkle_root, "store_tx": anchor.store_tx},
+        after={
+            "merkle_root": anchor.merkle_root,
+            "store_tx": anchor.store_tx,
+            "store_error": anchor.store_error,
+        },
     )
     session.commit()
-    return {"anchored": True, "merkle_root": anchor.merkle_root, "store_tx": anchor.store_tx}
+    return {
+        "anchored": True,
+        "merkle_root": anchor.merkle_root,
+        "events": session.scalar(
+            select(func.count()).select_from(AnchorEvent).where(AnchorEvent.anchor_id == anchor.id)
+        ),
+        "store_tx": anchor.store_tx,
+        "store_error": anchor.store_error,
+    }
 
 
 @router.get("/audit/anchors")
 def list_anchors(
-    scope: Scope = Depends(get_scope), session: Session = Depends(get_session)
+    scope: Scope = Depends(get_scope),
+    session: Session = Depends(get_session),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
+    """Recent anchors, each re-checked against its events and its immudb receipt."""
     _require_audit(scope)
-    anchors = session.scalars(select(Anchor).order_by(Anchor.batch_end.desc()).limit(50)).all()
-    return {
-        "items": [
-            {
-                "id": str(a.id),
-                "batch_start": a.batch_start.isoformat(),
-                "batch_end": a.batch_end.isoformat(),
-                "merkle_root": a.merkle_root,
-                "store_tx": a.store_tx,
-                "valid": verify_anchor(session, a),
-            }
-            for a in anchors
-        ]
-    }
+    # Newest first by creation: a batch of late events can end before an older batch.
+    anchors = session.scalars(select(Anchor).order_by(Anchor.ts.desc()).limit(50)).all()
+    items = []
+    with ImmudbStore(settings) as store:
+        for a in anchors:
+            check = verify_anchor(session, a, store)
+            items.append(
+                {
+                    "id": str(a.id),
+                    "batch_start": a.batch_start.isoformat(),
+                    "batch_end": a.batch_end.isoformat(),
+                    "merkle_root": a.merkle_root,
+                    "store_tx": a.store_tx,
+                    "store_error": a.store_error,
+                    "valid": check.valid,
+                    "root_matches": check.root_matches,
+                    "receipt": check.receipt,
+                    "receipt_detail": check.detail,
+                }
+            )
+    return {"items": items}
 
 
 @router.get("/audit/conformance")
