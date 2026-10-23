@@ -31,6 +31,10 @@ ml = [
     "lightgbm>=4.3",
     "shap>=0.45",
 ]
+# immudb anchoring receipts (N4); needed only with DT_IMMUDB_ENABLED=true.
+anchoring = [
+    "immudb-py>=1.5,<2",
+]
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
