@@ -30,6 +30,7 @@ ml = [
     "scikit-learn>=1.5",
     "lightgbm>=4.3",
     "shap>=0.45",
+    "kagglehub>=1.0",
 ]
 dev = [
     "pytest>=8.0",
