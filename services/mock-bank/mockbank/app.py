@@ -1,6 +1,8 @@
 """HTTP API of the mock bank.
 
-POST /fdrs                         the bank records an FDR it issued (its own ledger)
+GET  /                              the bank operator's page (record FDRs, see the ledger)
+POST /fdrs                         operator: record an FDR the bank issued (its own ledger)
+GET  /ledger                       operator: every FDR on the ledger with its status
 GET  /keys                         public keys per bank code (AICTE pins these once)
 GET  /credentials?ifsc=&fdr_no=    signed FDRAttestation for one FDR
 GET  /status?ifsc=&fdr_no=         signed status record with last/next update (freshness)
@@ -10,8 +12,10 @@ POST /simulate/close               demo: the depositor closed the FDR early
 
 import secrets
 from datetime import UTC, date, datetime, timedelta
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, model_validator
 
 from mockbank.ledger import Ledger
@@ -19,6 +23,7 @@ from mockbank.settings import Settings, get_settings
 from mockbank.signing import KeyStore
 
 app = FastAPI(title="Mock bank (simulation only)", version="0.1.0")
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 def require_token(
@@ -29,6 +34,18 @@ def require_token(
     expected = f"Bearer {settings.api_token}"
     if authorization is None or not secrets.compare_digest(authorization, expected):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
+
+
+def require_operator(
+    authorization: str | None = Header(default=None), settings: Settings = Depends(get_settings)
+) -> None:
+    if not settings.operator_token:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "MB_OPERATOR_TOKEN is not configured"
+        )
+    expected = f"Bearer {settings.operator_token}"
+    if authorization is None or not secrets.compare_digest(authorization, expected):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid operator token")
 
 
 def ledger(settings: Settings = Depends(get_settings)) -> Ledger:
@@ -86,7 +103,17 @@ def health() -> dict:
     return {"status": "ok", "simulation": True}
 
 
-@app.post("/fdrs", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_token)])
+@app.get("/", include_in_schema=False)
+def operator_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "operator.html", media_type="text/html")
+
+
+@app.get("/ledger", dependencies=[Depends(require_operator)])
+def ledger_entries(book: Ledger = Depends(ledger)) -> list[dict]:
+    return sorted(book.entries(), key=lambda e: e["status_index"], reverse=True)
+
+
+@app.post("/fdrs", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_operator)])
 def register_fdr(record: FdrRecord, book: Ledger = Depends(ledger)) -> dict:
     if book.get(record.ifsc, record.fdr_no) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "This FDR is already on the bank's ledger")
@@ -95,7 +122,7 @@ def register_fdr(record: FdrRecord, book: Ledger = Depends(ledger)) -> dict:
 
 @app.get("/keys", dependencies=[Depends(require_token)])
 def public_keys(book: Ledger = Depends(ledger), store: KeyStore = Depends(keys)) -> dict:
-    banks = sorted({e["ifsc"][:4] for e in book._read()["entries"].values()})
+    banks = sorted({e["ifsc"][:4] for e in book.entries()})
     return {store.key_id(b): store.public_b64(b) for b in banks}
 
 
