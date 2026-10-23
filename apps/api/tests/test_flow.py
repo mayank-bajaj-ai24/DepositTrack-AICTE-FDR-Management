@@ -1,5 +1,7 @@
 """End-to-end flow through the API: the six SIH test scenarios plus audit and access."""
 
+import json
+import uuid
 from datetime import date, timedelta
 
 import pytest
@@ -66,6 +68,10 @@ def env(tmp_path, rsa_key, monkeypatch, make_token):
         "nobody": make_token(["offline_access", "uma_authorization"], username="nobody"),
         "west_inst_b": make_token(
             ["institution", "scrutiny_officer"], username="officer.west.inst.b"
+        ),
+        "inst_a_bank": make_token(["institution", "bank_service"], username="inst.a.bank"),
+        "east_verifier_bank": make_token(
+            ["verifying_officer", "bank_service"], username="verifier.east.bank"
         ),
     }
 
@@ -483,6 +489,11 @@ def test_mixed_role_user_keeps_their_own_institution_outside_their_region(env):
     assert [i["institution"]["aicte_id"] for i in items] == ["SYN-A", "SYN-B"]
     listing = env.client.get("/api/v1/instruments", headers=env.h("west_inst_b")).json()
     assert [i["institution"]["aicte_id"] for i in listing["items"]] == ["SYN-B"]
+    # B is outside the officer's region: they open it as institution B, which does not read
+    # the audit history, so the officer role does not add it.
+    own = _detail(env, listing["items"][0]["id"], who="west_inst_b")
+    assert own["events"] == []
+    assert _detail(env, listing["items"][0]["id"])["events"] != []
 
 
 def _add_institutions_with_deposits(env, numbers):
@@ -614,3 +625,124 @@ def test_instrument_detail_and_documents_need_a_read_permission(env, who, code):
     assert download.status_code == code
     for reader in ("scrutiny", "auditor", "admin"):
         assert env.client.get(url, headers=env.h(reader)).status_code == 200
+
+
+def test_institution_with_a_bank_role_cannot_reach_another_institutions_fdr(env):
+    # Review of #12: institution A that is also a bank account (XNBK issued B's FDR) opened
+    # and acted on B's instrument. The bank role grants only attestation, so it adds nothing.
+    own = submit(env.client, env.tokens["inst_a"], values()).json()["id"]
+    other = submit(
+        env.client, env.tokens["inst_b"], values(fdr_no="XN9999999999", depositor="B")
+    ).json()["id"]
+    h = env.h("inst_a_bank")
+    assert env.client.get(f"/api/v1/instruments/{own}", headers=h).status_code == 200
+    assert env.client.get(f"/api/v1/instruments/{other}", headers=h).status_code == 404
+    listed = env.client.get("/api/v1/instruments", headers=h).json()["items"]
+    assert [i["id"] for i in listed] == [own]
+    release = env.client.post(
+        f"/api/v1/instruments/{other}/release-requests",
+        json={"case_type": "release", "reason": "not ours"},
+        headers=h,
+    )
+    assert release.status_code == 404
+    renewal = env.client.post(
+        "/api/v1/instruments",
+        data={
+            "declared": json.dumps(values(fdr_no="XN7777777777")),
+            "kind": "fdr",
+            "replaces_id": other,
+        },
+        files={"file": ("scan.png", b"\x89PNG renewal", "image/png")},
+        headers=h,
+    )
+    assert renewal.status_code == 404
+    report = env.client.get("/api/v1/reports/upcoming-maturities", headers=h).json()
+    assert all(row[1] == "SYN-A" for row in report["rows"])
+    dashboard = env.client.get("/api/v1/dashboard", headers=h).json()
+    assert dashboard["total"] == 1
+    # B's FDR is in scrutiny and institutions may answer a discrepancy, but not on B's FDR:
+    # not found, without telling the caller the FDR's state.
+    move = env.client.post(
+        f"/api/v1/instruments/{other}/transition",
+        json={"target": "discrepancy", "reason": "x"},
+        headers=h,
+    )
+    assert move.status_code == 404
+    with env.factory() as s:
+        s.add(
+            Notification(
+                instrument_id=uuid.UUID(other),
+                kind="maturity_reminder",
+                dedupe_key="test",
+                audience_role="institution",
+                message="B's FDR matures soon",
+            )
+        )
+        s.commit()
+    seen = env.client.get("/api/v1/notifications", headers=h).json()["items"]
+    assert seen == []
+    by_b = env.client.get("/api/v1/notifications", headers=env.h("inst_b")).json()["items"]
+    assert [n["message"] for n in by_b] == ["B's FDR matures soon"]
+
+
+def test_regional_officer_with_a_bank_role_stays_in_their_region(env):
+    # Review of #12: an East verifier who is also a bank account saw the bank's West FDRs.
+    west = submit(env.client, env.tokens["inst_a"], values()).json()["id"]
+    east = submit(
+        env.client, env.tokens["inst_b"], values(fdr_no="XN9999999999", depositor="B")
+    ).json()["id"]
+    h = env.h("east_verifier_bank")
+    listed = env.client.get("/api/v1/instruments", headers=h).json()["items"]
+    assert [i["id"] for i in listed] == [east]
+    assert env.client.get(f"/api/v1/instruments/{west}", headers=h).status_code == 404
+    verify = env.client.post(f"/api/v1/instruments/{west}/bank-verification", headers=h)
+    assert verify.status_code == 404
+
+
+def test_case_endpoints_need_a_case_permission_and_refused_uploads_store_nothing(env, tmp_path):
+    v = values()
+    env.bank.add(v)
+    instrument_id = submit(env.client, env.tokens["inst_a"], v).json()["id"]
+    _activate(env, instrument_id)
+    case = env.client.post(
+        f"/api/v1/instruments/{instrument_id}/release-requests",
+        json={"case_type": "release", "reason": "approval withdrawn by the institution"},
+        headers=env.h("inst_a"),
+    ).json()
+    # A bank account (attestation only) sees no cases, even on its own bank's FDRs.
+    assert env.client.get("/api/v1/cases", headers=env.h("bank")).status_code == 403
+    assert env.client.get(f"/api/v1/cases/{case['id']}", headers=env.h("bank")).status_code == 403
+    stored = sorted(p for p in (tmp_path / "storage").rglob("*") if p.is_file())
+    refused = env.client.post(
+        f"/api/v1/cases/{case['id']}/evidence",
+        params={"item_id": "closure_order"},
+        files={"file": ("order.pdf", b"%PDF-1.4 order", "application/pdf")},
+        headers=env.h("scrutiny"),  # the closure order is the institution's to upload
+    )
+    assert refused.status_code == 403
+    assert sorted(p for p in (tmp_path / "storage").rglob("*") if p.is_file()) == stored
+    for who in ("inst_a", "scrutiny", "authority", "auditor"):
+        assert env.client.get(f"/api/v1/cases/{case['id']}", headers=env.h(who)).status_code == 200
+    # A's case is in the West: an East verifier who also holds the bank role (XNBK issued
+    # this FDR) neither lists nor opens it; the bank role never widens the region.
+    east = env.h("east_verifier_bank")
+    assert env.client.get("/api/v1/cases", headers=east).json()["items"] == []
+    assert env.client.get(f"/api/v1/cases/{case['id']}", headers=east).status_code == 404
+    # A caller who may not decide gets the same answer for a real case and an unknown one,
+    # so it cannot probe which case ids exist.
+    for case_id in (case["id"], str(uuid.uuid4())):
+        decision = env.client.post(
+            f"/api/v1/cases/{case_id}/decision",
+            json={"approve": True, "reason": "x"},
+            headers=env.h("inst_a"),
+        )
+        assert decision.status_code == 403
+
+
+def test_list_and_detail_agree_on_who_may_read(env):
+    # Review of #12: admin got 403 on the list but 200 on the detail; one rule now decides both.
+    instrument_id = submit(env.client, env.tokens["inst_a"], values()).json()["id"]
+    for who, code in (("admin", 200), ("auditor", 200), ("bank", 403), ("nobody", 403)):
+        assert env.client.get("/api/v1/instruments", headers=env.h(who)).status_code == code
+        detail = env.client.get(f"/api/v1/instruments/{instrument_id}", headers=env.h(who))
+        assert detail.status_code == code
