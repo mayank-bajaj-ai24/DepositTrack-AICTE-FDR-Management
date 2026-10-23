@@ -6,3 +6,6 @@ target-version = "py311"
 select = ["E", "F", "I", "B", "UP", "S"]
 # Seeded pseudo-randomness is intended: it generates reproducible synthetic data, not secrets.
 ignore = ["S311"]
+
+[lint.per-file-ignores]
+"tests/**" = ["S101"]
