@@ -396,6 +396,22 @@ python -m fdrsynth --count 20 --out ../../data/synthetic
 
 Each sample is a PNG plus a JSON file with field values and word-level boxes and labels for LayoutLMv3. All samples use fictional banks and carry a `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT` watermark. Banks, cities, wording and value ranges come from `fdrsynth/data/synthetic_lists.json`; pass `--catalog other.json` to use a different list.
 
+**4. Mock bank** (simulation of the issuing bank's signed confirmation channel)
+
+```bash
+cd services/mock-bank
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env             # development-only placeholders; MB_API_TOKEN must equal DT_BANK_API_TOKEN
+python -m mockbank serve --port 8090
+# in a second terminal: the bank records an FDR it issued
+python -m mockbank register --ifsc XNBK0001234 --fdr-no <no> --amount 500000.50 --issue-date 2025-01-10 --maturity-date 2028-01-10 --beneficiary "<text>" --depositor "<name>"
+```
+
+The bank's ledger starts empty and nothing is generated: the bank side records each FDR it issued (`register`, which is safe to run while `serve` runs, or `POST /fdrs`). Records are insert-only. An admin then pins the bank keys once in DepositTrack. `/keys` publishes a key for every bank code in `MB_BANK_CODES` from the start; if `MB_BANK_CODES` is empty, pin again after the first FDR of a new bank code. Keys already pinned never change.
+
+An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "Verify with bank" until the bank records it with its true values.
+
 ---
 
 ## Expected outcomes
@@ -536,7 +552,8 @@ Immediate next steps, in order:
 4. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
 5. **Event-log simulator** for the renewal-risk model (N9) and conformance replay (N10).
 6. **Core vertical slice (Phase 2):** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
-7. **Idea submission** for the PS deadline (on hold).
+7. **Record the demo FDRs at the mock bank:** its ledger starts empty, so each FDR the demo submits must be recorded at the bank (`python -m mockbank register`) before "Verify with bank" can attest it.
+8. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
@@ -568,6 +585,8 @@ DepositTrack-AICTE-FDR-Management/
       tests/
   ml/
     synth/                   # synthetic FDR generator (fdrsynth)
+  services/
+    mock-bank/               # simulated issuing bank: records the FDRs it issued, signs credentials, lien status
   infra/
     docker-compose.yml
     keycloak/                # realm import
@@ -584,7 +603,6 @@ DepositTrack-AICTE-FDR-Management/
   apps/web/                  # Next.js: institution, officer, auditor, verifier UIs
   apps/api/app/workers/      # Celery tasks and schedules
   ml/                        # LayoutLMv3, forgery, risk models, RAG
-  services/mock-bank/        # issues and revokes signed FDR credentials
   docs/                      # ADRs, API spec, dataset cards
 ```
 

@@ -1,6 +1,7 @@
 """HTTP API of the mock bank.
 
-GET  /keys                         public keys per bank code (AICTE pins these once)
+POST /fdrs                         the bank records an FDR it issued (its own ledger)
+GET  /keys                         public keys per bank code (AICTE pins these; they never change)
 GET  /credentials?ifsc=&fdr_no=    signed FDRAttestation for one FDR
 GET  /status?ifsc=&fdr_no=         signed status record with last/next update (freshness)
 POST /lien/remove                  remove AICTE's lien (on release); revokes the credential
@@ -10,14 +11,22 @@ POST /simulate/close               demo: the depositor closed the FDR early
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from mockbank.ledger import Ledger
+from mockbank.files import Busy
+from mockbank.ledger import AlreadyRecorded, Ledger
+from mockbank.records import FdrRecord, NotIssuedHere, record_issued_fdr
 from mockbank.settings import Settings, get_settings
 from mockbank.signing import KeyStore
 
 app = FastAPI(title="Mock bank (simulation only)", version="0.1.0")
+
+
+@app.exception_handler(Busy)
+def _ledger_busy(_: Request, exc: Busy) -> JSONResponse:
+    return JSONResponse({"detail": f"{exc}; try again"}, status.HTTP_503_SERVICE_UNAVAILABLE)
 
 
 def require_token(
@@ -43,8 +52,7 @@ class FdrRef(BaseModel):
     fdr_no: str
 
 
-def _entry_or_404(book: Ledger, ifsc: str, fdr_no: str) -> dict:
-    entry = book.get(ifsc, fdr_no)
+def _entry_or_404(entry: dict | None) -> dict:
     if entry is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such FDR at this bank")
     return entry
@@ -67,10 +75,28 @@ def health() -> dict:
     return {"status": "ok", "simulation": True}
 
 
+@app.post("/fdrs", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_token)])
+def register_fdr(record: FdrRecord, settings: Settings = Depends(get_settings)) -> dict:
+    try:
+        return record_issued_fdr(record, settings)
+    except AlreadyRecorded as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except NotIssuedHere as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+
+
 @app.get("/keys", dependencies=[Depends(require_token)])
-def public_keys(book: Ledger = Depends(ledger), store: KeyStore = Depends(keys)) -> dict:
-    banks = sorted({e["ifsc"][:4] for e in book._read()["entries"].values()})
-    return {store.key_id(b): store.public_b64(b) for b in banks}
+def public_keys(
+    book: Ledger = Depends(ledger),
+    store: KeyStore = Depends(keys),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """One key per bank code this bank manages: configured (MB_BANK_CODES), already keyed, or
+    on the ledger. Configured codes are published even while the ledger is empty, so a pin
+    right after start-up covers them. A key never changes once created."""
+    banks = set(settings.issuing_banks) | set(store.known_banks())
+    banks |= {e["ifsc"][:4] for e in book.entries()}
+    return {store.key_id(b): store.public_b64(b) for b in sorted(banks)}
 
 
 @app.get("/credentials", dependencies=[Depends(require_token)])
@@ -81,7 +107,7 @@ def credential(
     store: KeyStore = Depends(keys),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    entry = _entry_or_404(book, ifsc, fdr_no)
+    entry = _entry_or_404(book.get(ifsc, fdr_no))
     bank = entry["ifsc"][:4]
     payload = {
         "type": "FDRAttestation",
@@ -109,7 +135,7 @@ def status_record(
     store: KeyStore = Depends(keys),
     settings: Settings = Depends(get_settings),
 ) -> dict:
-    entry = _entry_or_404(book, ifsc, fdr_no)
+    entry = _entry_or_404(book.get(ifsc, fdr_no))
     record = _status_record(entry, settings) | {
         "instrument_no": entry["fdr_no"],
         "ifsc": entry["ifsc"],
@@ -120,13 +146,15 @@ def status_record(
 
 @app.post("/lien/remove", dependencies=[Depends(require_token)])
 def remove_lien(ref: FdrRef, book: Ledger = Depends(ledger)) -> dict:
-    _entry_or_404(book, ref.ifsc, ref.fdr_no)
-    entry = book.set_status(ref.ifsc, ref.fdr_no, status="revoked", lien_status="REMOVED")
+    entry = _entry_or_404(
+        book.set_status(ref.ifsc, ref.fdr_no, status="revoked", lien_status="REMOVED")
+    )
     return {"status": entry["status"], "lien_status": entry["lien_status"]}
 
 
 @app.post("/simulate/close", dependencies=[Depends(require_token)])
 def simulate_close(ref: FdrRef, book: Ledger = Depends(ledger)) -> dict:
-    _entry_or_404(book, ref.ifsc, ref.fdr_no)
-    entry = book.set_status(ref.ifsc, ref.fdr_no, status="closed", lien_status="REMOVED")
+    entry = _entry_or_404(
+        book.set_status(ref.ifsc, ref.fdr_no, status="closed", lien_status="REMOVED")
+    )
     return {"status": entry["status"], "lien_status": entry["lien_status"]}
