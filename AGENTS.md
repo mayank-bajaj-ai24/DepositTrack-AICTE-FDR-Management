@@ -15,7 +15,9 @@ Read this file fully before making changes. These rules apply to everyone.
 
 ### 1. Git workflow
 
-- **For now, commit and push directly to `main`.** No feature branches or pull requests are required at this stage. This rule will be revised later; when branches are introduced, name them `name/short-description` (for example `krrish/lifecycle-engine`).
+- **One branch per piece of work, then a pull request to `main`.** Name the branch after the work it implements, in lowercase words joined by hyphens (for example `aicte-institution-and-ifsc-master-data-import`, `mock-bank-operator-page`). Branch from an up-to-date `main`; when work depends on an open PR, stack it on that PR's branch and say so in the description.
+- **Every PR has a description:** what changed and why, how it was tested (commands and counts), what is still open, and any manual step for the maintainer.
+- **The maintainer approves every merge.** Do not merge your own PR without explicit approval. Before merging, bring the branch up to date with `main`, resolve conflicts and re-run the checks.
 - **Make many small commits.** One logical change per commit (one module, one config file, one test file, one doc section). Do not bundle unrelated changes into a single commit.
 - **Pull before you start** (`git pull --ff-only`) and before you push, so you never overwrite a teammate's work. Never force-push to `main`.
 - **Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/):** `type(scope): summary`.
@@ -30,7 +32,7 @@ Update [README.md](README.md) in the same push as the change that makes progress
 
 - Tick items in the **Progress** checklist when they are actually done.
 - Update the **Test scenarios** status column when a test is implemented or passing.
-- Fill the **Expected outcomes** *Measured* column **only with real measured values**, and say whether they come from synthetic data. Never write a target as if it were a result.
+- Fill the **Expected outcomes** *Measured* column **only with real measured values**, and name the dataset they come from (a proxy dataset is labelled as a proxy, not as an FDR result). Never write a target as if it were a result.
 - Keep **Repository structure** and **Work to be done** in line with what exists in the repo.
 
 ### 3. No invented AICTE values
@@ -39,7 +41,7 @@ The problem statement does not specify deposit amounts, durations, beneficiary/l
 
 - Never hard-code a guessed value for any of these.
 - Keep them in configuration (`apps/api/config/policy.example.yaml`) with `null` or clearly labelled placeholder values.
-- Demo and test data must be labelled as placeholders or synthetic.
+- Demo values must be labelled as placeholders (`DEMO PLACEHOLDER - not an AICTE rule`).
 - When a real value is confirmed by AICTE, record its source in the config comment.
 
 ### 4. UI work
@@ -62,19 +64,30 @@ must sit inside `<Suspense>`.
 ### 4b. Configuration, not code
 
 Rules and thresholds live in `apps/api/config/*.yaml` (policy, extraction, checks,
-workflow, alerts, conformance). Web URLs come from `apps/web/.env.local`. Demo values
+workflow, alerts, conformance, master_data, bank_mergers). Web URLs come from `apps/web/.env.local`. Demo values
 live only in `config/policy.demo.yaml`, labelled as placeholders.
 
-### 5. Synthetic data only
+### 5. Real and open data only (no synthetic data)
 
-- Real FDRs are confidential. Use the generator in `ml/synth/`.
-- Synthetic documents use fictional bank names and are watermarked `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT`. Do not imitate real banks' branding.
-- **No hardcoded data lists.** Banks, cities, institution names, wording and value ranges for synthetic data live in `ml/synth/fdrsynth/data/synthetic_lists.json` (or a file passed with `--catalog`), never in Python code.
+Decided by the maintainer on 23 Oct 2026; it replaces the earlier "synthetic data only" rule.
+
+- **No synthetic data and no hardcoded fake values** in code, config, seeds or the UI. Nothing is generated to look like an FDR, an institution or a bank record.
+- **Master data comes from public sources:** AICTE's approved-institutions dashboard and the RBI IFSC master (Razorpay IFSC dataset), imported with `python -m app.masterdata` (sources in `apps/api/config/master_data.yaml`). Bank mergers are listed in `apps/api/config/bank_mergers.yaml`, each with its RBI press release.
+- **Models are trained on open datasets, as proxies.** No public FDR dataset exists, so each model is trained on the closest open dataset and its results are reported as *proxy results on that dataset, not FDR results*. Datasets (with pinned versions), licences and citations are listed in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` into the git-ignored `data/<name>/`; a dataset whose licence is not confirmed needs `--accept-unconfirmed-licence`. Check a dataset's licence before using it and never commit downloaded data (`data/` is not in git).
+- A model trained on a proxy that cannot speak for AICTE institutions (renewal risk, LayoutLMv3 pass A) stays **off** in the live system until it can be trained on DepositTrack's own data; one whose features do not depend on the document type (forgery signals) may run live, labelled with its training dataset, but only if its proxy result is useful. The code enforces this: the risk loader needs `"live_scoring": true` in the model's `meta.json`, and extraction needs `pass_a_enabled: true` plus a model with FDR labels. Ask the maintainer before switching a proxy model on.
+- **Real FDRs are confidential.** A real FDR is used only with the owner's consent and personal details redacted, and is never committed.
+- **The mock bank is a simulation**, clearly labelled as one. Its ledger starts empty; the bank operator records each FDR. Real bank names and IFSC codes may appear there, but never a bank's branding.
+- **Test fixtures** use excerpts of the real public data (for example `apps/api/tests/fixtures/masterdata`) or minimal values that a test needs to exercise a rule. They are never presented as real records.
 
 ### 6. Ask, and flag manual work
 
-- When something is unclear or an issue comes up, ask a maintainer instead of assuming.
-- When a step needs manual action (an account, an API key, installing software, starting Docker Desktop, GitHub permissions), tell the maintainer exactly what to do; do not do it on your own.
+- When something is unclear or an issue comes up, ask a maintainer instead of assuming. Any change to the plan is agreed with the maintainer before it is built.
+- When a step needs manual action (an account, an API key, installing software, starting Docker Desktop, GitHub permissions, running a notebook on Colab), tell the maintainer exactly what to do; do not do it on your own.
+
+### 7. No cost
+
+- Never take a step that costs money: no paid plans, paid APIs, paid GPUs (Colab Pro or compute units) or paid hosting. Free tiers only (for example the free Colab T4 GPU, a free Kaggle account).
+- If a task seems to need something paid, stop and ask the maintainer, and offer a free alternative.
 
 ## Stack and tooling
 
@@ -86,7 +99,7 @@ live only in `config/policy.demo.yaml`, labelled as placeholders.
 | Python tests | `pytest` |
 | Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `npm` |
 | Frontend lint / types | `npx eslint src`, `npx tsc --noEmit`, `npx next build` |
-| ML | scikit-learn, scikit-image, LightGBM (`ml` extra in `apps/api`); OCR with RapidOCR |
+| ML | scikit-learn, scikit-image, LightGBM (`ml` extra in `apps/api`); open datasets via `kagglehub` (`data` extra); OCR with RapidOCR |
 | Audit anchoring | immudb receipts via `immudb-py==1.5.0` (`anchoring` extra in `apps/api`; pinned because of its large dependency tree) |
 | Mock bank | `services/mock-bank` (FastAPI), simulation of a bank's signed confirmation channel |
 | Infrastructure | Docker Compose: PostgreSQL 16 + pgvector, SeaweedFS (S3), Redis, Keycloak, immudb |
@@ -102,7 +115,7 @@ cp infra/.env.example infra/.env
 docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 
 # Backend (apps/api)
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scriptsctivate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev,ml,anchoring]"                # anchoring = immudb client
 ruff check . && ruff format --check .
 pytest
@@ -124,15 +137,13 @@ npm install
 npm run dev                                          # http://localhost:3000
 npx eslint src && npx tsc --noEmit && npx next build
 
-# Synthetic FDR generator (ml/synth)
-pip install -e ".[dev]"
-python -m fdrsynth --count 20 --out ../../data/synthetic
-pytest
-
-# Models (run from the repo root with the API's virtual environment; outputs go to models/, not committed)
-apps/api/.venv/Scripts/python ml/forgery/train.py --data data/forgery-src --out models
-apps/api/.venv/Scripts/python ml/risk/train.py --out models
-# LayoutLMv3: run ml/layoutlm/train_layoutlmv3_fdr.ipynb on a GPU, unzip into models/layoutlmv3-fdr/
+# Models on open data (repo root, API's virtual environment; outputs go to models/, not committed)
+pip install -e "apps/api[data,ml]"                                     # kagglehub + model libraries
+apps/api/.venv/Scripts/python ml/download_open_data.py bpi-2017        # Kaggle token needed (free)
+apps/api/.venv/Scripts/python ml/risk/train.py --out models            # proxy, writes renewal_risk_proxy/, live off
+apps/api/.venv/Scripts/python -m pytest ml/tests
+# LayoutLMv3: run ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb on the free Colab T4 GPU (proxy, live off)
+# Forgery (Find it again!): on branch forgery-model-on-find-it-again, not merged (result near chance)
 ```
 
 Run lint and tests before every push. CI is not set up yet, so these local checks are the only gate.
@@ -142,11 +153,13 @@ Run lint and tests before every push. CI is not set up yet, so these local check
 ```
 apps/api/        FastAPI backend (modules per plan §8), config/ holds every rule file
 apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
-services/mock-bank/  Mock bank: signed FDR credentials and lien status (simulation only)
-ml/synth/        Synthetic FDR generator
-ml/forgery/      Forgery signal training (tampering generator + classifier)
-ml/risk/         Renewal-risk training (event-log simulator + LightGBM)
-ml/layoutlm/     LayoutLMv3 fine-tuning notebook (GPU)
+services/mock-bank/  Mock bank (simulation): the operator records issued FDRs; signed credentials, lien status
+ml/open_datasets.json, ml/download_open_data.py  Open-dataset catalog and download helper
+ml/forgery/      Forgery signal training (Find it again! retrain on an unmerged branch)
+ml/risk/         Renewal-risk proxy training (BPI Challenge 2017)
+ml/layoutlm/     LayoutLMv3 FUNSD proxy notebook
+ml/tests/        Tests for the ml scripts
+data/open/       Downloaded public master data (not committed)
 models/          Trained model files (generated, not committed)
 infra/           Docker Compose and service config (Keycloak realm, etc.)
 research/        Papers and research notes

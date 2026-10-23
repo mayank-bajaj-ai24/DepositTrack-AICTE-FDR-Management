@@ -13,6 +13,7 @@ from app.api.deps import actor_of, bank_dep, policy_dep
 from app.core import clock
 from app.core.access import Scope, get_scope
 from app.core.config import Settings, get_settings
+from app.core.configfiles import load_config
 from app.core.permissions import Action, is_allowed
 from app.core.policy import Policy
 from app.db.session import get_session
@@ -55,7 +56,8 @@ def system_status(
         "clock_offset_days": clock.offset_days(session),
         "bank_channel_configured": bool(settings.bank_api_token),
         "bank_keys_pinned": len(load_pinned(settings.bank_keys_file)),
-        "layoutlm_available": layoutlm.is_available(settings.models_dir),
+        "layoutlm_available": bool(load_config("extraction.yaml").get("pass_a_enabled"))
+        and layoutlm.is_available(settings.models_dir),
         "forgery_model_available": forgery_model.is_available(settings.models_dir),
         "risk_model_available": risk_model.is_available(settings.models_dir),
         "immudb_enabled": immudb.enabled,

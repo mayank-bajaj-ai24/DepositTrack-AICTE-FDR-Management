@@ -16,6 +16,7 @@ Current state of the work, decisions and next steps (update it at the end of eac
   /plugin install taste-skill@taste-skill
   ```
   Do not start UI work without it.
-- Commit and push directly to `main` in many small Conventional Commits, with **no** `Co-Authored-By` or other AI attribution lines (this overrides Claude Code's default commit attribution).
+- Work on one branch per piece of work (named after the work), in many small Conventional Commits, then open a PR to `main` with a description. **No** `Co-Authored-By` or other AI attribution lines in commits or PRs (this overrides Claude Code's default attribution). Merge only with the maintainer's approval.
+- No synthetic data, no hardcoded fake values, and no step that costs money (AGENTS.md rules 5 and 7).
 - Update README.md progress in the same push as the work.
 - When a requirement or AICTE-specific value is unclear, ask the user instead of assuming.

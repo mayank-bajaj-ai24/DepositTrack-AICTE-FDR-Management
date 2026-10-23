@@ -1,7 +1,13 @@
 """Serve the renewal-risk model (N9): probability of a missed renewal, with reasons.
 
-Trained by ml/risk/train.py into <models_dir>/renewal_risk/. Reasons are the features
-with the largest SHAP contributions towards "late", in plain language.
+Loads a model from <models_dir>/renewal_risk/ when one trained on DepositTrack's own
+renewal history is placed there; until then live scoring is off. ml/risk/train.py
+measures the method on a public proxy log and writes to renewal_risk_proxy/, which is
+not loaded here. A model is loaded only when its meta.json lists FEATURE_NAMES and sets
+"live_scoring": true, so the proxy model or an older simulator-trained model in
+renewal_risk/ is refused. The files' modification times are part of the cache key, so a
+model placed or replaced while the API runs is picked up without a restart. Reasons are the
+features with the largest SHAP contributions towards "late", in plain language.
 """
 
 import json
@@ -23,20 +29,39 @@ class RiskResult:
     reasons: list[dict]
 
 
-@lru_cache
-def _load(models_dir: str):
-    path = Path(models_dir) / MODEL_SUBDIR
-    if not (path / "classifier.txt").exists():
+MODEL_FILES = ("classifier.txt", "regressor.txt", "meta.json")
+
+
+def _stamp(path: Path) -> tuple:
+    return tuple(
+        (path / name).stat().st_mtime_ns if (path / name).exists() else None for name in MODEL_FILES
+    )
+
+
+@lru_cache(maxsize=4)
+def _read(path_str: str, stamp: tuple):
+    path = Path(path_str)
+    if not (path / "classifier.txt").exists() or not (path / "meta.json").exists():
+        return None
+    try:
+        meta = json.loads((path / "meta.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(meta, dict) or meta.get("live_scoring") is not True:
+        return None
+    if meta.get("features") != FEATURE_NAMES:
         return None
     import lightgbm as lgb
 
-    meta = json.loads((path / "meta.json").read_text(encoding="utf-8"))
-    if meta["features"] != FEATURE_NAMES:
-        return None
     classifier = lgb.Booster(model_file=str(path / "classifier.txt"))
     regressor_path = path / "regressor.txt"
     regressor = lgb.Booster(model_file=str(regressor_path)) if regressor_path.exists() else None
     return classifier, regressor, meta
+
+
+def _load(models_dir: str):
+    path = Path(models_dir) / MODEL_SUBDIR
+    return _read(str(path), _stamp(path))
 
 
 def is_available(models_dir: str) -> bool:
