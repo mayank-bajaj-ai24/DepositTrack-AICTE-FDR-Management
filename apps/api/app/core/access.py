@@ -3,14 +3,15 @@
 - institution users see only their own institution's instruments;
 - officers with a region see only institutions in that region (no region = all);
 - auditors, competent authority and admins see everything (read rights per role matrix);
-- bank service accounts see only instruments of their own bank.
+- bank service accounts see only instruments of their own bank, and no institution-level
+  data (obligations, coverage) because their only permission is posting attestations.
 """
 
 import uuid
 from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import Select, select
+from sqlalchemy import Select, false, select
 from sqlalchemy.orm import Session
 
 from app.core.permissions import Role
@@ -68,7 +69,9 @@ def visible_institution_ids(scope: Scope) -> Select | None:
     if _only(scope, Role.INSTITUTION):
         return select(Institution.id).where(Institution.id == scope.institution_id)
     if _only(scope, Role.BANK_SERVICE):
-        return select(Instrument.institution_id).where(Instrument.canonical_bank == scope.bank_code)
+        # The role matrix gives bank accounts attestation only, no reporting: they see no
+        # institution as a whole (its obligations, or coverage summed over every bank).
+        return select(Institution.id).where(false())
     if scope.region and (scope.has(Role.SCRUTINY_OFFICER) or scope.has(Role.VERIFYING_OFFICER)):
         return select(Institution.id).where(Institution.region == scope.region)
     return None

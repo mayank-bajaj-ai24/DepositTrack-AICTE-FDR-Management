@@ -65,10 +65,10 @@ def test_scope_by_role(db, roles, link, region, institutions, instruments):
     assert _visible(session, scope) == (institutions, instruments)
 
 
-def test_bank_service_sees_only_its_own_banks_instruments(db):
+def test_bank_service_sees_its_own_banks_instruments_and_no_institution(db):
+    # No institution-level view: A's coverage would add up allocations from every bank.
     session, _ = db
-    _, instruments = _visible(session, _scope(["bank_service"], bank_code="XNBK"))
-    assert instruments == {"A1"}
+    assert _visible(session, _scope(["bank_service"], bank_code="XNBK")) == (set(), {"A1"})
 
 
 @pytest.mark.parametrize(
