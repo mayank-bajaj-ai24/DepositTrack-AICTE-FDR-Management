@@ -1,6 +1,7 @@
 """Bank master and IFSC lineage (M12, N7) from the RBI IFSC master (Razorpay IFSC dataset).
 
-- `bank`: every bank code with its name (from IFSC.csv) and RBI type (from banks.json).
+- `bank`: every bank code with its name (from IFSC.csv, sublet rows excluded) and RBI type
+  (from banks.json).
 - `ifsc_lineage`: sublet IFSCs, i.e. IFSCs issued under one bank's prefix that belong to
   another bank (sublet.json), so the canonical key uses the real bank.
 - `bank_merger`: bank-level amalgamations from config/bank_mergers.yaml, each cited to RBI.
@@ -106,22 +107,36 @@ def _sync_mergers(session: Session, mergers: list[dict]) -> int:
     return len(stale)
 
 
-def _bank_names(ifsc_csv: Path) -> dict[str, str]:
-    names: dict[str, str] = {}
+def _bank_names(ifsc_csv: Path, sublet: dict[str, str]) -> dict[str, str]:
+    """Bank code -> name from the BANK column of IFSC.csv.
+
+    A sublet IFSC carries the prefix of the bank that lets it but the name of the bank that
+    uses it, so it never names the prefix's bank. Its name is used for the sublet bank only
+    when that bank has no IFSC of its own (most co-operative banks).
+    """
+    own: dict[str, str] = {}
+    via_sublet: dict[str, str] = {}
     with open(ifsc_csv, encoding="utf-8", newline="") as fh:
         for row in csv.DictReader(fh):
-            code, name = row["IFSC"][:4].upper(), (row["BANK"] or "").strip()
-            if name and code not in names:
-                names[code] = name
-    return names
+            ifsc, name = row["IFSC"].upper(), (row["BANK"] or "").strip()
+            if not name:
+                continue
+            if ifsc in sublet:
+                via_sublet.setdefault(sublet[ifsc], name)
+            else:
+                own.setdefault(ifsc[:4], name)
+    return via_sublet | own
 
 
 def import_banks(session: Session, data_dir: Path, mergers: list[dict]) -> dict[str, int]:
     meta = json.loads((data_dir / "release.json").read_text(encoding="utf-8"))
     source = f"{meta['source']} ({meta['release']})"
     banks = json.loads((data_dir / "banks.json").read_text(encoding="utf-8"))
-    names = _bank_names(data_dir / "IFSC.csv")
-    sublet = json.loads((data_dir / "sublet.json").read_text(encoding="utf-8"))
+    sublet = {
+        ifsc.upper(): bank
+        for ifsc, bank in json.loads((data_dir / "sublet.json").read_text(encoding="utf-8")).items()
+    }
+    names = _bank_names(data_dir / "IFSC.csv", sublet)
     unknown_sublet = sorted(set(sublet.values()) - set(banks))
     if unknown_sublet:
         raise MasterDataError(f"sublet.json names unknown bank codes: {unknown_sublet[:10]}")
@@ -141,7 +156,6 @@ def import_banks(session: Session, data_dir: Path, mergers: list[dict]) -> dict[
                 setattr(row, key, value)
     existing_lineage = {row.old_ifsc: row for row in session.scalars(select(IfscLineage))}
     for ifsc, bank in sublet.items():
-        ifsc = ifsc.upper()
         row = existing_lineage.get(ifsc)
         if row is None:
             session.add(IfscLineage(old_ifsc=ifsc, current_ifsc=ifsc, canonical_bank=bank))
