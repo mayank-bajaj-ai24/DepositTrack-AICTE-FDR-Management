@@ -1,58 +1,57 @@
 """CLI for the mock bank.
 
-python -m mockbank seed --from ../../data/synthetic   load the bank's records from synthetic FDRs
-python -m mockbank serve [--port 8090]                 run the HTTP API
+python -m mockbank register --ifsc ... --fdr-no ... --amount ... --issue-date YYYY-MM-DD
+       --maturity-date YYYY-MM-DD --beneficiary ... --depositor ...
+                                       record an FDR the bank issued in its own ledger
+python -m mockbank serve [--port 8090] run the HTTP API
+
+The ledger starts empty: the bank side records each FDR it issued (here, or with POST /fdrs),
+the way a real bank's core system would hold it. Nothing is generated.
 """
 
 import argparse
-import json
-from datetime import datetime
-from pathlib import Path
 
+from pydantic import ValidationError
+
+from mockbank.app import FdrRecord
 from mockbank.ledger import Ledger
 from mockbank.settings import get_settings
 
 
-def _iso(value: str, fmt: str = "%d/%m/%Y") -> str:
-    return datetime.strptime(value, fmt).date().isoformat()
-
-
-def seed(source: Path) -> int:
-    """Each synthetic FDR's true values become the bank's own record of it."""
+def register(record: FdrRecord) -> dict:
     book = Ledger(get_settings().ledger_file)
-    count = 0
-    for path in sorted(source.glob("*.json")):
-        record = json.loads(path.read_text(encoding="utf-8"))
-        values = record.get("values")
-        if not values:
-            continue
-        book.upsert(
-            {
-                "fdr_no": values["fdr_no"],
-                "ifsc": values["ifsc"],
-                "amount": values["amount"],
-                "issue_date": _iso(values["deposit_date"]),
-                "maturity_date": _iso(values["maturity_date"]),
-                "beneficiary": values["beneficiary"],
-                "depositor": values["depositor"],
-            }
-        )
-        count += 1
-    return count
+    if book.get(record.ifsc, record.fdr_no) is not None:
+        raise SystemExit("This FDR is already on the bank's ledger")
+    return book.upsert(record.model_dump(mode="json"))
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="mockbank")
     sub = parser.add_subparsers(dest="command", required=True)
-    seed_cmd = sub.add_parser("seed")
-    seed_cmd.add_argument("--from", dest="source", type=Path, required=True)
+    reg = sub.add_parser("register")
+    for name in ("ifsc", "fdr-no", "amount", "issue-date", "maturity-date", "beneficiary"):
+        reg.add_argument(f"--{name}", required=True)
+    reg.add_argument("--depositor", required=True)
     serve_cmd = sub.add_parser("serve")
     serve_cmd.add_argument("--host", default="127.0.0.1")
     serve_cmd.add_argument("--port", type=int, default=8090)
     args = parser.parse_args(argv)
 
-    if args.command == "seed":
-        print(f"Loaded {seed(args.source)} FDRs into the mock bank ledger")
+    if args.command == "register":
+        try:
+            record = FdrRecord(
+                fdr_no=args.fdr_no,
+                ifsc=args.ifsc.upper(),
+                amount=args.amount,
+                issue_date=args.issue_date,
+                maturity_date=args.maturity_date,
+                beneficiary=args.beneficiary,
+                depositor=args.depositor,
+            )
+        except ValidationError as exc:
+            raise SystemExit(str(exc)) from exc
+        entry = register(record)
+        print(f"Recorded FDR {entry['fdr_no']} ({entry['ifsc']}) in the mock bank ledger")
     else:
         import uvicorn
 
