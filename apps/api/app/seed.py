@@ -1,13 +1,16 @@
 """Seed the database for a demo.
 
-    python -m app.seed demo [--seed-file seed/demo_seed.json]
-                            [--synthetic ../../data/synthetic --count 12]
+    python -m app.seed demo --institution-user-aicte-id 1-XXXXXXXXXX [--seed-file ...]
 
-1. Institutions and user accounts from the seed file (fictional data).
-2. One obligation per institution from the policy's deposit requirements. With the real
-   policy (all values unconfirmed) no obligations are created.
-3. Optionally, synthetic FDRs submitted through the normal intake pipeline (OCR, checks,
-   audit), spread across the institutions.
+Run `python -m app.masterdata import-institutions` (and `import-banks`) first: institutions
+come only from AICTE's public master data, never from this script.
+
+1. User accounts for the Keycloak development users from the seed file. The institution
+   user is linked to the real AICTE institution given on the command line.
+2. One obligation for each linked institution from the policy's deposit requirements. With
+   the real policy (all values unconfirmed) no obligations are created.
+
+No instruments are seeded: FDRs enter through the normal intake (upload) during the demo.
 """
 
 import argparse
@@ -19,32 +22,28 @@ from sqlalchemy import select
 
 from app.core import clock
 from app.core.config import get_settings
-from app.core.configfiles import load_config
 from app.core.policy import get_policy
 from app.db.session import get_engine
 from app.models import Institution, Obligation, UserAccount
-from app.modules.audit.service import Actor
-from app.modules.extraction.ocr import load_image
-from app.modules.extraction.service import extract
-from app.modules.instruments.intake import submit_instrument
-from app.modules.lifecycle.states import InstrumentKind
-from app.modules.storage.store import build_store
 
 API_ROOT = Path(__file__).resolve().parents[1]
 
 
-def seed_reference(session, seed_file: Path) -> dict[str, Institution]:
+def seed_accounts(session, seed_file: Path, institution_aicte_id: str | None) -> list[Institution]:
+    """Create the development accounts; return the institutions they are linked to."""
     data = json.loads(seed_file.read_text(encoding="utf-8"))
-    by_aicte: dict[str, Institution] = {}
-    for row in data["institutions"]:
-        inst = session.scalars(
-            select(Institution).where(Institution.aicte_id == row["aicte_id"])
+    linked: list[Institution] = []
+    institution = None
+    if institution_aicte_id:
+        institution = session.scalars(
+            select(Institution).where(Institution.aicte_id == institution_aicte_id)
         ).first()
-        if inst is None:
-            inst = Institution(**row)
-            session.add(inst)
-            session.flush()
-        by_aicte[inst.aicte_id] = inst
+        if institution is None:
+            raise SystemExit(
+                f"No institution {institution_aicte_id}: run `python -m app.masterdata "
+                "import-institutions` first and pick an AICTE ID from it"
+            )
+        linked.append(institution)
     for row in data["accounts"]:
         account = session.scalars(
             select(UserAccount).where(UserAccount.username == row["username"])
@@ -52,12 +51,18 @@ def seed_reference(session, seed_file: Path) -> dict[str, Institution]:
         if account is None:
             account = UserAccount(username=row["username"])
             session.add(account)
-        aicte_id = row.get("institution_aicte_id")
-        account.institution_id = by_aicte[aicte_id].id if aicte_id else None
+        if row.get("institution_user"):
+            if institution is not None:
+                account.institution_id = institution.id
+            elif account.institution_id is None:
+                print(
+                    f"Warning: {row['username']} is not linked to an institution; pass "
+                    "--institution-user-aicte-id"
+                )
         account.region = row.get("region")
         account.bank_code = row.get("bank_code")
     session.flush()
-    return by_aicte
+    return linked
 
 
 def seed_obligations(session, institutions: list[Institution], policy) -> int:
@@ -90,48 +95,12 @@ def seed_obligations(session, institutions: list[Institution], policy) -> int:
     return created
 
 
-def seed_instruments(
-    session, institutions: list[Institution], source: Path, count: int, policy
-) -> int:
-    settings = get_settings()
-    store = build_store(settings)
-    rules = load_config("extraction.yaml")
-
-    def extractor(data: bytes, content_type: str | None):
-        return extract(load_image(data, content_type), rules, settings.models_dir)
-
-    submitted = 0
-    for index, path in enumerate(sorted(source.glob("*.json"))[:count]):
-        record = json.loads(path.read_text(encoding="utf-8"))
-        image_bytes = (source / record["image"]).read_bytes()
-        result = extractor(image_bytes, "image/png")
-        declared = {name: f.value for name, f in result.fields.items()}
-        institution = institutions[index % len(institutions)]
-        submit_instrument(
-            session,
-            store=store,
-            policy=policy,
-            actor=Actor(username=f"seed:{institution.aicte_id}", role="institution"),
-            roles=frozenset({"institution"}),
-            institution_id=institution.id,
-            kind=InstrumentKind.FDR,
-            declared=declared,
-            file_bytes=image_bytes,
-            content_type="image/png",
-            extractor=lambda data, ct, r=result: r,
-        )
-        submitted += 1
-        print(f"  submitted {record['id']} for {institution.name}")
-    return submitted
-
-
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="app.seed")
     sub = parser.add_subparsers(dest="command", required=True)
     demo = sub.add_parser("demo")
     demo.add_argument("--seed-file", type=Path, default=API_ROOT / "seed" / "demo_seed.json")
-    demo.add_argument("--synthetic", type=Path, default=None)
-    demo.add_argument("--count", type=int, default=12)
+    demo.add_argument("--institution-user-aicte-id", default=None)
     args = parser.parse_args(argv)
 
     from sqlalchemy.orm import Session
@@ -139,12 +108,9 @@ def main(argv: list[str] | None = None) -> None:
     settings = get_settings()
     policy = get_policy(settings.policy_file)
     with Session(get_engine()) as session:
-        institutions = list(seed_reference(session, args.seed_file).values())
-        print(f"Institutions: {len(institutions)}")
+        institutions = seed_accounts(session, args.seed_file, args.institution_user_aicte_id)
+        print(f"Linked institutions: {[i.name for i in institutions]}")
         print(f"Obligations created: {seed_obligations(session, institutions, policy)}")
-        if args.synthetic:
-            submitted = seed_instruments(session, institutions, args.synthetic, args.count, policy)
-            print(f"Instruments submitted: {submitted}")
         session.commit()
 
 
