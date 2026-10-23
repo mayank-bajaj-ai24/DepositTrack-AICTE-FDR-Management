@@ -73,13 +73,16 @@ validated; **never actually started** (Docker Desktop was not running).
 | Reports M10 | `app/api/dashboard.py` | Dashboard tiles, coverage endpoint, 4 reports as JSON/CSV/XLSX |
 | Seed | `app/seed.py`, `seed/demo_seed.json` | 5 fictional institutions, accounts for Keycloak dev users, demo obligations, synthetic FDRs through real intake |
 
-### Mock bank — `services/mock-bank` (39 tests)
-Separate FastAPI service. The ledger starts empty: the bank records each FDR it issued
-(`python -m mockbank register` or `POST /fdrs`, insert-only, one `Ledger.insert`; writes are
-locked across processes and replaced atomically, so `register` is safe while `serve` runs).
+### Mock bank — `services/mock-bank` (48 tests)
+Separate FastAPI service. The ledger starts empty: the bank records each FDR it issued (operator
+page at `/`, `python -m mockbank register` or `POST /fdrs`; insert-only, one `Ledger.insert`;
+writes are locked across processes and replaced atomically, so `register` is safe while `serve`
+runs).
 Per-bank signing keys; `/keys` publishes every code in `MB_BANK_CODES` from the start (empty:
 codes appear with their first FDR, then re-pin). `/credentials`, `/status`, `/lien/remove`,
-`/simulate/close`; shared token `MB_API_TOKEN`. Settings documented in `.env.example`.
+`/simulate/close`. Two tokens: `MB_API_TOKEN` (DepositTrack: `/keys`, `/credentials`, `/status`,
+`/lien/remove`) and `MB_OPERATOR_TOKEN` (bank operator: `/fdrs`, `/ledger`, `/simulate/close`);
+they must differ. Settings documented in `.env.example`.
 
 ### ML — `ml/`
 - `ml/synth`: synthetic watermarked FDR generator with word-level labels (22 tests).
@@ -109,9 +112,10 @@ cp infra/.env.example infra/.env && docker compose -f infra/docker-compose.yml -
 #      (match infra/seaweedfs/s3.json), DT_POLICY_FILE=config/policy.demo.yaml, DT_BANK_API_TOKEN, DT_MODELS_DIR=../../models
 cd apps/api && .venv/Scripts/alembic upgrade head && .venv/Scripts/python -m app.seed demo --synthetic ../../data/forgery-src --count 12
 .venv/Scripts/uvicorn app.main:app --reload
-# Mock bank: cp services/mock-bank/.env.example services/mock-bank/.env (MB_API_TOKEN = DT_BANK_API_TOKEN)
+# Mock bank: cp services/mock-bank/.env.example services/mock-bank/.env (MB_API_TOKEN = DT_BANK_API_TOKEN;
+#            MB_OPERATOR_TOKEN is the bank operator's own, different token for the page at http://localhost:8090)
 cd services/mock-bank && .venv/Scripts/python -m mockbank serve --port 8090
-# The bank ledger starts empty; record each FDR the bank issued (safe while serve runs):
+# The bank ledger starts empty; record each FDR the bank issued on the operator page, or (safe while serve runs):
 .venv/Scripts/python -m mockbank register --ifsc <IFSC> --fdr-no <no> --amount <INR> --issue-date <YYYY-MM-DD> --maturity-date <YYYY-MM-DD> --beneficiary "<text>" --depositor "<name>"
 # Web
 cd apps/web && npm run dev
