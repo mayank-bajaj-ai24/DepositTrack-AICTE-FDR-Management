@@ -441,3 +441,14 @@ def test_credential_from_an_unpinned_key_is_rejected(env):
     detail = _detail(env, instrument_id)
     assert detail["instrument"]["trust_level"] < 3
     assert any(f["type"] == "bank_mismatch" for f in detail["flags"])
+
+
+def test_officers_see_requirements_of_institutions_with_no_deposit(env):
+    # Nothing submitted yet: both obligations are fully uncovered and must still be visible.
+    dash = env.client.get("/api/v1/dashboard", headers=env.h("scrutiny")).json()
+    assert float(dash["coverage"]["required"]) == 1_000_000
+    assert dash["tiles"]["coverage_gaps"] == 2
+    items = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert len(items) == 2
+    own = env.client.get("/api/v1/coverage", headers=env.h("inst_a")).json()["items"]
+    assert [i["institution"]["aicte_id"] for i in own] == ["SYN-A"]
