@@ -486,7 +486,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-10 | Overdue escalation | Escalated to the next role | Passing (API: overdue alert to competent authority) |
 | T-11 | Dashboard drill-down | Tile numbers match underlying records | Passing for API counts, including requirements of institutions with no deposit; overview opened in a browser on the live stack, drill-down clicks not yet walked |
 | T-12 | Audit integrity | Direct DB edit detected by verifier | Passing (API: chain break and anchor mismatch detected; editing events and the anchor row together is caught by the immudb receipt, tested with a mocked immudb) |
-| T-13 | Access control | All allow/deny cases pass | Passing (28 role cases + institution, regional, bank and mixed-role scoping; `/coverage` refuses callers without a reporting role) |
+| T-13 | Access control | All allow/deny cases pass | Passing (28 role cases + institution, regional, bank and mixed-role scoping; scoping depends on the action, so a role that does not grant it adds no visibility; cases, reports, notifications and instrument detail follow the same rule) |
 | T-14 | Credential forgery | Credential from unknown key rejected | Passing (API) |
 
 ---
@@ -500,7 +500,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 394 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
+- [x] Backend: 412 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 
