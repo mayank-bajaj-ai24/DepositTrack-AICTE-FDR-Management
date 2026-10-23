@@ -6,17 +6,19 @@
 </p>
 
 <p align="center">
-  <img alt="Status" src="https://img.shields.io/badge/status-planning-orange">
+  <img alt="Status" src="https://img.shields.io/badge/status-prototype-yellow">
   <img alt="SIH" src="https://img.shields.io/badge/SIH%202026-SIH26265-blue">
   <img alt="Theme" src="https://img.shields.io/badge/theme-Smart%20Automation-6f42c1">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
-> **Current status:** prototype built end to end in code — backend (all modules M1–M10, M13), mock bank, ML components and the bilingual web app. Automated tests pass; the live stack (Docker) and the UI have not yet been run together. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**. All numbers in [Expected outcomes](#expected-outcomes) are **targets**, not measured results.
+> **Current status (23 Oct 2026):** prototype built in code — backend (modules M1–M10, M12, M13), mock bank and the bilingual web app — and **run on the live Docker stack**: migrations, real master-data import (13,088 AICTE institutions, RBI IFSC bank master), Keycloak login, immudb anchoring and the main screens in a browser. The upload → bank-verification story still waits for a real FDR scan. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**.
+>
+> **Data policy:** no synthetic data. Master data comes from public sources, and models are trained on open datasets as **labelled proxies** (no public FDR dataset exists); see [Expected outcomes](#expected-outcomes) and AGENTS.md rule 5.
 >
 > Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
 >
-> **CI is not set up yet** on this branch: the workflow file needs a GitHub token with the `workflow` scope to be pushed. Run lint and tests locally before every push.
+> **CI is not set up yet:** the workflow file needs a GitHub token with the `workflow` scope to be pushed. Run lint and tests locally before every push.
 
 ---
 
@@ -301,7 +303,7 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | --- | --- | --- | --- |
 | M1 | Identity and access | Keycloak roles, attribute rules, field-level edit permissions | ≥ 20 allow/deny cases pass |
 | M2 | Intake and documents | Upload, malware scan, SHA-256, encrypted versioned storage, document history | Upload → stored → hash shown → access-controlled download |
-| M3 | Extraction | OCR + LayoutLMv3 (pass A) and rules/LLM (pass B); human confirmation | ≥ 90% field accuracy on synthetic test set; < 5 s per page on CPU |
+| M3 | Extraction | OCR + LayoutLMv3 (pass A) and rules/LLM (pass B); human confirmation | ≥ 90% field accuracy on a labelled test set of real FDRs; < 5 s per page on CPU |
 | M4 | Rules, discrepancy, forgery | Completeness and policy rules, forgery signals, risk score, scrutiny observations | Every flag shows fact, rule, clause, reason, evidence |
 | M5 | Bank verification | Signed credential, bank API simulator, manual letter; live re-check | Tampered amount caught by bank mismatch |
 | M6 | Audit chain and anchoring | Hash chain, Merkle anchoring, public verifier | Direct DB edit detected |
@@ -319,19 +321,20 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | Next.js, React, Tailwind CSS, shadcn/ui, Recharts |
-| Backend API | FastAPI (Python 3.11), Pydantic |
-| Authentication | Keycloak (OTP/MFA, roles) |
-| Background jobs | Celery + Redis, Celery beat |
+| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `oidc-client-ts`; charts drawn as SVG |
+| Backend API | FastAPI (Python 3.11), Pydantic, SQLAlchemy 2, Alembic |
+| Authentication | Keycloak (roles; OTP/MFA configurable) |
+| Background jobs | Lifecycle sweep run from the admin screen / API with a demo clock (Celery + beat from the plan not built; Redis is in Compose for it) |
 | Database | PostgreSQL 16 + pgvector |
 | File storage | SeaweedFS (S3-compatible); replaces MinIO from the plan, which no longer publishes Docker images |
-| Tamper evidence | immudb (permissioned ledger as production option) |
-| OCR / document AI | docTR or PaddleOCR, LayoutLMv3 |
-| Machine learning | scikit-learn, scikit-image, XGBoost, LightGBM, SHAP, alibi (Anchors) |
+| Tamper evidence | immudb receipts via `immudb-py` (optional `anchoring` extra); permissioned ledger as production option |
+| OCR / document AI | RapidOCR + configured rules (pass B); LayoutLMv3 (pass A) only once trained on labelled real FDRs |
+| Machine learning | scikit-learn, scikit-image, LightGBM, SHAP; open datasets fetched with `kagglehub` (`data` extra) |
+| Master data | AICTE approved-institutions dashboard; RBI IFSC master via the Razorpay IFSC dataset (MIT) |
 | Credentials | Ed25519 signed JSON |
-| Assistant | Retrieval over pgvector + LLM, evaluated with ragas |
-| Reports | WeasyPrint (PDF), openpyxl (Excel) |
-| DevOps | Docker Compose, GitHub Actions, pytest, Playwright |
+| Assistant | Not built (skipped for the prototype) |
+| Reports | reportlab (release letter PDF), openpyxl (Excel), CSV |
+| DevOps | Docker Compose, pytest, ruff, ESLint; GitHub Actions pending the `workflow` token scope |
 
 ---
 
@@ -395,16 +398,21 @@ alembic downgrade base && alembic upgrade head   # drops all data, including upl
 
 Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
 
-**3. Synthetic FDRs**
+**3. Models on open datasets** (optional)
+
+No public FDR dataset exists, so each model is trained on the closest open dataset and reported as a proxy. A free Kaggle account and API token are needed (Kaggle → Settings → API → Create New Token; save it as `~/.kaggle/access_token`). Datasets, pinned versions, licences and citations are listed in `ml/open_datasets.json`; downloads go to the git-ignored `data/<name>/`.
 
 ```bash
-cd ml/synth
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-python -m fdrsynth --count 20 --out ../../data/synthetic
+# from the repository root, with the API's virtual environment
+pip install -e "apps/api[data,ml]"                   # kagglehub + model libraries
+python ml/download_open_data.py bpi-2017             # BPI Challenge 2017 loan-application log
+python ml/risk/train.py --out models                 # writes models/renewal_risk_proxy (not loaded live)
+python -m pytest ml/tests                            # tests for the download helper and the risk trainer
 ```
 
-Each sample is a PNG plus a JSON file with field values and word-level boxes and labels for LayoutLMv3. All samples use fictional banks and carry a `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT` watermark. Banks, cities, wording and value ranges come from `fdrsynth/data/synthetic_lists.json`; pass `--catalog other.json` to use a different list.
+LayoutLMv3: open `ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb` in Colab on the free T4 GPU and run all cells. It fine-tunes on FUNSD forms as a proxy; the API refuses to load it (`pass_a_enabled: false` in `config/extraction.yaml`, and the loader rejects models whose labels are not FDR fields).
+
+Forgery signal: the Find it again! training is on a separate branch and **not merged**; its first result was close to chance (see [Expected outcomes](#expected-outcomes)). Its licence is not stated, so `download_open_data.py find-it-again` needs `--accept-unconfirmed-licence`.
 
 **4. Mock bank** (simulation of the issuing bank's signed confirmation channel)
 
@@ -415,7 +423,7 @@ pip install -e ".[dev]"
 cp .env.example .env             # development-only placeholders; MB_API_TOKEN must equal DT_BANK_API_TOKEN
 python -m mockbank serve --port 8090   # bank operator page at http://localhost:8090
 # or, in a second terminal: the bank records an FDR it issued
-python -m mockbank register --ifsc XNBK0001234 --fdr-no <no> --amount 500000.50 --issue-date 2025-01-10 --maturity-date 2028-01-10 --beneficiary "<text>" --depositor "<name>"
+python -m mockbank register --ifsc <IFSC> --fdr-no <no> --amount <INR, paise allowed> --issue-date <YYYY-MM-DD> --maturity-date <YYYY-MM-DD> --beneficiary "<text>" --depositor "<name>"
 ```
 
 The bank's ledger starts empty and nothing is generated: the bank side records each FDR it issued (on the operator page, with `register`, which is safe to run while `serve` runs, or with `POST /fdrs`). Records are insert-only.
@@ -428,22 +436,23 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 
 ## Expected outcomes
 
-> **None of these values has been measured yet.** They are the team's targets from the implementation plan. The *Measured* column will be filled in as each component is built and evaluated. Synthetic-data results will be labelled as such.
+> **No synthetic-data results are reported any more.** Earlier numbers measured on synthetic FDRs were withdrawn when the project moved to real and open data (23 Oct 2026). No public FDR dataset exists, so models are measured on the closest open dataset and the result is labelled **proxy**: it shows how the method performs on that dataset, not on FDRs. FDR-level numbers need labelled real FDRs.
 
 ### Component targets
 
 | Component | Metric | Target | Measured | Status |
 | --- | --- | --- | --- | --- |
-| Field extraction | Field exact-match after rules (overall) | ≥ 90% | 100% (30 synthetic pages, pass B only) | Met on synthetic data |
-| Field extraction | Exact-match on amount and dates | ≥ 95% | 100% (30 synthetic pages) | Met on synthetic data |
-| Field extraction | Processing time per page (CPU) | < 5 s | 3.4 s median | Met |
-| Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.875 (180 synthetic test pages; copy-paste 0.53) | Below target |
-| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 5.4% | Slightly above target |
+| Field extraction | Field exact-match after rules (overall) | ≥ 90% | — | Not measured: needs labelled real FDRs |
+| Field extraction | Exact-match on amount and dates | ≥ 95% | — | Not measured: needs labelled real FDRs |
+| Field extraction | Processing time per page (CPU) | < 5 s | — | To be measured on real scans |
+| Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
+| Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
+| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
-| Renewal risk | AUC | ≥ 0.80 | 0.780 (simulated event logs; 300 held-out institutions, early stopping on a separate validation set) | Below target; likely limited by the simulator's random lateness |
-| Renewal risk | Mean warning lead time | ≥ 21 days | 26 days (at the 0.7 alarm threshold; 33% of late renewals caught, 0% false alarms at T-30) | Met for lead time |
+| Renewal risk | AUC | ≥ 0.80 | 0.789 pooled — **proxy**, BPI Challenge 2017 (6,197 later applications held out by time); by week since the offer 0.588 / 0.599 / 0.640 / 0.691 / 0.833; a one-feature baseline (days since last event) reaches 0.767 pooled | Below target on the proxy; early-week warning is weak. Live scoring off |
+| Renewal risk | Mean warning lead time | ≥ 21 days | 14.1 days mean, 16.5 median — **proxy**; 99.8% of missed deadlines caught at 12.0% false alarms | Below target on the proxy, whose deadline is only about 30 days after the offer |
 | Officer assistant | RAGAS faithfulness | ≥ 0.85 | — | Not built (skipped for the prototype) |
-| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 cases, plus scoping tests | Met |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus institution, region, bank and mixed-role scoping tests | Met |
 
 ### PS improvement areas
 
@@ -461,7 +470,7 @@ For the five areas the PS asks the prototype to improve, the plan measures a man
 
 ## Test scenarios
 
-Every test scenario named in the PS has an automated test. "API" tests run the real API with an in-memory database, a fake OCR result and an in-process bank that signs with real Ed25519 keys; the live Docker stack and the browser UI have not yet been run together.
+Every test scenario named in the PS has an automated test. "API" tests run the real API with an in-memory database, a fake OCR result and an in-process bank that signs with real Ed25519 keys. The live Docker stack and the browser UI have been run together (login, dashboards, reports, audit, admin); the upload-to-verification story waits for a real FDR scan.
 
 | ID | Scenario | Pass condition | Status |
 | --- | --- | --- | --- |
@@ -469,15 +478,15 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-02 | Repository completeness | All required fields stored and searchable | Passing (API: fields, search and filters) |
 | T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
-| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal measured on synthetic data, see [Expected outcomes](#expected-outcomes) |
+| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal being retrained on an open proxy dataset, see [Expected outcomes](#expected-outcomes) |
 | T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
 | T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants; unit tests for a same deposit across a bank merger and for unrelated same-number FDRs of two merged banks) |
 | T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
 | T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
 | T-10 | Overdue escalation | Escalated to the next role | Passing (API: overdue alert to competent authority) |
-| T-11 | Dashboard drill-down | Tile numbers match underlying records | Passing for API counts; UI drill-down not yet tested in a browser |
+| T-11 | Dashboard drill-down | Tile numbers match underlying records | Passing for API counts, including requirements of institutions with no deposit; overview opened in a browser on the live stack, drill-down clicks not yet walked |
 | T-12 | Audit integrity | Direct DB edit detected by verifier | Passing (API: chain break and anchor mismatch detected; editing events and the anchor row together is caught by the immudb receipt, tested with a mocked immudb) |
-| T-13 | Access control | All allow/deny cases pass | Passing (28 role cases + institution and regional scoping) |
+| T-13 | Access control | All allow/deny cases pass | Passing (28 role cases + institution, regional, bank and mixed-role scoping; `/coverage` refuses callers without a reporting role) |
 | T-14 | Credential forgery | Credential from unknown key rejected | Passing (API) |
 
 ---
@@ -491,8 +500,9 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 315 automated tests (unit + end-to-end API flows), lint clean
-- [x] LayoutLMv3 fine-tuning notebook for a GPU runtime (to be run by the team)
+- [x] Backend: 394 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
+- [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
+- [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 
 ### Roadmap
 
@@ -515,38 +525,40 @@ flowchart LR
 
 **Phase 1: foundations**
 - [x] Contributor and AI agent rules ([AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md))
-- [x] Docker Compose for PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb (config validated; stack not yet run end to end)
+- [x] Docker Compose for PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb (run end to end on 23 Oct 2026)
 - [ ] CI workflow (backend, generator, mock bank, web, compose checks) — written, but not on this branch: pushing `.github/workflows/` needs a GitHub token with the `workflow` scope. Add it once that permission is granted; until then run the checks locally (see [Getting started](#getting-started))
 - [x] Backend skeleton: settings, health, policy status, `/api/v1/me`
 - [x] Keycloak realm with seven roles and development users; token verification and role-based permission checks (M1, backend side)
-- [x] Database schema for all 15 plan tables, with initial Alembic migration
+- [x] Database schema (21 tables, Alembic migrations 0001–0005)
 - [x] Lifecycle state machine with tests for every legal and illegal transition (M7 core)
 - [x] Audit hash chain and Merkle root with tamper-detection tests (M6 core)
 - [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
-- [x] Synthetic FDR generator (watermarked images + word-level labels)
+- [x] Real master data instead of fictional seeds: AICTE approved institutions (public dashboard) and the RBI IFSC bank master with RBI-cited mergers (M12)
+- [x] Synthetic FDR generator, simulator and synthetic-trained notebook removed (PRs #9, #10)
 - [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
 - [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
-- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A plugs in when the Colab-trained model is added (M3)
+- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until it can be trained on labelled real FDRs; FUNSD proxy notebook, and the API refuses non-FDR models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
 - [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
 - [x] Reminders once per threshold, overdue / coverage-gap / time-box escalation (M8)
 - [x] Dashboard with drill-down, reports as Excel/CSV (M10)
-- [ ] **Gate:** full story from upload to maturity reminder works — passes in the API's end-to-end tests; not yet run on the live stack and UI (needs Docker)
+- [ ] **Gate:** full story from upload to maturity reminder works — passes in the API's end-to-end tests; on the live stack it waits for a real FDR scan to upload
 
 **Phase 3: trust layer**
-- [x] Signed bank credential via the mock bank, pinned keys, Trust Ladder up to L4 with freshness decay (M5, N3, N4)
-- [x] Hash chain, Merkle anchoring (optional immudb receipt) and file verifier (M6)
+- [x] Signed bank credential via the mock bank, pinned keys, Trust Ladder up to L4 with freshness decay (M5, N3, N4); the bank operator records issued FDRs on the mock bank's own page
+- [x] Hash chain, Merkle anchoring with immudb receipts that are read back on verification, and file verifier (M6)
 - [x] Release / discharge / refund workflow with policy checklist, mandatory reason, release letter PDF and bank lien removal (M9, N5)
 - [x] Double-pledge and near-duplicate detection with IFSC lineage (N7)
-- [x] Forgery signal: RGB-GLCM + ELA + copy-move features, SVM classifier on synthetic tampering (N6)
+- [x] Forgery signal: RGB-GLCM + ELA + copy-move features with an SVM classifier (N6)
+- [ ] Forgery signal that works on real forgeries: the Find it again! retrain reached only AUC 0.534 (proxy), so it is not merged
 - [ ] **Gate:** feature freeze
 
 **Phase 4: intelligence and demo readiness**
-- [x] Renewal-risk model (LightGBM) with SHAP reasons, scored in the sweep (N9)
+- [x] Renewal-risk method (LightGBM + SHAP reasons) measured on the BPI Challenge 2017 log as a proxy, pooled AUC 0.789 (PR #10); live scoring off (the API refuses models without `live_scoring: true`) until DepositTrack has its own renewal history (N9)
 - [x] Procedural conformance replay with proposed constraints (N10)
 - [ ] Officer assistant with RAGAS score (M11) — skipped for the prototype by decision
 - [ ] Manual-vs-portal timing runs; fill in [Expected outcomes](#expected-outcomes)
@@ -558,13 +570,13 @@ flowchart LR
 
 Immediate next steps, in order:
 
-1. **Run the Docker stack end to end** and confirm Keycloak login, PostgreSQL migrations and SeaweedFS bucket access locally.
-2. **Web app scaffold** (`apps/web`, Next.js) with Keycloak login, built with the taste-skill plugin.
-3. **Attribute-based access rules** on top of the role matrix (own institution, region, own bank).
-4. **Answer the open questions** (below) with an AICTE or institution accounts official. They decide rule values that the code keeps configurable.
-5. **Event-log simulator** for the renewal-risk model (N9) and conformance replay (N10).
-6. **Core vertical slice (Phase 2):** upload → extraction → rules → lifecycle → reminder → dashboard, before any trust or AI work.
-7. **Record the demo FDRs at the mock bank:** its ledger starts empty, so each FDR the demo submits must be recorded at the bank (operator page or `python -m mockbank register`) before "Verify with bank" can attest it.
+1. **A real FDR scan** (with the owner's consent, personal details redacted) from the maintainer, to walk the upload → extraction → bank verification story on the live stack. Record the same FDR at the mock bank (its operator page) before "Verify with bank".
+2. **Forgery signal:** decide how to proceed after the weak Find it again! result (other features or methods, or keep the signal off and rely on the bank cross-check).
+3. **Re-run the LayoutLMv3 notebook** with the merged protocol (fixed 1,000 steps, single evaluation) and record the score.
+4. **Security fix in PR #12:** instrument detail needs a read permission, and unknown role mixes are denied by default.
+5. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
+6. **CI workflow** once the GitHub token has the `workflow` scope.
+7. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
 8. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
@@ -573,32 +585,40 @@ Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-mo
 
 ## Repository structure
 
-**Current:**
-
 ```
 DepositTrack-AICTE-FDR-Management/
   README.md
   IMPLEMENTATION_PLAN.md
   AGENTS.md                  # rules for contributors and AI agents
-  CLAUDE.md                  # Claude Code entry point (imports AGENTS.md)
+  CLAUDE.md                  # Claude Code entry point (imports AGENTS.md and CONTEXT.md)
+  CONTEXT.md                 # hand-over notes: current state, decisions, next steps
   LICENSE
   apps/
     api/                     # FastAPI backend
       app/
-        core/                # settings, permissions, token verification, policy loader
+        api/                 # HTTP routes (instruments, cases, dashboard, audit, admin, ...)
+        core/                # settings, permissions, ABAC scoping, token verification, policy loader
         db/                  # declarative base, session
-        models/              # 15 tables from plan §7.2
-        modules/
-          auth/              # /api/v1/me
-          lifecycle/         # states, trust levels, state machine
-          audit/             # hash chain, Merkle root
-      alembic/               # migrations
-      config/                # policy.example.yaml (AICTE values unconfirmed)
-      tests/
-  ml/
-    synth/                   # synthetic FDR generator (fdrsynth)
+        models/              # 21 tables (plan §7.2 plus bank master, mergers, anchor membership)
+        modules/             # alerts, audit, auth, bank, checks, extraction, forgery, instruments,
+                             # lifecycle, masterdata, release, risk, storage
+        masterdata.py        # fetch / import public master data
+        seed.py              # development accounts
+      alembic/               # migrations 0001-0005
+      config/                # every rule file (policy, extraction, checks, workflow, alerts,
+                             # conformance, master_data, bank_mergers)
+      seed/                  # development account list
+      tests/                 # unit + end-to-end API tests; fixtures are excerpts of real public data
+    web/                     # Next.js: institution, officer, auditor, verifier screens (English + Hindi)
   services/
-    mock-bank/               # simulated issuing bank: records the FDRs it issued, signs credentials, lien status
+    mock-bank/               # simulated issuing bank: operator page, insert-only ledger, signed credentials
+  ml/
+    open_datasets.json       # open datasets: pinned Kaggle versions, licences, citations
+    download_open_data.py    # downloads a catalog entry into data/<name>/
+    forgery/                 # forgery signal training (Find it again! retrain on a separate branch)
+    risk/                    # renewal-risk proxy training (BPI Challenge 2017)
+    layoutlm/                # LayoutLMv3 FUNSD proxy notebook
+    tests/                   # tests for the ml scripts
   infra/
     docker-compose.yml
     keycloak/                # realm import
@@ -609,14 +629,9 @@ DepositTrack-AICTE-FDR-Management/
     Mayank_Kathe/            # 7 papers + research notes
 ```
 
-**Planned additions:**
+Generated and downloaded files are not committed: `data/open/` (public master data), `data/<dataset>/` (open datasets), `models/` (trained models), `var/` (local storage, keys, ledgers).
 
-```
-  apps/web/                  # Next.js: institution, officer, auditor, verifier UIs
-  apps/api/app/workers/      # Celery tasks and schedules
-  ml/                        # LayoutLMv3, forgery, risk models, RAG
-  docs/                      # ADRs, API spec, dataset cards
-```
+**Planned additions:** `apps/api/app/workers/` (Celery tasks and schedules), `docs/` (ADRs, API spec, dataset cards).
 
 ---
 

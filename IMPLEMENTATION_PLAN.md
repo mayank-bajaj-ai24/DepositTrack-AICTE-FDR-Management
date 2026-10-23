@@ -404,9 +404,9 @@ flowchart TB
     subgraph Stores[" "]
         direction LR
         D1["PostgreSQL + pgvector"]
-        D2["MinIO (encrypted files)"]
+        D2["SeaweedFS S3 (encrypted files)"]
         D3["immudb (anchors, proofs)"]
-        D4["Redis + Celery (jobs, schedules)"]
+        D4["Redis + Celery (jobs, schedules; planned)"]
     end
 
     Actors --> GW --> Core
@@ -419,7 +419,7 @@ flowchart TB
 
 ### 6.1 Data flow for one submission
 
-1. The institution uploads a scan and types (or accepts) key fields. The gateway checks role + attributes. M2 stores the file encrypted in MinIO and records its SHA-256 and version in PostgreSQL.
+1. The institution uploads a scan and types (or accepts) key fields. The gateway checks role + attributes. M2 stores the file encrypted in S3-compatible storage (SeaweedFS) and records its SHA-256 and version in PostgreSQL.
 2. M3 runs dual-pass extraction. Disagreements and low-confidence fields go back to the user for confirmation.
 3. M4 runs completeness rules, policy rules, the duplicate key, forgery signals and the risk score. It writes flags (fact, rule, clause, reason). Trust rises to L1 if clean.
 4. M5 verifies the bank credential, or opens a manual verification task with an SLA timer. Trust rises to L3 on a match.
@@ -428,21 +428,21 @@ flowchart TB
 
 ### 6.2 Tech stack
 
-| Layer | Choice | Reason |
-| --- | --- | --- |
-| Frontend | Next.js + React, Tailwind, shadcn/ui, Recharts | Fast to build accessible dashboards |
-| API | FastAPI (Python 3.11), Pydantic | Same language as the ML code; auto OpenAPI docs |
-| Auth | Keycloak (OTP/MFA, roles) | SSO-ready; can federate with government SSO later |
-| Jobs | Celery + Redis, Celery beat | Retries for OCR/bank calls; daily lifecycle and coverage sweep |
-| Database | PostgreSQL 16 + pgvector | Relational core plus clause retrieval in one store |
-| Files | MinIO (S3-compatible), server-side encryption | Local and cloud-portable |
-| Tamper evidence | immudb (production option: permissioned ledger, PoA/BFT) | Inclusion/consistency proofs out of the box |
-| OCR / doc AI | docTR or PaddleOCR + `microsoft/layoutlmv3-base` | Open source, CPU inference acceptable |
-| ML | scikit-learn, scikit-image, XGBoost, LightGBM, SHAP, alibi (Anchors) | Matches P4, P5, P6 methods |
-| Credentials | Ed25519 JSON signatures (stretch: W3C VC tooling) | Simple and standards-aligned |
-| Assistant | Retrieval over pgvector + an LLM; `ragas` for evaluation | Cited answers with measured faithfulness |
-| Reports | WeasyPrint (PDF), openpyxl (Excel) | Release letters, scheduled reports |
-| DevOps | Docker Compose, GitHub Actions, pytest, Playwright | One-command demo; tests on every push |
+| Layer | Choice | Reason | As built in the prototype (Oct 2026) |
+| --- | --- | --- | --- |
+| Frontend | Next.js + React, Tailwind, shadcn/ui, Recharts | Fast to build accessible dashboards | Next.js 16 + React 19, plain CSS tokens (taste-skill style), SVG charts |
+| API | FastAPI (Python 3.11), Pydantic | Same language as the ML code; auto OpenAPI docs | As planned, with SQLAlchemy 2 + Alembic |
+| Auth | Keycloak (OTP/MFA, roles) | SSO-ready; can federate with government SSO later | As planned |
+| Jobs | Celery + Redis, Celery beat | Retries for OCR/bank calls; daily lifecycle and coverage sweep | Not built; the sweep runs from the admin screen / API with a demo clock |
+| Database | PostgreSQL 16 + pgvector | Relational core plus clause retrieval in one store | As planned |
+| Files | MinIO (S3-compatible), server-side encryption | Local and cloud-portable | SeaweedFS (MinIO no longer publishes Docker images); files encrypted by the app (Fernet) |
+| Tamper evidence | immudb (production option: permissioned ledger, PoA/BFT) | Inclusion/consistency proofs out of the box | immudb via `immudb-py`; receipts read back with a verified get |
+| OCR / doc AI | docTR or PaddleOCR + `microsoft/layoutlmv3-base` | Open source, CPU inference acceptable | RapidOCR + configured rules; LayoutLMv3 only as a FUNSD proxy until labelled real FDRs exist |
+| ML | scikit-learn, scikit-image, XGBoost, LightGBM, SHAP, alibi (Anchors) | Matches P4, P5, P6 methods | scikit-learn, scikit-image, LightGBM, SHAP (XGBoost/Anchors not used) |
+| Credentials | Ed25519 JSON signatures (stretch: W3C VC tooling) | Simple and standards-aligned | As planned |
+| Assistant | Retrieval over pgvector + an LLM; `ragas` for evaluation | Cited answers with measured faithfulness | Not built (skipped for the prototype) |
+| Reports | WeasyPrint (PDF), openpyxl (Excel) | Release letters, scheduled reports | reportlab (PDF), openpyxl, CSV |
+| DevOps | Docker Compose, GitHub Actions, pytest, Playwright | One-command demo; tests on every push | Docker Compose, pytest, ruff, ESLint; GitHub Actions pending a token scope |
 
 ---
 
@@ -526,7 +526,7 @@ Each module lists what it does and its **definition of done (DoD)**.
 ### M3. Extraction (N6)
 
 1. **Pre-process:** deskew, denoise, render PDFs at 300 dpi.
-2. **OCR:** docTR/PaddleOCR produces words + boxes.
+2. **OCR:** RapidOCR produces words + boxes (docTR and PaddleOCR were the candidates).
 3. **Pass A:** LayoutLMv3 token classification with labels FDR_NO, BANK, BRANCH, IFSC, AMOUNT, AMOUNT_WORDS, ISSUE_DATE, MATURITY_DATE, BENEFICIARY, DEPOSITOR, LIEN_TEXT.
 4. **Pass B:** rules + LLM key-value extraction.
 5. **Post-process:**
@@ -538,8 +538,9 @@ Each module lists what it does and its **definition of done (DoD)**.
 
 - **Fallback** if fine-tuning is late: Pass B alone, keeping the human-confirm step.
 - **DoD:**
-  - ≥ 90% field accuracy on held-out synthetic FDRs;
+  - ≥ 90% field accuracy on a held-out set of labelled real FDRs (redacted, with consent);
   - < 5 s per page on CPU.
+- Until labelled real FDRs exist, pass A stays off and the LayoutLMv3 method is measured on FUNSD as a proxy (§9).
 
 ### M4. Rules, discrepancy and forgery (N7, N8)
 
@@ -664,6 +665,7 @@ Each module lists what it does and its **definition of done (DoD)**.
   - consent-based financial-data sharing (Account Aggregator rails);
   - issuer-signed document pull (DigiLocker pattern).
 - **Constraint:** integrations go only through formally authorised channels. The system never scrapes or logs in to bank portals.
+- **As built:** institutions are imported from AICTE's public approved-institutions dashboard (all states, checked against the all-India list); banks, sublet IFSCs and IFSC lineage from the RBI IFSC master (Razorpay IFSC dataset, MIT); bank mergers from `config/bank_mergers.yaml`, each cited to its RBI press release.
 
 ### M13. Conformance replay (N10)
 
@@ -674,18 +676,27 @@ Each module lists what it does and its **definition of done (DoD)**.
 
 ## 9. AI / ML components
 
-Real FDRs are confidential, so the team builds labelled synthetic data first. Real data, if any, is used only with written permission and with personal data redacted. All synthetic-data results must be labelled as synthetic.
+**Decision (23 Oct 2026): no synthetic data.** It replaces the earlier plan to build labelled synthetic FDRs. Real FDRs are confidential and no public FDR dataset exists, so:
+
+- master data comes from public sources (M12);
+- each model is trained on the closest **open dataset** and its results are reported as **proxy results on that dataset**, not as FDR results;
+- a proxy model that cannot speak for AICTE institutions stays off in the live system until it can be trained on DepositTrack's own data; one whose features do not depend on the document type may run live, labelled with its dataset;
+- real FDRs are used only with the owner's consent and personal data redacted, for final validation.
 
 ### 9.1 Datasets
 
-| Dataset | Target size | Method | Used by |
-| --- | --- | --- | --- |
-| Synthetic FDR images | ~2,000 pages, multiple bank-style templates | HTML templates rendered with valid-format random values; scan artefacts (blur, noise, skew, stamps, folds) via Augraphy | M3 |
-| Real redacted FDRs | Whatever can be obtained with permission | Redacted, final validation only | M3, M4 |
-| Forgery set | Genuine + tampered regions on amount/date/name | Apply P4's forgery types (copy-paste, insertion, noise, blur, combinations) | M4 |
-| Synthetic event logs | Hundreds of institutions × multiple years | Simulator with behaviour personas (punctual, slow, chronically late, fraud-prone) | N9, N10 |
-| Regulation corpus | Public AICTE handbook + circulars | Chunk by clause | N8, M11 |
-| Assistant eval set | ~40 Q&A | Written by the team; optionally auto-generated per P8 then reviewed | M11 |
+| Dataset | Size | Source and licence | Used by | Live use |
+| --- | --- | --- | --- | --- |
+| AICTE approved institutions | 13,088 institutions (2024-25) | AICTE public dashboard | M12 master data | Yes |
+| RBI IFSC master | 1,344 banks, 1,156 sublet IFSCs | Razorpay IFSC dataset (MIT), from RBI lists; mergers cited to RBI | M12, N7 | Yes |
+| Find it again! | 988 scanned receipts, 163 with real manual forgeries, forged regions annotated | Martínez Tornés et al., ICDAR 2023 (Kaggle; licence not stated, research dataset) | M4 forgery signal | No: the retrain reached page AUC 0.534 (near chance), so it is not used |
+| BPI Challenge 2017 | 31,509 loan applications (event log) | Dutch bank, 4TU.ResearchData (CC BY 4.0 per the Kaggle mirror) | N9 renewal-risk method | No (proxy only) |
+| FUNSD | 199 scanned forms, question/answer/header labels | Jaume et al., 2019 (research and educational use) | M3 LayoutLMv3 method | No (proxy only) |
+| Real redacted FDRs | Whatever can be obtained with consent | Owners, redacted | M3, M4 final validation | — |
+| Regulation corpus | Public AICTE handbook + circulars | Chunk by clause | N8, M11 | — |
+| Assistant eval set | ~40 Q&A | Written by the team | M11 (not built) | — |
+
+Datasets (pinned versions), licences and citations are kept in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` into `data/<name>/`; downloaded data is never committed.
 
 ### 9.2 Models and targets
 
@@ -697,7 +708,7 @@ Real FDRs are confidential, so the team builds labelled synthetic data first. Re
 | Renewal risk | LightGBM P(miss) + direct remaining-time regressor (P5) | AUC; mean warning lead time; MAE | ≥ 0.80; ≥ 21 days |
 | Assistant | Retrieval + LLM, cited | RAGAS faithfulness | ≥ 0.85 |
 
-These targets are the team's goals, not results. Report the measured values.
+These targets are the team's goals, not results. Report the measured values, and name the dataset; a proxy result is labelled as one (README, Expected outcomes).
 
 ---
 
@@ -742,7 +753,7 @@ Controls are organised under the five IDMS properties from P7.
 
 | ID | Scenario (PS wording where applicable) | Automated test | Pass condition |
 | --- | --- | --- | --- |
-| T-01 | **New FDR submission** | Upload synthetic FDRs via API | Stored, hashed, versioned; fields extracted; L1 when clean |
+| T-01 | **New FDR submission** | Upload FDR scans via API (automated tests use a fake OCR result) | Stored, hashed, versioned; fields extracted; L1 when clean |
 | T-02 | Repository completeness (R-a) | Schema + search tests | All PS-listed fields stored and searchable |
 | T-03 | **Validity tracking** | Sweep over seeded dates | Every instrument in the correct state bucket |
 | T-04 | **Approaching maturity** | Clock set to each configured threshold | Exactly one reminder per threshold; escalation when ignored |
@@ -778,7 +789,7 @@ The phases are relative to the team's kickoff. **Team size, member roles and the
 ```mermaid
 flowchart LR
     P0["Phase 0<br/>Idea submission<br/>(PS deadline 28 Oct 2026)"]
-    P1["Phase 1<br/>Repo, CI, Docker<br/>Data model, auth<br/>Synthetic FDRs"]
+    P1["Phase 1<br/>Repo, CI, Docker<br/>Data model, auth<br/>Public master data"]
     P2["Phase 2<br/>Upload + extraction<br/>Lifecycle + coverage<br/>Reminders, dashboard v1"]
     G1{{"Gate: core demo<br/>end to end"}}
     P3["Phase 3<br/>Bank credential + Trust Ladder<br/>Audit chain + verifier<br/>Release workflow, forgery"]
@@ -798,7 +809,7 @@ flowchart LR
 - [ ] CI green.
 - [ ] Login with all roles.
 - [ ] All tables migrated.
-- [ ] First batch of synthetic FDRs rendered.
+- [ ] Public master data imported (AICTE institutions, RBI IFSC master).
 - [ ] One conversation with an AICTE or institution accounts official (answers to §14).
 
 **Phase 2: core lifecycle**
@@ -843,7 +854,7 @@ flowchart LR
 
 | Risk | Likelihood | Fallback |
 | --- | --- | --- |
-| No real FDR samples | High | Synthetic set; disclose openly; seek redacted samples early |
+| No real FDR samples | High | Open datasets as labelled proxies and public master data; disclose openly; seek redacted samples with consent early |
 | LayoutLMv3 fine-tune underperforms | Medium | Pass B (rules + LLM) with human confirmation |
 | Bank integration questioned as unrealistic | High | Present it as a proposal with Indian precedents (electronic BG, bank-to-bank advice); the prototype uses simulators |
 | AICTE rule values unknown | High | All amounts, windows and conditions are configuration, not code; demo values clearly marked as placeholders |
@@ -886,15 +897,15 @@ DepositTrack-AICTE-FDR-Management/
         risk/ assistant/ conformance/ integration/
       workers/                 # Celery tasks and beat schedules
   ml/
-    synth/                     # FDR template renderer + scan artefacts
-    layoutlm/                  # fine-tune and inference
-    forgery/                   # GLCM features, ELA, classifiers
-    risk/                      # event-log simulator, LightGBM, SHAP, Anchors
+    open_datasets.json         # open datasets used, with licences and citations
+    layoutlm/                  # fine-tune notebook (FUNSD proxy)
+    forgery/                   # GLCM features, ELA, classifiers (Find it again!)
+    risk/                      # LightGBM, SHAP (BPI Challenge 2017 proxy)
     rag/                       # clause ingestion, retrieval, RAGAS eval
   services/
     mock-bank/                 # issues and revokes signed FDR credentials
   infra/
-    docker-compose.yml         # postgres, minio, redis, immudb, keycloak
+    docker-compose.yml         # postgres, seaweedfs, redis, immudb, keycloak
   docs/                        # ADRs, API spec, dataset cards
   tests/                       # pytest + Playwright; SIH scenario suite (§11)
 ```
@@ -924,4 +935,4 @@ Papers in `research/Mayank_Kathe/`:
 14. Khanvilkar, K., Kommuru, K. (2025). Regulatory Graphs and GenAI for Real-Time Transaction Monitoring and Compliance Explanation in Banking. *arXiv:2506.01093*. https://arxiv.org/abs/2506.01093
 15. Keating, L. (2024). Blockchain-Enabled Audit Trails for Compliance and Security in Cloud-Based Payment Systems. Preprint (no venue listed).
 
-Indian systems mentioned as precedents (electronic bank guarantees, bank-to-bank BG advice, Account Aggregator, DigiLocker) and open-source tools (immudb, docTR, PaddleOCR, Keycloak, ragas, Augraphy) should be re-checked at their official sites before they are cited in the submission.
+Indian systems mentioned as precedents (electronic bank guarantees, bank-to-bank BG advice, Account Aggregator, DigiLocker) and open-source tools and datasets (immudb, RapidOCR, Keycloak, ragas, Find it again!, BPI Challenge 2017, FUNSD, Razorpay IFSC) should be re-checked at their official sites before they are cited in the submission.
