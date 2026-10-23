@@ -329,7 +329,7 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | File storage | SeaweedFS (S3-compatible); replaces MinIO from the plan, which no longer publishes Docker images |
 | Tamper evidence | immudb receipts via `immudb-py` (optional `anchoring` extra); permissioned ledger as production option |
 | OCR / document AI | RapidOCR + configured rules (pass B); LayoutLMv3 (pass A) only once trained on labelled real FDRs |
-| Machine learning | scikit-learn, scikit-image, LightGBM, SHAP; open datasets fetched with `kagglehub` |
+| Machine learning | scikit-learn, scikit-image, LightGBM, SHAP; open datasets fetched with `kagglehub` (`data` extra) |
 | Master data | AICTE approved-institutions dashboard; RBI IFSC master via the Razorpay IFSC dataset (MIT) |
 | Credentials | Ed25519 signed JSON |
 | Assistant | Not built (skipped for the prototype) |
@@ -398,21 +398,21 @@ alembic downgrade base && alembic upgrade head   # drops all data, including upl
 
 Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
 
-**3. Models on open datasets** (optional; pending PRs #8, #9, #10 and the forgery PR)
+**3. Models on open datasets** (optional)
 
-No public FDR dataset exists, so each model is trained on the closest open dataset and reported as a proxy. A free Kaggle account and API token are needed (Kaggle → Settings → API → Create New Token; save it as `~/.kaggle/access_token`). Datasets, licences and citations are listed in `ml/open_datasets.json`.
+No public FDR dataset exists, so each model is trained on the closest open dataset and reported as a proxy. A free Kaggle account and API token are needed (Kaggle → Settings → API → Create New Token; save it as `~/.kaggle/access_token`). Datasets, pinned versions, licences and citations are listed in `ml/open_datasets.json`; downloads go to the git-ignored `data/<name>/`.
 
 ```bash
 # from the repository root, with the API's virtual environment
-python ml/download_open_data.py find-it-again        # receipts with real forgeries (ICDAR 2023)
-python ml/forgery/train.py --data <path>/findit2 --out models
+pip install -e "apps/api[data,ml]"                   # kagglehub + model libraries
 python ml/download_open_data.py bpi-2017             # BPI Challenge 2017 loan-application log
-python ml/risk/train.py --log <path>/bpi_2017_cleaned.csv   # writes models/renewal_risk_proxy (not loaded live)
+python ml/risk/train.py --out models                 # writes models/renewal_risk_proxy (not loaded live)
+python -m pytest ml/tests                            # tests for the download helper and the risk trainer
 ```
 
-LayoutLMv3: open `ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb` in Colab on the free T4 GPU and run all cells. It fine-tunes on FUNSD forms as a proxy; its model is not used by the API.
+LayoutLMv3: open `ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb` in Colab on the free T4 GPU and run all cells. It fine-tunes on FUNSD forms as a proxy; the API refuses to load it (`pass_a_enabled: false` in `config/extraction.yaml`, and the loader rejects models whose labels are not FDR fields).
 
-`ml/synth` (the old synthetic FDR generator) is still on `main` until PR #9 removes it; do not use it.
+Forgery signal: the Find it again! training is on a separate branch and **not merged**; its first result was close to chance (see [Expected outcomes](#expected-outcomes)). Its licence is not stated, so `download_open_data.py find-it-again` needs `--accept-unconfirmed-licence`.
 
 **4. Mock bank** (simulation of the issuing bank's signed confirmation channel)
 
@@ -445,12 +445,12 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 | Field extraction | Field exact-match after rules (overall) | ≥ 90% | — | Not measured: needs labelled real FDRs |
 | Field extraction | Exact-match on amount and dates | ≥ 95% | — | Not measured: needs labelled real FDRs |
 | Field extraction | Processing time per page (CPU) | < 5 s | — | To be measured on real scans |
-| Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | Reproduces the paper's 90.29 (PR #9); checkpoint picked on test (FUNSD has no validation split); pass A off live |
-| Forgery signals | Recall on tampered pages | ≥ 0.90 | — | Training on Find it again! receipts (proxy) in progress |
-| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | — | As above |
+| Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
+| Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
+| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
-| Renewal risk | AUC | ≥ 0.80 | 0.821 — **proxy**, BPI Challenge 2017 loan applications (5,510 later applications held out by time) | Met on the proxy (PR #10); live scoring off |
-| Renewal risk | Mean warning lead time | ≥ 21 days | 14.6 days mean, 16.6 median — **proxy**; 80.1% of missed deadlines caught at 12.0% false alarms | Below target on the proxy, whose deadline is only about 30 days after the offer |
+| Renewal risk | AUC | ≥ 0.80 | 0.789 pooled — **proxy**, BPI Challenge 2017 (6,197 later applications held out by time); by week since the offer 0.588 / 0.599 / 0.640 / 0.691 / 0.833; a one-feature baseline (days since last event) reaches 0.767 pooled | Below target on the proxy; early-week warning is weak. Live scoring off |
+| Renewal risk | Mean warning lead time | ≥ 21 days | 14.1 days mean, 16.5 median — **proxy**; 99.8% of missed deadlines caught at 12.0% false alarms | Below target on the proxy, whose deadline is only about 30 days after the offer |
 | Officer assistant | RAGAS faithfulness | ≥ 0.85 | — | Not built (skipped for the prototype) |
 | Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus institution, region, bank and mixed-role scoping tests | Met |
 
@@ -500,7 +500,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 377 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests
+- [x] Backend: 394 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 
@@ -534,14 +534,14 @@ flowchart LR
 - [x] Audit hash chain and Merkle root with tamper-detection tests (M6 core)
 - [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
 - [x] Real master data instead of fictional seeds: AICTE approved institutions (public dashboard) and the RBI IFSC bank master with RBI-cited mergers (M12)
-- [ ] Remove the synthetic FDR generator (PR #9)
+- [x] Synthetic FDR generator, simulator and synthetic-trained notebook removed (PRs #9, #10)
 - [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
 - [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
-- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until it can be trained on labelled real FDRs; FUNSD proxy notebook in PR #9 (M3)
+- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until it can be trained on labelled real FDRs; FUNSD proxy notebook, and the API refuses non-FDR models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
 - [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
 - [x] Reminders once per threshold, overdue / coverage-gap / time-box escalation (M8)
@@ -554,11 +554,11 @@ flowchart LR
 - [x] Release / discharge / refund workflow with policy checklist, mandatory reason, release letter PDF and bank lien removal (M9, N5)
 - [x] Double-pledge and near-duplicate detection with IFSC lineage (N7)
 - [x] Forgery signal: RGB-GLCM + ELA + copy-move features with an SVM classifier (N6)
-- [ ] Forgery model retrained on Find it again! (open receipts with real forgeries, proxy)
+- [ ] Forgery signal that works on real forgeries: the Find it again! retrain reached only AUC 0.534 (proxy), so it is not merged
 - [ ] **Gate:** feature freeze
 
 **Phase 4: intelligence and demo readiness**
-- [x] Renewal-risk method (LightGBM + SHAP reasons) measured on the BPI Challenge 2017 log as a proxy, AUC 0.821 (PR #10); live scoring off until DepositTrack has its own renewal history (N9)
+- [x] Renewal-risk method (LightGBM + SHAP reasons) measured on the BPI Challenge 2017 log as a proxy, pooled AUC 0.789 (PR #10); live scoring off (the API refuses models without `live_scoring: true`) until DepositTrack has its own renewal history (N9)
 - [x] Procedural conformance replay with proposed constraints (N10)
 - [ ] Officer assistant with RAGAS score (M11) — skipped for the prototype by decision
 - [ ] Manual-vs-portal timing runs; fill in [Expected outcomes](#expected-outcomes)
@@ -571,12 +571,13 @@ flowchart LR
 Immediate next steps, in order:
 
 1. **A real FDR scan** (with the owner's consent, personal details redacted) from the maintainer, to walk the upload → extraction → bank verification story on the live stack. Record the same FDR at the mock bank (its operator page) before "Verify with bank".
-2. **Merge the open-data PRs:** #8 (dataset helper), #10 (renewal-risk proxy), #9 (LayoutLMv3 FUNSD notebook, removes the synthetic generator), then the forgery PR when its training finishes.
-3. **Security follow-up:** `GET /instruments/{id}` has no permission check, and unusual role mixes (for example institution + bank service) match no scoping rule.
-4. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
-5. **CI workflow** once the GitHub token has the `workflow` scope.
-6. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
-7. **Idea submission** for the PS deadline (on hold).
+2. **Forgery signal:** decide how to proceed after the weak Find it again! result (other features or methods, or keep the signal off and rely on the bank cross-check).
+3. **Re-run the LayoutLMv3 notebook** with the merged protocol (fixed 1,000 steps, single evaluation) and record the score.
+4. **Security fix in PR #12:** instrument detail needs a read permission, and unknown role mixes are denied by default.
+5. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
+6. **CI workflow** once the GitHub token has the `workflow` scope.
+7. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
+8. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
@@ -612,10 +613,12 @@ DepositTrack-AICTE-FDR-Management/
   services/
     mock-bank/               # simulated issuing bank: operator page, insert-only ledger, signed credentials
   ml/
-    forgery/                 # forgery signal training
-    risk/                    # renewal-risk training
-    layoutlm/                # LayoutLMv3 notebook
-    synth/                   # old synthetic generator (removed by PR #9)
+    open_datasets.json       # open datasets: pinned Kaggle versions, licences, citations
+    download_open_data.py    # downloads a catalog entry into data/<name>/
+    forgery/                 # forgery signal training (Find it again! retrain on a separate branch)
+    risk/                    # renewal-risk proxy training (BPI Challenge 2017)
+    layoutlm/                # LayoutLMv3 FUNSD proxy notebook
+    tests/                   # tests for the ml scripts
   infra/
     docker-compose.yml
     keycloak/                # realm import
@@ -626,9 +629,9 @@ DepositTrack-AICTE-FDR-Management/
     Mayank_Kathe/            # 7 papers + research notes
 ```
 
-Generated and downloaded files are not committed: `data/open/` (public master data), `models/` (trained models), `var/` (local storage, keys, ledgers).
+Generated and downloaded files are not committed: `data/open/` (public master data), `data/<dataset>/` (open datasets), `models/` (trained models), `var/` (local storage, keys, ledgers).
 
-**Planned additions:** `apps/api/app/workers/` (Celery tasks and schedules), `ml/open_datasets.json` and `ml/download_open_data.py` (PR #8), `docs/` (ADRs, API spec, dataset cards).
+**Planned additions:** `apps/api/app/workers/` (Celery tasks and schedules), `docs/` (ADRs, API spec, dataset cards).
 
 ---
 
