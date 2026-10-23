@@ -360,6 +360,18 @@ uvicorn app.main:app --reload    # http://localhost:8000/docs
 pytest                           # unit tests (no services needed)
 ```
 
+**Master data (M12)** — real public sources only, downloaded to `data/open/` (not committed):
+
+```bash
+python -m app.masterdata fetch-institutions    # AICTE approved institutions (public dashboard), all states
+python -m app.masterdata import-institutions   # 13,088 institutions for 2024-25 at the time of writing
+python -m app.masterdata fetch-banks           # RBI IFSC master via the Razorpay IFSC dataset (MIT)
+python -m app.masterdata import-banks          # banks, sublet IFSCs, RBI-cited mergers (config/bank_mergers.yaml)
+python -m app.seed demo --institution-user-aicte-id <AICTE ID>   # links the dev institution user
+```
+
+Sources and parameters are in `config/master_data.yaml`. AICTE regional-office mapping is not published in a downloadable form, so `regions` stays empty (unconfirmed) and institutions import with no region.
+
 Useful endpoints: `GET /health`, `GET /api/v1/policy/status` (lists AICTE values still unconfirmed), `GET /api/v1/me` (needs a Keycloak token).
 
 **3. Synthetic FDRs**
