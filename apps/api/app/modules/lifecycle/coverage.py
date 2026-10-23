@@ -5,6 +5,9 @@ Declared coverage counts every live instrument; attested coverage counts only
 instruments at Trust Ladder L3 or above. Verification exposure = declared - attested.
 """
 
+import uuid
+from collections import defaultdict
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -14,6 +17,9 @@ from sqlalchemy.orm import Session
 
 from app.models import Coverage, Instrument, Obligation
 from app.modules.lifecycle.states import InstrumentState, TrustLevel
+
+# Obligation ids per allocation query when reporting on many obligations at once.
+_ID_BATCH = 500
 
 # States in which an instrument still covers an obligation.
 LIVE_STATES = {
@@ -54,13 +60,26 @@ class CoverageReport:
         return self.declared_today - self.attested_today
 
 
-def _allocations(session: Session, obligation: Obligation) -> list[tuple[Coverage, Instrument]]:
-    rows = session.execute(
-        select(Coverage, Instrument)
-        .join(Instrument, Instrument.id == Coverage.instrument_id)
-        .where(Coverage.obligation_id == obligation.id)
-    )
-    return [(c, i) for c, i in rows if InstrumentState(i.state) in LIVE_STATES]
+def _allocations(
+    session: Session, obligations: Sequence[Obligation]
+) -> dict[uuid.UUID, list[tuple[Coverage, Instrument]]]:
+    """Live allocations of many obligations, grouped by obligation id.
+
+    One query per batch of `_ID_BATCH` ids, so the cost does not grow with every obligation
+    on a dashboard and the IN list stays under the drivers' bind-parameter limits.
+    """
+    ids = list(dict.fromkeys(o.id for o in obligations))
+    grouped: dict[uuid.UUID, list[tuple[Coverage, Instrument]]] = defaultdict(list)
+    for start in range(0, len(ids), _ID_BATCH):
+        rows = session.execute(
+            select(Coverage, Instrument)
+            .join(Instrument, Instrument.id == Coverage.instrument_id)
+            .where(Coverage.obligation_id.in_(ids[start : start + _ID_BATCH]))
+        )
+        for c, i in rows:
+            if InstrumentState(i.state) in LIVE_STATES:
+                grouped[c.obligation_id].append((c, i))
+    return grouped
 
 
 def segments(
@@ -86,9 +105,22 @@ def segments(
 
 
 def report(session: Session, obligation: Obligation, today: date) -> CoverageReport:
+    return reports(session, [obligation], today)[0]
+
+
+def reports(
+    session: Session, obligations: Sequence[Obligation], today: date
+) -> list[CoverageReport]:
+    """Coverage of many obligations, in the given order, loading allocations in bulk."""
+    allocations = _allocations(session, obligations)
+    return [_report(o, allocations.get(o.id, []), today) for o in obligations]
+
+
+def _report(
+    obligation: Obligation, allocations: list[tuple[Coverage, Instrument]], today: date
+) -> CoverageReport:
     end = obligation.required_until or (today + timedelta(days=5 * 365))
     start = min(obligation.required_from, today)
-    allocations = _allocations(session, obligation)
     segs = segments(allocations, start, end, Decimal(obligation.required_amount))
     current = next((s for s in segs if s.start <= today <= s.end), None)
     first_gap = next(
