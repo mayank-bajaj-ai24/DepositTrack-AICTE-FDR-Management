@@ -79,3 +79,27 @@ def test_lien_removal_revokes(client):
     assert status["status"] == "revoked"
     assert status["lien_status"] == "REMOVED"
     assert status["next_update"] > status["last_update"]
+
+
+def test_bank_registers_an_fdr_it_issued(client):
+    record = RECORD | {"fdr_no": "NEW0000001", "depositor": "Depositor"}
+    r = client.post("/fdrs", json=record, headers=AUTH)
+    assert r.status_code == 201
+    assert r.json()["lien_status"] == "MARKED"
+    cred = client.get(
+        "/credentials", params={"ifsc": record["ifsc"], "fdr_no": record["fdr_no"]}, headers=AUTH
+    )
+    assert cred.json()["subject"]["amount_inr"] == record["amount"]
+
+
+def test_registering_needs_the_token_and_valid_values(client):
+    record = RECORD | {"fdr_no": "NEW0000002", "depositor": "Depositor"}
+    assert client.post("/fdrs", json=record).status_code == 401
+    bad = record | {"maturity_date": record["issue_date"]}
+    assert client.post("/fdrs", json=bad, headers=AUTH).status_code == 422
+    assert client.post("/fdrs", json=record | {"ifsc": "bad"}, headers=AUTH).status_code == 422
+
+
+def test_an_fdr_cannot_be_registered_twice(client):
+    record = RECORD | {"depositor": "Depositor"}
+    assert client.post("/fdrs", json=record, headers=AUTH).status_code == 409
