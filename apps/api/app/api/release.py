@@ -10,15 +10,28 @@ from sqlalchemy.orm import Session
 from app.api import serializers as ser
 from app.api.deps import actor_of, bank_dep, policy_dep, store_dep
 from app.core import clock
-from app.core.access import Scope, get_scope, get_visible_instrument, scope_instruments
+from app.core.access import (
+    CASE_READ,
+    Scope,
+    get_scope,
+    get_visible_instrument,
+    require,
+    scope_instruments,
+)
 from app.core.config import Settings, get_settings
-from app.core.permissions import Action, is_allowed
+from app.core.permissions import Action
 from app.core.policy import Policy
 from app.db.session import get_session
 from app.models import Case, Document, Institution, Instrument
 from app.modules.audit.service import record_event
 from app.modules.bank.client import BankClient
-from app.modules.release.service import blockers, complete_item, decide, open_case
+from app.modules.release.service import (
+    EVIDENCE_ROLES,
+    blockers,
+    complete_item,
+    decide,
+    open_case,
+)
 from app.modules.storage.store import DocumentStore
 
 router = APIRouter(prefix="/api/v1", tags=["release"])
@@ -37,19 +50,45 @@ def request_release(
     session: Session = Depends(get_session),
     policy: Policy = Depends(policy_dep),
 ) -> dict:
-    if not is_allowed(scope.principal.roles, Action.RELEASE_REQUEST):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
-    instrument = get_visible_instrument(session, scope, instrument_id)
+    instrument = get_visible_instrument(
+        session, scope, instrument_id, actions=(Action.RELEASE_REQUEST,)
+    )
     case = open_case(session, instrument, policy, actor_of(scope), body.case_type, body.reason)
     session.commit()
     return ser.case(case, blockers(session, case))
 
 
-def _case(session: Session, scope: Scope, case_id: uuid.UUID) -> Case:
+def _case(
+    session: Session,
+    scope: Scope,
+    case_id: uuid.UUID,
+    actions: tuple[Action, ...] = (),
+    roles: tuple[str, ...] = (),
+) -> Case:
+    """The case, if a role that may perform the step can see its instrument. A caller with no
+    such role is refused before the lookup, so it cannot tell which case ids exist."""
+    require(scope, actions, roles)
     case = session.get(Case, case_id)
     if case is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Case not found")
-    get_visible_instrument(session, scope, case.instrument_id)
+    get_visible_instrument(session, scope, case.instrument_id, actions=actions, roles=roles)
+    return case
+
+
+def _checklist_case(session: Session, scope: Scope, case_id: uuid.UUID, item_id: str) -> Case:
+    """The open case, if the caller may complete item `item_id`: it holds the item's role, and
+    that role (not a wider one the caller also holds) sees the instrument. Checked before any
+    evidence is stored, so a refused upload leaves no file behind."""
+    case = _case(session, scope, case_id, actions=CASE_READ)
+    if case.state != "open":
+        raise HTTPException(status.HTTP_409_CONFLICT, "Case is not open")
+    item = next((i for i in case.checklist or [] if i["id"] == item_id), None)
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such checklist item")
+    role = EVIDENCE_ROLES[item["evidence"]]
+    if role not in scope.principal.roles:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Only {role} can complete this item")
+    get_visible_instrument(session, scope, case.instrument_id, roles=(role,))
     return case
 
 
@@ -59,12 +98,13 @@ def list_cases(
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ) -> dict:
+    require(scope, CASE_READ)
     query = (
         select(Case, Instrument, Institution)
         .join(Instrument, Instrument.id == Case.instrument_id)
         .join(Institution, Institution.id == Instrument.institution_id)
     )
-    query = scope_instruments(query, scope)
+    query = scope_instruments(query, scope, CASE_READ)
     if state:
         query = query.where(Case.state == state)
     rows = session.execute(query.order_by(Case.due_at)).all()
@@ -82,7 +122,7 @@ def list_cases(
 def get_case(
     case_id: uuid.UUID, scope: Scope = Depends(get_scope), session: Session = Depends(get_session)
 ) -> dict:
-    case = _case(session, scope, case_id)
+    case = _case(session, scope, case_id, actions=CASE_READ)
     return ser.case(case, blockers(session, case) if case.state == "open" else [])
 
 
@@ -96,7 +136,7 @@ def upload_evidence(
     settings: Settings = Depends(get_settings),
     store: DocumentStore = Depends(store_dep),
 ) -> dict:
-    case = _case(session, scope, case_id)
+    case = _checklist_case(session, scope, case_id, item_id)
     data = file.file.read(settings.max_upload_mb * 1024 * 1024 + 1)
     if not data or len(data) > settings.max_upload_mb * 1024 * 1024:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Empty or oversized file")
@@ -147,7 +187,7 @@ def tick_item(
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ) -> dict:
-    case = _case(session, scope, case_id)
+    case = _checklist_case(session, scope, case_id, item_id)
     complete_item(session, case, item_id, actor_of(scope), scope.principal.roles, ref=body.note)
     session.commit()
     return ser.case(case, blockers(session, case))
@@ -168,9 +208,12 @@ def decide_case(
     store: DocumentStore = Depends(store_dep),
     bank: BankClient | None = Depends(bank_dep),
 ) -> dict:
-    if not is_allowed(scope.principal.roles, Action.RELEASE_APPROVE):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
-    case = _case(session, scope, case_id)
+    require(scope, (Action.RELEASE_APPROVE,))
+    # The policy names the approving role; only that role's scope reaches the case.
+    approver = policy.release_approver_role
+    if approver is None or approver not in scope.principal.roles:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the competent authority can decide")
+    case = _case(session, scope, case_id, roles=(approver,))
     decide(
         session,
         case=case,
