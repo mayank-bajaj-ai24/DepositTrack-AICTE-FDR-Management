@@ -11,8 +11,9 @@ import pytest
 from sqlalchemy import select
 
 from app.core.configfiles import load_config
-from app.models import Bank, BankMerger, Event, IfscLineage, Institution
+from app.models import Bank, BankMerger, Event, IfscLineage, Institution, Instrument
 from app.modules.checks.canonical import canonical_bank
+from app.modules.lifecycle.states import InstrumentKind
 from app.modules.masterdata.aicte import (
     SnapshotError,
     fetch_institutions,
@@ -204,3 +205,57 @@ def test_bank_names_skip_sublet_ifscs(session):
     # A bank with no IFSC of its own is named from the IFSCs let to it.
     assert session.get(Bank, "KUNS").name == "Kurmanchal Nagar Sahakari Bank"
     assert session.get(Bank, "AACX").name == "Akhand Anand Co.op Bank"
+
+
+def _stored_instrument(session, ifsc: str, number: str = "123456") -> Instrument:
+    """An instrument stored before the bank import: keyed by its IFSC prefix only."""
+    inst = Institution(aicte_id=f"SYN-TEST-{number}", name="Synthetic Test Institute")
+    session.add(inst)
+    session.flush()
+    fdr = Instrument(
+        institution_id=inst.id,
+        kind=InstrumentKind.FDR,
+        bank_ifsc=ifsc,
+        canonical_bank=ifsc[:4],
+        instrument_no=number,
+        instrument_no_norm=number,
+    )
+    session.add(fdr)
+    session.flush()
+    return fdr
+
+
+def test_import_rekeys_instruments_stored_before_it(session):
+    vijaya = _stored_instrument(session, "VIJB0009502")
+    hdfc_sublet = _stored_instrument(session, "HDFC0CAACOB", "654321")
+    result = import_banks(session, FIXTURES, load_config("bank_mergers.yaml")["mergers"])
+    assert result["instruments_rekeyed"] == 2
+    assert vijaya.canonical_bank == "BARB"
+    assert hdfc_sublet.canonical_bank == "AACX"
+
+    event = session.scalars(
+        select(Event).where(Event.action == "masterdata.instruments_rekeyed")
+    ).one()
+    assert event.actor_id == "system"
+    assert event.after["instruments"] == 2
+    assert {(c["from"], c["to"], c["count"]) for c in event.after["changes"]} == {
+        ("VIJB", "BARB", 1),
+        ("HDFC", "AACX", 1),
+    }
+
+
+def test_rekeying_follows_a_merger_removed_from_the_config(session):
+    vijaya = _stored_instrument(session, "VIJB0009502")
+    import_banks(session, FIXTURES, load_config("bank_mergers.yaml")["mergers"])
+    result = import_banks(session, FIXTURES, [])
+    assert result["instruments_rekeyed"] == 1
+    assert vijaya.canonical_bank == "VIJB"
+
+
+def test_reimport_without_changes_rekeys_nothing_and_records_no_event(session):
+    _stored_instrument(session, "VIJB0009502")
+    mergers = load_config("bank_mergers.yaml")["mergers"]
+    import_banks(session, FIXTURES, mergers)
+    assert import_banks(session, FIXTURES, mergers)["instruments_rekeyed"] == 0
+    events = session.scalars(select(Event).where(Event.action == "masterdata.instruments_rekeyed"))
+    assert len(events.all()) == 1
