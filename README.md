@@ -389,7 +389,7 @@ The bank's ledger starts empty and nothing is generated: the bank side records e
 
 The mock bank has two tokens. `MB_API_TOKEN` is DepositTrack's: it reads the bank's keys, signed credentials and status, and removes AICTE's lien on release. `MB_OPERATOR_TOKEN` is the bank operator's: it records FDRs, lists the ledger and records an early closure (`POST /simulate/close`). The two must differ, and DepositTrack never gets the operator token. Endpoints for a token that is not set answer 503. An admin then pins the bank keys once in DepositTrack. `/keys` publishes a key for every bank code in `MB_BANK_CODES` from the start; if `MB_BANK_CODES` is empty, pin again after the first FDR of a new bank code. Keys already pinned never change.
 
-FDRs submitted to DepositTrack, including the synthetic ones from `python -m app.seed demo --synthetic`, get "the bank has no record of this FDR" on "Verify with bank" until the bank records them with their true values.
+An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "Verify with bank" until the bank records it with its true values.
 
 ---
 
