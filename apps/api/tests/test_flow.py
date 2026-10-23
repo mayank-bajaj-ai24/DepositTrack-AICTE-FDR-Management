@@ -4,14 +4,22 @@ from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select, update
+from sqlalchemy import event, select, update
 
 from app.api import deps
 from app.core import security
 from app.core.config import get_settings
 from app.db.session import get_session
 from app.main import create_app
-from app.models import Event, FieldValue, Notification
+from app.models import (
+    Coverage,
+    Event,
+    FieldValue,
+    Institution,
+    Instrument,
+    Notification,
+    Obligation,
+)
 from tests.flow_support import (
     FakeBank,
     fake_extractor,
@@ -53,6 +61,12 @@ def env(tmp_path, rsa_key, monkeypatch, make_token):
         "authority": make_token(["competent_authority"], username="authority"),
         "auditor": make_token(["auditor"], username="auditor"),
         "admin": make_token(["admin"], username="admin"),
+        "bank": make_token(["bank_service"], username="bank.xnbk"),
+        # Only Keycloak default roles, which DepositTrack ignores: no role at all.
+        "nobody": make_token(["offline_access", "uma_authorization"], username="nobody"),
+        "west_inst_b": make_token(
+            ["institution", "scrutiny_officer"], username="officer.west.inst.b"
+        ),
     }
 
     class Env:
@@ -441,3 +455,146 @@ def test_credential_from_an_unpinned_key_is_rejected(env):
     detail = _detail(env, instrument_id)
     assert detail["instrument"]["trust_level"] < 3
     assert any(f["type"] == "bank_mismatch" for f in detail["flags"])
+
+
+def test_officers_see_requirements_of_institutions_with_no_deposit(env):
+    # Nothing submitted yet: both obligations are fully uncovered and must still be visible.
+    dash = env.client.get("/api/v1/dashboard", headers=env.h("scrutiny")).json()
+    assert float(dash["coverage"]["required"]) == 1_000_000
+    assert dash["tiles"]["coverage_gaps"] == 2
+    items = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert len(items) == 2
+    own = env.client.get("/api/v1/coverage", headers=env.h("inst_a")).json()["items"]
+    assert [i["institution"]["aicte_id"] for i in own] == ["SYN-A"]
+
+
+@pytest.mark.parametrize("who", ["nobody", "bank"])
+def test_coverage_needs_report_view_or_own_read(env, who):
+    # No DepositTrack role, or a bank service account (attestation only): no amounts at all.
+    submit(env.client, env.tokens["inst_a"], values())  # XNBK instrument, the bank's own
+    assert env.client.get("/api/v1/coverage", headers=env.h(who)).status_code == 403
+    assert env.client.get("/api/v1/dashboard", headers=env.h(who)).status_code == 403
+
+
+def test_mixed_role_user_keeps_their_own_institution_outside_their_region(env):
+    # A West officer who is also institution B (East) sees West plus their own B.
+    submit(env.client, env.tokens["inst_b"], values(depositor="Synthetic Institute B"))
+    items = env.client.get("/api/v1/coverage", headers=env.h("west_inst_b")).json()["items"]
+    assert [i["institution"]["aicte_id"] for i in items] == ["SYN-A", "SYN-B"]
+    listing = env.client.get("/api/v1/instruments", headers=env.h("west_inst_b")).json()
+    assert [i["institution"]["aicte_id"] for i in listing["items"]] == ["SYN-B"]
+
+
+def _add_institutions_with_deposits(env, numbers):
+    """Synthetic West institutions, each with an obligation fully covered by one deposit."""
+    today = date.today()
+    with env.factory() as s:
+        for n in numbers:
+            inst = Institution(
+                aicte_id=f"SYN-X{n:03}",
+                name=f"Synthetic {n}",
+                institution_type="any",
+                region="West",
+            )
+            s.add(inst)
+            s.flush()
+            obligation = Obligation(
+                institution_id=inst.id,
+                basis_ref="demo approval case",
+                required_amount=500000,
+                required_from=today - timedelta(days=30),
+                required_until=today + timedelta(days=365),
+            )
+            instrument = Instrument(
+                institution_id=inst.id,
+                kind="fdr",
+                instrument_no=f"X{n}",
+                instrument_no_norm=f"X{n}",
+                amount=500000,
+                state="active",
+            )
+            s.add_all([obligation, instrument])
+            s.flush()
+            s.add(
+                Coverage(
+                    obligation_id=obligation.id,
+                    instrument_id=instrument.id,
+                    allocated_amount=500000,
+                    valid_from=today - timedelta(days=30),
+                    valid_to=today + timedelta(days=365),
+                )
+            )
+        s.commit()
+
+
+def _queries(env, path, who="scrutiny"):
+    engine = env.factory.kw["bind"]
+    statements = []
+
+    def count(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        assert env.client.get(path, headers=env.h(who)).status_code == 200
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
+    return len(statements)
+
+
+@pytest.mark.parametrize("path", ["/api/v1/coverage", "/api/v1/dashboard"])
+def test_coverage_query_count_does_not_grow_with_obligations(env, path):
+    # Allocations are loaded in bulk, not once per obligation (no N+1).
+    _add_institutions_with_deposits(env, range(0, 2))
+    few = _queries(env, path)
+    _add_institutions_with_deposits(env, range(2, 30))
+    assert _queries(env, path) == few
+    items = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert len(items) == 32
+
+
+def test_coverage_items_and_gaps_are_ordered_by_institution_then_start(env):
+    # Inserted out of order: a new institution that sorts first, and an older obligation of A.
+    today = date.today()
+    with env.factory() as s:
+        first = Institution(
+            aicte_id="SYN-0", name="Synthetic Institute 0", institution_type="any", region="West"
+        )
+        s.add(first)
+        s.flush()
+        for institution_id, basis, days in ((first.id, "zero", 30), (env.ids["a"], "older", 60)):
+            s.add(
+                Obligation(
+                    institution_id=institution_id,
+                    basis_ref=basis,
+                    required_amount=500000,
+                    required_from=today - timedelta(days=days),
+                    required_until=today + timedelta(days=365),
+                )
+            )
+        s.commit()
+    expected = [
+        ("SYN-0", "zero"),
+        ("SYN-A", "older"),
+        ("SYN-A", "demo approval case"),
+        ("SYN-B", "demo approval case"),
+    ]
+    items = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert [(i["institution"]["aicte_id"], i["basis_ref"]) for i in items] == expected
+    # Every gap starts today, so the dashboard keeps the same order for ties.
+    gaps = env.client.get("/api/v1/dashboard", headers=env.h("scrutiny")).json()["gaps"]
+    assert [g["institution"]["aicte_id"] for g in gaps] == [aicte for aicte, _ in expected]
+
+
+def test_regional_officer_sees_only_their_regions_requirements(env):
+    # B (East) has deposited; A (West) has not. The West officer sees A's whole requirement
+    # as a gap and nothing of B, the officer without a region sees both.
+    submit(env.client, env.tokens["inst_b"], values(depositor="Synthetic Institute B"))
+    items = env.client.get("/api/v1/coverage", headers=env.h("west")).json()["items"]
+    assert [i["institution"]["aicte_id"] for i in items] == ["SYN-A"]
+    dash = env.client.get("/api/v1/dashboard", headers=env.h("west")).json()
+    assert float(dash["coverage"]["required"]) == 500_000
+    assert [g["institution"]["aicte_id"] for g in dash["gaps"]] == ["SYN-A"]
+    assert dash["total"] == 0
+    everyone = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert [i["institution"]["aicte_id"] for i in everyone] == ["SYN-A", "SYN-B"]

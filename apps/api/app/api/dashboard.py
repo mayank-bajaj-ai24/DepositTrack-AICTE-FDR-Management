@@ -3,7 +3,7 @@
 import csv
 import io
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.api import serializers as ser
 from app.api.instruments import coverage_payload
 from app.core import clock
-from app.core.access import Scope, get_scope, scope_instruments
+from app.core.access import Scope, get_scope, scope_institutions, scope_instruments
 from app.core.permissions import Action, Role, is_allowed
 from app.db.session import get_session
 from app.models import Case, Event, Flag, Institution, Instrument, Notification, Obligation
@@ -26,6 +26,23 @@ router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 PENDING_STATES = {S.SUBMITTED, S.SCRUTINY, S.DISCREPANCY}
 
 
+def _open_coverage(
+    session: Session, scope: Scope, today: date
+) -> list[tuple[Obligation, Institution, coverage.CoverageReport]]:
+    """Coverage of the open obligations of every institution the caller may see, with or
+    without deposits. A fixed number of queries, however many obligations there are."""
+    query = (
+        select(Obligation, Institution)
+        .join(Institution, Institution.id == Obligation.institution_id)
+        .where(Obligation.status == "open")
+        # Stable order for the coverage strips and for ties in the dashboard's gap list.
+        .order_by(Institution.aicte_id, Obligation.required_from, Obligation.id)
+    )
+    rows = session.execute(scope_institutions(query, scope)).all()
+    reports = coverage.reports(session, [o for o, _ in rows], today)
+    return [(o, inst, rep) for (o, inst), rep in zip(rows, reports, strict=True)]
+
+
 def _visible(session: Session, scope: Scope) -> list[tuple[Instrument, Institution]]:
     query = select(Instrument, Institution).join(
         Institution, Institution.id == Instrument.institution_id
@@ -33,12 +50,19 @@ def _visible(session: Session, scope: Scope) -> list[tuple[Instrument, Instituti
     return list(session.execute(scope_instruments(query, scope)).all())
 
 
-@router.get("/dashboard")
-def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_session)) -> dict:
-    if not is_allowed(scope.principal.roles, Action.REPORT_VIEW) and not is_allowed(
-        scope.principal.roles, Action.INSTRUMENT_READ_OWN
+def _require_coverage_view(scope: Scope) -> None:
+    """Dashboard and coverage figures need report view (officers, reviewers) or read-own
+    (institutions). Bank service accounts and callers with no DepositTrack role are refused."""
+    if not (
+        is_allowed(scope.principal.roles, Action.REPORT_VIEW)
+        or is_allowed(scope.principal.roles, Action.INSTRUMENT_READ_OWN)
     ):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not permitted")
+
+
+@router.get("/dashboard")
+def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_session)) -> dict:
+    _require_coverage_view(scope)
     today = clock.today(session)
     rows = _visible(session, scope)
     ids = {i.id for i, _ in rows}
@@ -59,20 +83,13 @@ def dashboard(scope: Scope = Depends(get_scope), session: Session = Depends(get_
         )
 
     # Coverage across the visible institutions' obligations (N2)
-    institution_ids = {inst.id for _, inst in rows}
     required = declared = attested = 0
     gaps = []
-    for obligation in session.scalars(
-        select(Obligation).where(
-            Obligation.institution_id.in_(institution_ids), Obligation.status == "open"
-        )
-    ):
-        rep = coverage.report(session, obligation, today)
+    for _, inst, rep in _open_coverage(session, scope, today):
         required += rep.required
         declared += rep.declared_today
         attested += rep.attested_today
         if rep.first_gap:
-            inst = session.get(Institution, obligation.institution_id)
             gaps.append(
                 {
                     "institution": ser.institution(inst),
@@ -297,21 +314,15 @@ def coverage_reports(
     scope: Scope = Depends(get_scope), session: Session = Depends(get_session)
 ) -> dict:
     """Coverage of every open obligation the caller may see (N2): one strip per obligation."""
+    _require_coverage_view(scope)
     today = clock.today(session)
-    institution_ids = {inst.id for _, inst in _visible(session, scope)}
-    if scope.institution_id:
-        institution_ids.add(scope.institution_id)
     items = []
-    query = select(Obligation).where(
-        Obligation.institution_id.in_(institution_ids), Obligation.status == "open"
-    )
-    for obligation in session.scalars(query):
-        institution = session.get(Institution, obligation.institution_id)
+    for obligation, institution, rep in _open_coverage(session, scope, today):
         items.append(
             {
                 "institution": ser.institution(institution),
                 "basis_ref": obligation.basis_ref,
-                "coverage": coverage_payload(coverage.report(session, obligation, today)),
+                "coverage": coverage_payload(rep),
             }
         )
     return {"today": today.isoformat(), "items": items}

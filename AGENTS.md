@@ -86,7 +86,8 @@ live only in `config/policy.demo.yaml`, labelled as placeholders.
 | Python tests | `pytest` |
 | Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `npm` |
 | Frontend lint / types | `npx eslint src`, `npx tsc --noEmit`, `npx next build` |
-| ML | scikit-learn, scikit-image, LightGBM (`pip install -e ".[ml]"` in `apps/api`); OCR with RapidOCR |
+| ML | scikit-learn, scikit-image, LightGBM (`ml` extra in `apps/api`); OCR with RapidOCR |
+| Audit anchoring | immudb receipts via `immudb-py==1.5.0` (`anchoring` extra in `apps/api`; pinned because of its large dependency tree) |
 | Mock bank | `services/mock-bank` (FastAPI), simulation of a bank's signed confirmation channel |
 | Infrastructure | Docker Compose: PostgreSQL 16 + pgvector, SeaweedFS (S3), Redis, Keycloak, immudb |
 | CI | GitHub Actions — pending: adding `.github/workflows/` needs a token with the `workflow` scope |
@@ -102,17 +103,20 @@ docker compose -f infra/docker-compose.yml --env-file infra/.env up -d
 
 # Backend (apps/api)
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scriptsctivate
-pip install -e ".[dev,ml]"
+pip install -e ".[dev,ml,anchoring]"                # anchoring = immudb client
 ruff check . && ruff format --check .
 pytest
 alembic upgrade head
 uvicorn app.main:app --reload                        # http://localhost:8000/docs
-python -m app.seed demo --synthetic ../../data/synthetic --count 12   # demo data
+python -m app.masterdata fetch-institutions && python -m app.masterdata import-institutions  # AICTE public list
+python -m app.masterdata fetch-banks && python -m app.masterdata import-banks                # RBI IFSC master + mergers
+python -m app.seed demo --institution-user-aicte-id <AICTE ID>   # dev accounts (no instruments)
 
 # Mock bank (services/mock-bank)
 pip install -e ".[dev]"
-python -m mockbank seed --from ../../data/synthetic
-python -m mockbank serve --port 8090
+cp .env.example .env                                 # development-only placeholders
+python -m mockbank register --ifsc <IFSC> --fdr-no <no> --amount <INR> --issue-date <YYYY-MM-DD> --maturity-date <YYYY-MM-DD> --beneficiary "<text>" --depositor "<name>"   # the bank records an FDR it issued
+python -m mockbank serve --port 8090                 # operator page at http://localhost:8090 (needs MB_OPERATOR_TOKEN in .env)
 
 # Web (apps/web)
 cp .env.example .env.local

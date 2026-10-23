@@ -1,0 +1,69 @@
+# Public master data sources (M12). Downloads land in data/open/ (gitignored) and are
+# imported with `python -m app.masterdata`. Nothing here is invented: every value is the
+# address or parameter of a public source, or a fact cited to its source.
+
+aicte:
+  source: "AICTE approved institutions dashboard (public): https://facilities.aicte-india.org/dashboard/pages/angulardashboard.php"
+  endpoint: "https://facilities.aicte-india.org/dashboard/pages/php/approvedinstituteserver.php"
+  academic_year: "2024-2025"
+  # Query parameters the dashboard sends; "1" means "all" for each filter.
+  params:
+    method: fetchdata
+    program: "1"
+    level: "1"
+    institutiontype: "1"
+    Women: "1"
+    Minority: "1"
+    course: "1"
+  all_india_state: "1"
+  # State / UT names exactly as the dashboard accepts them. The all-India list carries no
+  # state column, so the importer queries each state and checks that the counts add up.
+  states:
+    - Andaman And Nicobar Islands
+    - Andhra Pradesh
+    - Arunachal Pradesh
+    - Assam
+    - Bihar
+    - Chandigarh
+    - Chhattisgarh
+    - Dadra and Nagar Haveli
+    - Daman and Diu
+    - Delhi
+    - Goa
+    - Gujarat
+    - Haryana
+    - Himachal Pradesh
+    - Jammu And Kashmir
+    - Jharkhand
+    - Karnataka
+    - Kerala
+    - Ladakh
+    - Lakshadweep
+    - Madhya Pradesh
+    - Maharashtra
+    - Manipur
+    - Meghalaya
+    - Mizoram
+    - Nagaland
+    - Odisha
+    - Puducherry
+    - Punjab
+    - Rajasthan
+    - Sikkim
+    - Tamil Nadu
+    - Telangana
+    - Tripura
+    - Uttar Pradesh
+    - Uttarakhand
+    - West Bengal
+  # Row layout returned by the endpoint (positional).
+  columns: [aicte_id, name, address, district, institution_type, women, minority]
+  # AICTE regional office per state. Not published in a downloadable form, so left empty
+  # (unconfirmed, plan §14). Institutions are imported with region = null until filled in.
+  regions: {}
+
+ifsc:
+  source: "Razorpay IFSC dataset (MIT licence), compiled from RBI's published IFSC lists: https://github.com/razorpay/ifsc"
+  release: "v2.0.62"
+  download_url: "https://github.com/razorpay/ifsc/releases/download/{release}/{file}"
+  files: [banks.json, IFSC.csv, sublet.json]
