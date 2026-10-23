@@ -35,6 +35,8 @@ def _open_coverage(
         select(Obligation, Institution)
         .join(Institution, Institution.id == Obligation.institution_id)
         .where(Obligation.status == "open")
+        # Stable order for the coverage strips and for ties in the dashboard's gap list.
+        .order_by(Institution.aicte_id, Obligation.required_from, Obligation.id)
     )
     rows = session.execute(scope_institutions(query, scope)).all()
     reports = coverage.reports(session, [o for o, _ in rows], today)

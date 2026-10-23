@@ -551,3 +551,36 @@ def test_coverage_query_count_does_not_grow_with_obligations(env, path):
     assert _queries(env, path) == few
     items = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
     assert len(items) == 32
+
+
+def test_coverage_items_and_gaps_are_ordered_by_institution_then_start(env):
+    # Inserted out of order: a new institution that sorts first, and an older obligation of A.
+    today = date.today()
+    with env.factory() as s:
+        first = Institution(
+            aicte_id="SYN-0", name="Synthetic Institute 0", institution_type="any", region="West"
+        )
+        s.add(first)
+        s.flush()
+        for institution_id, basis, days in ((first.id, "zero", 30), (env.ids["a"], "older", 60)):
+            s.add(
+                Obligation(
+                    institution_id=institution_id,
+                    basis_ref=basis,
+                    required_amount=500000,
+                    required_from=today - timedelta(days=days),
+                    required_until=today + timedelta(days=365),
+                )
+            )
+        s.commit()
+    expected = [
+        ("SYN-0", "zero"),
+        ("SYN-A", "older"),
+        ("SYN-A", "demo approval case"),
+        ("SYN-B", "demo approval case"),
+    ]
+    items = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert [(i["institution"]["aicte_id"], i["basis_ref"]) for i in items] == expected
+    # Every gap starts today, so the dashboard keeps the same order for ties.
+    gaps = env.client.get("/api/v1/dashboard", headers=env.h("scrutiny")).json()["gaps"]
+    assert [g["institution"]["aicte_id"] for g in gaps] == [aicte for aicte, _ in expected]
