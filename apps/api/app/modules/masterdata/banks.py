@@ -5,6 +5,8 @@
 - `ifsc_lineage`: sublet IFSCs, i.e. IFSCs issued under one bank's prefix that belong to
   another bank (sublet.json), so the canonical key uses the real bank.
 - `bank_merger`: bank-level amalgamations from config/bank_mergers.yaml, each cited to RBI.
+- Instruments already stored get their canonical bank recomputed with the new lineage, so
+  an FDR submitted before the import is compared with one submitted after it.
 
 Bank and sublet rows are added and updated; rows that disappear from a later release are
 kept (an FDR issued under a since-withdrawn IFSC must still resolve to its bank). Merger
@@ -15,14 +17,16 @@ import csv
 import json
 import shutil
 import tempfile
+from collections import Counter
 from pathlib import Path
 
 import httpx
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, load_only
 
-from app.models import Bank, BankMerger, IfscLineage
+from app.models import Bank, BankMerger, IfscLineage, Instrument
 from app.modules.audit.service import SYSTEM, record_event
+from app.modules.checks.canonical import resolve_bank
 
 
 class MasterDataError(RuntimeError):
@@ -107,6 +111,46 @@ def _sync_mergers(session: Session, mergers: list[dict]) -> int:
     return len(stale)
 
 
+def _rekey_instruments(session: Session, source: str) -> int:
+    """Recompute `Instrument.canonical_bank` with the imported lineage; return how many changed.
+
+    One audit event (actor SYSTEM) records the count per old -> new bank.
+    """
+    lineage = {row.old_ifsc: row for row in session.scalars(select(IfscLineage))}
+    rows = session.execute(select(BankMerger.old_bank, BankMerger.canonical_bank))
+    mergers = {old: new for old, new in rows}
+    changes: Counter[tuple[str | None, str | None]] = Counter()
+    instruments = session.scalars(
+        select(Instrument).options(
+            load_only(Instrument.id, Instrument.bank_ifsc, Instrument.canonical_bank)
+        )
+    )
+    for inst in instruments:
+        resolved = resolve_bank(inst.bank_ifsc, lineage.get, mergers.get)
+        key = resolved[1] if resolved else None
+        if key != inst.canonical_bank:
+            changes[(inst.canonical_bank, key)] += 1
+            inst.canonical_bank = key
+    session.flush()
+    total = sum(changes.values())
+    if total:
+        record_event(
+            session,
+            actor=SYSTEM,
+            action="masterdata.instruments_rekeyed",
+            after={
+                "instruments": total,
+                "changes": [
+                    {"from": old, "to": new, "count": n}
+                    for (old, new), n in sorted(changes.items(), key=lambda c: str(c[0]))
+                ],
+                "source": source,
+            },
+            reason="canonical bank recomputed after the bank master import",
+        )
+    return total
+
+
 def _bank_names(ifsc_csv: Path, sublet: dict[str, str]) -> dict[str, str]:
     """Bank code -> name from the BANK column of IFSC.csv.
 
@@ -171,4 +215,4 @@ def import_banks(session: Session, data_dir: Path, mergers: list[dict]) -> dict[
     record_event(
         session, actor=SYSTEM, action="masterdata.banks_imported", after=counts | {"source": source}
     )
-    return counts
+    return counts | {"instruments_rekeyed": _rekey_instruments(session, source)}
