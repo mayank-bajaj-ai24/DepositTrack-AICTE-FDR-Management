@@ -480,7 +480,7 @@ def test_mixed_role_user_keeps_their_own_institution_outside_their_region(env):
     # A West officer who is also institution B (East) sees West plus their own B.
     submit(env.client, env.tokens["inst_b"], values(depositor="Synthetic Institute B"))
     items = env.client.get("/api/v1/coverage", headers=env.h("west_inst_b")).json()["items"]
-    assert sorted(i["institution"]["aicte_id"] for i in items) == ["SYN-A", "SYN-B"]
+    assert [i["institution"]["aicte_id"] for i in items] == ["SYN-A", "SYN-B"]
     listing = env.client.get("/api/v1/instruments", headers=env.h("west_inst_b")).json()
     assert [i["institution"]["aicte_id"] for i in listing["items"]] == ["SYN-B"]
 
@@ -584,3 +584,17 @@ def test_coverage_items_and_gaps_are_ordered_by_institution_then_start(env):
     # Every gap starts today, so the dashboard keeps the same order for ties.
     gaps = env.client.get("/api/v1/dashboard", headers=env.h("scrutiny")).json()["gaps"]
     assert [g["institution"]["aicte_id"] for g in gaps] == [aicte for aicte, _ in expected]
+
+
+def test_regional_officer_sees_only_their_regions_requirements(env):
+    # B (East) has deposited; A (West) has not. The West officer sees A's whole requirement
+    # as a gap and nothing of B, the officer without a region sees both.
+    submit(env.client, env.tokens["inst_b"], values(depositor="Synthetic Institute B"))
+    items = env.client.get("/api/v1/coverage", headers=env.h("west")).json()["items"]
+    assert [i["institution"]["aicte_id"] for i in items] == ["SYN-A"]
+    dash = env.client.get("/api/v1/dashboard", headers=env.h("west")).json()
+    assert float(dash["coverage"]["required"]) == 500_000
+    assert [g["institution"]["aicte_id"] for g in dash["gaps"]] == ["SYN-A"]
+    assert dash["total"] == 0
+    everyone = env.client.get("/api/v1/coverage", headers=env.h("scrutiny")).json()["items"]
+    assert [i["institution"]["aicte_id"] for i in everyone] == ["SYN-A", "SYN-B"]
