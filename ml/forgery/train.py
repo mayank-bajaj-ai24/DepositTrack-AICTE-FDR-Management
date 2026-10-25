@@ -2,8 +2,8 @@
 
 Run with the API's virtual environment (it holds the feature code and ML extras):
 
-    ml/synth/.venv/Scripts/python -m fdrsynth --count 600 --out data/forgery-src --seed 2026
-    apps/api/.venv/Scripts/python ml/forgery/train.py --data data/forgery-src --out models
+    apps/api/.venv/Scripts/python -m fdrsynth --count 600 --out data/synthetic_fdr/forgery --seed 2026
+    apps/api/.venv/Scripts/python ml/forgery/train.py --data data/synthetic_fdr/forgery --out models
 
 Writes models/forgery/{model.joblib, meta.json, metrics.json}. All numbers are on
 synthetic data and must be labelled as such.
@@ -135,6 +135,10 @@ def main() -> None:
             {
                 "features": FEATURE_NAMES,
                 "bands": {"grey": grey, "suspicious": suspicious},
+                "training_data": "synthetic FDRs (ml/synthetic_fdr)",
+                # The API refuses the model until the maintainer reviews metrics.json and
+                # sets this to true (AGENTS.md rule 5).
+                "live_scoring": False,
                 "classifier": "RBF SVM (Gornale et al. baseline) on RGB-GLCM + ELA + noise",
             },
             indent=2,
