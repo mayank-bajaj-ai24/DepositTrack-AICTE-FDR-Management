@@ -94,9 +94,11 @@ No baseline or portal numbers exist yet. Each needs manual-vs-portal timing runs
 
 ### Small follow-ups from the PR #12 review
 
-- `GET /institutions` (`apps/api/app/api/admin.py`) still scopes by `len(roles) == 1` and region instead of the action-aware rule. It serves public master data, so it is low risk.
-- In the instrument detail, `next_states` and `editable_fields` are UI hints computed from all of the caller's roles, so they can offer a move that the endpoint then refuses. The endpoints themselves enforce the role scope.
-- `CONTEXT.md` still lists #11 and #12 as open PRs, and README "Work to be done" still lists PR #12. Both are merged.
+All three were fixed on 26 Oct, on the branch `institutions-scope-and-detail-hints`:
+
+- ~~`GET /institutions` scopes by `len(roles) == 1` and region.~~ It now uses the action-aware rule (`scope_institutions`). An institution with a bank role sees only its own institution, and a bank account sees none.
+- ~~`next_states` and `editable_fields` come from all of the caller's roles.~~ They now come from the roles that can reach the instrument, the same test the endpoints apply.
+- ~~`CONTEXT.md` and README list #11/#12 as open.~~ Corrected.
 
 ### Unfinished test scenarios and gates
 
