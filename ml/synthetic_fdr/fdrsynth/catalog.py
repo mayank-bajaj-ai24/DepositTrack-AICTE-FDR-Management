@@ -9,6 +9,7 @@
 
 import csv
 import json
+import re
 from dataclasses import dataclass
 from datetime import date
 from importlib import resources
@@ -76,6 +77,12 @@ def load_placeholders(path: Path | None = None) -> dict:
     return data
 
 
+def _tidy(text: str) -> str:
+    """One space between words and none before a comma ("KOVUR ,NELLORE" -> "KOVUR,NELLORE"),
+    as a branch name is printed; the raw IFSC list carries stray spaces."""
+    return re.sub(r"\s+,", ",", " ".join(text.split()))
+
+
 def load_branches(ifsc_dir: Path, bank_types: list[str]) -> tuple[Branch, ...]:
     """Branches of banks of the given RBI types, sublet IFSCs excluded (their BANK column
     names the sub-member bank, not the IFSC's owner)."""
@@ -98,7 +105,7 @@ def load_branches(ifsc_dir: Path, bank_types: list[str]) -> tuple[Branch, ...]:
                     Branch(
                         bank=row["BANK"].strip(),
                         ifsc=ifsc,
-                        branch=" ".join(row["BRANCH"].split()),
+                        branch=_tidy(row["BRANCH"]),
                         city=(row["CITY"] or row["CENTRE"]).strip().title(),
                     )
                 )
