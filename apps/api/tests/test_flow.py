@@ -746,3 +746,39 @@ def test_list_and_detail_agree_on_who_may_read(env):
         assert env.client.get("/api/v1/instruments", headers=env.h(who)).status_code == code
         detail = env.client.get(f"/api/v1/instruments/{instrument_id}", headers=env.h(who))
         assert detail.status_code == code
+
+
+def test_detail_hints_only_offer_steps_the_endpoints_allow(env):
+    # A West officer who is also institution B (East) opens B's FDR as the institution:
+    # the officer role cannot reach it, so no officer edit or move is offered.
+    b = submit(env.client, env.tokens["inst_b"], values(depositor="B")).json()["id"]
+    a = submit(env.client, env.tokens["inst_a"], values(fdr_no="XN8888888888")).json()["id"]
+    own = _detail(env, b, who="west_inst_b")
+    assert own["editable_fields"] == []
+    assert own["next_states"] == []
+    refused = env.client.post(
+        f"/api/v1/instruments/{b}/transition",
+        json={"target": "verified", "reason": "x"},
+        headers=env.h("west_inst_b"),
+    )
+    assert refused.status_code == 403
+    # In the officer's own region the same user gets the officer's hints.
+    west = _detail(env, a, who="west_inst_b")
+    assert west["editable_fields"] == ["beneficiary", "branch", "depositor"]
+    assert "verified" in west["next_states"]
+
+
+@pytest.mark.parametrize(
+    ("who", "expected"),
+    [
+        ("inst_a", ["SYN-A"]),
+        ("inst_a_bank", ["SYN-A"]),  # the bank role adds no institution
+        ("west", ["SYN-A"]),
+        ("west_inst_b", ["SYN-A", "SYN-B"]),
+        ("scrutiny", ["SYN-A", "SYN-B"]),  # no region: every institution
+        ("bank", []),
+    ],
+)
+def test_institution_list_follows_the_action_aware_rule(env, who, expected):
+    items = env.client.get("/api/v1/institutions", headers=env.h(who)).json()["items"]
+    assert sorted(i["aicte_id"] for i in items) == expected
