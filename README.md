@@ -14,7 +14,7 @@
 
 > **Current status (23 Oct 2026):** prototype built in code — backend (modules M1–M10, M12, M13), mock bank and the bilingual web app — and **run on the live Docker stack**: migrations, real master-data import (13,088 AICTE institutions, RBI IFSC bank master), Keycloak login, immudb anchoring and the main screens in a browser. The upload → bank-verification story still waits for a real FDR scan. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**.
 >
-> **Data policy:** no synthetic data. Master data comes from public sources, and models are trained on open datasets as **labelled proxies** (no public FDR dataset exists); see [Expected outcomes](#expected-outcomes) and AGENTS.md rule 5.
+> **Data policy (25 Oct 2026):** synthetic data only for FDR documents. No public FDR dataset exists, so a generator makes FDRs labelled `SYNTHETIC`, and results on them are reported as **synthetic results**. Master data comes from public sources; other models are trained on open datasets as **labelled proxies**. See [Expected outcomes](#expected-outcomes) and AGENTS.md rule 5.
 >
 > Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
 >
@@ -503,6 +503,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Backend: 412 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
+- [x] Data policy changed again (25 Oct 2026): a labelled synthetic dataset is allowed for FDR documents only
 
 ### Roadmap
 
