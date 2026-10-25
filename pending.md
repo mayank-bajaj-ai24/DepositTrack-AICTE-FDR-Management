@@ -88,7 +88,7 @@ No baseline or portal numbers exist yet. Each needs manual-vs-portal timing runs
 5. **Demo story walk-through** (plan §12) on the live stack. Restart the API, mock bank and web first; they were stopped because memory was low. Run taste-skill `inspect.mjs --app` on every screen (1440/768/390) and fix the FAILs. Show PR #7's anchor fields (`store_error`, `receipt`, `immudb_problem`) in the admin and audit screens.
 6. **Manual-vs-portal timing runs** for section 2, then fill in the Expected outcomes table.
 7. **Recorded backup demo video.**
-8. **CI workflow:** written on 26 Oct on the branch `ci-workflow` (`.github/workflows/ci.yml`); it needs the `workflow` scope to push. **(Manual permission first.)** Run `gh auth refresh -h github.com -s workflow` in PowerShell; after that the workflow can be added. The old file is on the local branch `main-local-with-ci`.
+8. ~~**CI workflow**~~ **Done 26 Oct:** `.github/workflows/ci.yml` (PR #19), all five jobs green on GitHub. Old note: Run `gh auth refresh -h github.com -s workflow` in PowerShell; after that the workflow can be added. The old file is on the local branch `main-local-with-ci`.
 9. **Hindi translations:** `apps/web/src/i18n/hi.json` was written by Claude and needs a fluent reviewer.
 10. **Idea submission** for the PS deadline (on hold).
 
