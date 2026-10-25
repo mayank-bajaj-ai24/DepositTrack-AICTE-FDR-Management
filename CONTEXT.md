@@ -1,7 +1,7 @@
 # CONTEXT.md — where the work stands
 
 Hand-over notes so a new Claude session (or a teammate) can continue without re-reading the
-whole history. Last updated: 23 Oct 2026. Read together with [AGENTS.md](AGENTS.md) (rules),
+whole history. Last updated: 26 Oct 2026. Read together with [AGENTS.md](AGENTS.md) (rules),
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (design) and [README.md](README.md) (overview).
 **Update this file at the end of every working session.**
 
@@ -53,8 +53,9 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
   SKILL.md and run `lint.mjs` / `inspect.mjs --app`). 21st.dev only on its free plan.
 - Decisions: no officer assistant (LLM) for now; OCR = RapidOCR; object storage = SeaweedFS; UI =
   English + Hindi, DepositTrack brand only (no AICTE logo); deck (SIH PPT) on hold.
-- Proxy-model decisions: renewal risk and LayoutLMv3 pass A are **proxy only, live off**; the
-  forgery model may run **live, labelled "trained on receipts (proxy)"**.
+- Proxy-model decisions: renewal risk and LayoutLMv3 pass A are **proxy only, live off**. The
+  forgery model now loads only with `"live_scoring": true` in its meta.json (26 Oct); it is off
+  because its synthetic result (recall 0.75, false alarms 5.7%) misses both targets.
 - The demo institution user is linked to **R.V. College of Engineering, AICTE ID `1-43655541828`**
   (the ID as AICTE's public dashboard lists it; the user gave the permanent ID 1-10906981, which the
   dashboard does not show). Passed with `--institution-user-aicte-id`; nothing is committed about it.
@@ -153,6 +154,20 @@ on the mock bank page; verifying officer → "Verify with bank". A dev DB seeded
 seed must be reset first (`alembic downgrade base && alembic upgrade head`). The live DB in the main
 checkout is still at migration 0004: run `alembic upgrade head` when switching it to `main`.
 Port note: a Wondershare app listens on `0.0.0.0:8090`; the mock bank binds `127.0.0.1:8090`.
+
+## 5a. Session of 25–26 Oct 2026 (teammate `dhruvgit77`)
+
+Pushed as PRs (none merged yet; the maintainer approves each):
+- Stack, merge in order: `synthetic-fdr-dataset-rule` (rule change) → `synthetic-fdr-generator`
+  (`ml/synthetic_fdr/`, 33 tests) → `extraction-on-synthetic-fdrs` (99.8% exact-match, 100% on
+  amount and dates, 0.66 s/page, synthetic; fixed longest-caption and IFSC O/0) →
+  `forgery-signal-on-synthetic-fdrs` (recall 0.75 at 5.7% false alarms, synthetic; live off).
+- Independent, from `main`: `institutions-scope-and-detail-hints` (PR #12 follow-ups),
+  `missing-documents-report-test` (T-06), `ci-workflow` (needs the `workflow` scope to push).
+- README test counts differ per branch (412/413/415/419/423): resolve the line when merging.
+- Not done, and why: UI items (taste-skill not installed on that machine); demo walk-through
+  (no Docker there); the AICTE dashboard was unreachable from that network, so the synthetic
+  FDRs used the 3-institution fixture as depositors (re-run `fetch-institutions`).
 
 ## 6. Next steps (in order)
 
