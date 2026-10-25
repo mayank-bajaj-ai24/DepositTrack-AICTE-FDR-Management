@@ -573,11 +573,10 @@ Immediate next steps, in order:
 1. **A real FDR scan** (with the owner's consent, personal details redacted) from the maintainer, to walk the upload → extraction → bank verification story on the live stack. Record the same FDR at the mock bank (its operator page) before "Verify with bank".
 2. **Forgery signal:** decide how to proceed after the weak Find it again! result (other features or methods, or keep the signal off and rely on the bank cross-check).
 3. **Re-run the LayoutLMv3 notebook** with the merged protocol (fixed 1,000 steps, single evaluation) and record the score.
-4. **Security fix in PR #12:** instrument detail needs a read permission, and unknown role mixes are denied by default.
-5. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
-6. **CI workflow** once the GitHub token has the `workflow` scope.
-7. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
-8. **Idea submission** for the PS deadline (on hold).
+4. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
+5. **CI workflow** once the GitHub token has the `workflow` scope.
+6. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
+7. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
