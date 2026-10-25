@@ -39,3 +39,14 @@ def test_placeholders_refuse_missing_keys(tmp_path):
     path.write_text(json.dumps({"bank_types": ["PSB"]}), encoding="utf-8")
     with pytest.raises(ValueError, match="missing keys"):
         load_placeholders(path)
+
+
+def test_member_banks_using_a_sponsor_ifsc_are_excluded(tmp_path):
+    (tmp_path / "banks.json").write_text(json.dumps({"IBKL": {"type": "Private"}}))
+    (tmp_path / "IFSC.csv").write_text(
+        "BANK,IFSC,BRANCH,CENTRE,CITY\n"
+        "IDBI,IBKL0069S11,THE SIRSI URBAN SAHAKARI BANK LIMITED,SIRSI,Uttar Kannad\n"
+        "IDBI,IBKL0000001,NARIMAN POINT,MUMBAI,Mumbai\n",
+        encoding="utf-8",
+    )
+    assert [b.ifsc for b in load_branches(tmp_path, ["Private"])] == ["IBKL0000001"]

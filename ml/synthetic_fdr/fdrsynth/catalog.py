@@ -100,7 +100,15 @@ def load_branches(ifsc_dir: Path, bank_types: list[str]) -> tuple[Branch, ...]:
     with open(csv_path, encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle):
             ifsc = row["IFSC"].strip()
-            if ifsc[:4] in wanted and ifsc not in sublet and row["BRANCH"].strip():
+            branch = row["BRANCH"].strip()
+            # A branch "name" that is itself a bank is a member bank using the sponsor's IFSC
+            # without being listed as sublet; it would print as "<BANK> Branch".
+            if (
+                ifsc[:4] in wanted
+                and ifsc not in sublet
+                and branch
+                and "BANK" not in branch.upper()
+            ):
                 out.append(
                     Branch(
                         bank=row["BANK"].strip(),
