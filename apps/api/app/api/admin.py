@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.api import serializers as ser
 from app.api.deps import actor_of, bank_dep, policy_dep
 from app.core import clock
-from app.core.access import Scope, get_scope
+from app.core.access import INSTRUMENT_READ, REPORT_READ, Scope, get_scope, scope_institutions
 from app.core.config import Settings, get_settings
 from app.core.configfiles import load_config
 from app.core.permissions import Action, is_allowed
@@ -72,14 +72,14 @@ def system_status(
 def institutions(
     scope: Scope = Depends(get_scope), session: Session = Depends(get_session)
 ) -> dict:
-    if scope.institution_id and len(scope.principal.roles) == 1:
-        rows = [session.get(Institution, scope.institution_id)]
-    else:
-        query = select(Institution).order_by(Institution.name)
-        if scope.region:
-            query = query.where(Institution.region == scope.region)
-        rows = list(session.scalars(query))
-    return {"items": [ser.institution(i) for i in rows]}
+    # The same action-aware rule as instrument lists: only roles that read instruments or
+    # reports contribute, so a bank role adds nothing and never widens an officer's region.
+    query = scope_institutions(
+        select(Institution).order_by(Institution.name),
+        scope,
+        actions=(*INSTRUMENT_READ, *REPORT_READ, Action.INSTRUMENT_SUBMIT),
+    )
+    return {"items": [ser.institution(i) for i in session.scalars(query)]}
 
 
 class ClockIn(BaseModel):
