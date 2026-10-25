@@ -101,7 +101,7 @@ No baseline or portal numbers exist yet. Each needs manual-vs-portal timing runs
 ### Unfinished test scenarios and gates
 
 - **T-05:** the forgery part (recall ≥ 0.90, false alarms ≤ 5%) is not met; see section 1.
-- **T-06:** the missing-documents report endpoint is built but not separately tested.
+- ~~**T-06:** the missing-documents report endpoint is built but not separately tested.~~ API test added on 26 Oct (branch `missing-documents-report-test`).
 - **T-11:** drill-down clicks have not been walked in the browser.
 - **Phase 2 gate:** the full story from upload to maturity reminder passes in API tests; on the live stack it waits for a real FDR scan.
 - **Phase 3 gate:** feature freeze, not declared yet.
