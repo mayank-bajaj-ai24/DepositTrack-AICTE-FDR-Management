@@ -73,7 +73,7 @@ Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No publ
 
 - **Synthetic data is allowed only for FDR documents:** generated FDR images/PDFs, their field labels and their tampered variants, used to build, train and evaluate the FDR models (extraction pass A, forgery signal, discrepancy checks) and to walk the demo story. The generator and its configuration live in the repo (`ml/synthetic_fdr/`); the generated files go to the git-ignored `data/synthetic_fdr/` and are never committed.
 - **Synthetic FDRs are always labelled.** Every generated document carries a visible `SYNTHETIC - NOT A REAL DEPOSIT` mark. Results measured on them are reported as **synthetic results**, separately from proxy results on open datasets, and are never presented as results on real FDRs.
-- **A synthetic FDR uses real public master data and invents nothing else that could be mistaken for a real record.** Banks, IFSCs and institutions come from the imported public master data. FDR numbers, amounts, dates and names are generated, and names are drawn from an obvious placeholder list. Layouts imitate the common structure of an FDR and never copy a real bank's logo or branding.
+- **A synthetic FDR uses real public master data and invents nothing else that could be mistaken for a real record.** Banks, branches, IFSCs and depositor institutions come from the public master data (RBI IFSC master, AICTE snapshot). FDR numbers, amounts, dates and wording are generated, from the placeholder ranges in `ml/synthetic_fdr/fdrsynth/data/placeholders.json`, which are not AICTE rules. Layouts imitate the common structure of an FDR and never copy a real bank's logo or branding.
 - **No hardcoded fake values** in application code, config, seeds or the UI. Synthetic FDRs are produced by the generator, not typed into the app.
 - **Master data comes from public sources:** AICTE's approved-institutions dashboard and the RBI IFSC master (Razorpay IFSC dataset), imported with `python -m app.masterdata` (sources in `apps/api/config/master_data.yaml`). Bank mergers are listed in `apps/api/config/bank_mergers.yaml`, each with its RBI press release.
 - **Models are trained on synthetic FDRs or on open datasets as proxies.** Results on the closest open dataset are reported as *proxy results on that dataset*; results on synthetic FDRs as *synthetic results*. Neither is an FDR result. Results on real FDRs need labelled real FDRs. Datasets (with pinned versions), licences and citations are listed in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` into the git-ignored `data/<name>/`; a dataset whose licence is not confirmed needs `--accept-unconfirmed-licence`. Check a dataset's licence before using it and never commit downloaded data (`data/` is not in git).
@@ -141,6 +141,11 @@ npm install
 npm run dev                                          # http://localhost:3000
 npx eslint src && npx tsc --noEmit && npx next build
 
+# Synthetic FDRs (repo root, API's virtual environment; needs data/open/ from fetch-banks and fetch-institutions)
+pip install -e "ml/synthetic_fdr[dev]"
+apps/api/.venv/Scripts/python -m fdrsynth --count 500 --out data/synthetic_fdr/train --seed 2026   # PNG + labels + mockbank.jsonl
+apps/api/.venv/Scripts/python -m pytest ml/synthetic_fdr
+
 # Models on open data (repo root, API's virtual environment; outputs go to models/, not committed)
 pip install -e "apps/api[data,ml]"                                     # kagglehub + model libraries
 apps/api/.venv/Scripts/python ml/download_open_data.py bpi-2017        # Kaggle token needed (free)
@@ -159,6 +164,7 @@ apps/api/        FastAPI backend (modules per plan §8), config/ holds every rul
 apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
 services/mock-bank/  Mock bank (simulation): the operator records issued FDRs; signed credentials, lien status
 ml/open_datasets.json, ml/download_open_data.py  Open-dataset catalog and download helper
+ml/synthetic_fdr/  Synthetic FDR generator (labelled SYNTHETIC; output in data/synthetic_fdr/, not committed)
 ml/forgery/      Forgery signal training (Find it again! retrain on an unmerged branch)
 ml/risk/         Renewal-risk proxy training (BPI Challenge 2017)
 ml/layoutlm/     LayoutLMv3 FUNSD proxy notebook
