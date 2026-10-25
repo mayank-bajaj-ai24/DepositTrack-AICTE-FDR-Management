@@ -39,8 +39,10 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
 
 - **Never assume — ask**; any plan change is agreed first. Tell the user about every manual step
   (installs, accounts, keys, Docker, GitHub permissions, Colab runs) instead of doing it.
-- **No synthetic data and no hardcoded fake values** (decided 23 Oct 2026). Master data from public
-  sources (AICTE dashboard, RBI IFSC master); models trained on open datasets as **labelled proxies**.
+- **Synthetic data only for FDR documents** (decided 25 Oct 2026, replacing the 23 Oct "no synthetic
+  data" rule): a generator in `ml/synthetic_fdr/` makes FDRs labelled `SYNTHETIC`, and their results
+  are reported as synthetic results. Master data stays real and public (AICTE dashboard, RBI IFSC
+  master); other models stay on open datasets as **labelled proxies**. No hardcoded fake values.
 - **No step that costs money**; free tiers only (free Colab T4, free Kaggle). Ask before anything paid.
 - **Usage:** stop and warn at 80% of the session token budget; continue only if the user agrees.
 - **No invented AICTE values**: `policy.example.yaml` stays all-`null`; demo values only in
