@@ -58,6 +58,28 @@ def test_configured_ignore_text_is_never_a_value():
     assert got["bank"].normalized == "Real Bank"
 
 
+def test_longest_caption_wins_when_captions_share_a_prefix():
+    lines = [line("Depositor Name: ABC INSTITUTE OF TECHNOLOGY", 10, 10)]
+    got = extract_fields(lines, RULES)
+    assert got["depositor"].normalized == "ABC INSTITUTE OF TECHNOLOGY"
+
+
+def test_ifsc_with_letter_o_as_fifth_character_is_read_as_zero():
+    got = extract_fields([line("IFSC Code: BARBOBANGAX", 10, 10)], RULES)
+    assert got["ifsc"].normalized == "BARB0BANGAX"
+    got = extract_fields([line("Ref BARBOBANGAX", 10, 10)], RULES)  # pattern anywhere
+    assert got["ifsc"].normalized == "BARB0BANGAX"
+
+
+def test_synthetic_banner_is_never_the_bank():
+    lines = [
+        line("SYNTHETIC - NOT A REAL DEPOSIT", 480, 18),
+        line("Punjab National Bank", 70, 70),
+        line("SYNTHETIC", 480, 860),
+    ]
+    assert extract_fields(lines, RULES)["bank"].normalized == "Punjab National Bank"
+
+
 def test_ifsc_found_without_caption_has_lower_confidence():
     got = extract_fields([line("Ref XNBK0001234 issued", 10, 10, score=1.0)], RULES)
     assert got["ifsc"].normalized == "XNBK0001234"
