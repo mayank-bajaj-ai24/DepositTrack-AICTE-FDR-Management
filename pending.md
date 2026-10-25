@@ -3,6 +3,8 @@
 State on `main` as of 24 Oct 2026, after PR #12. The prototype deadline is before 28 Oct 2026.
 The numbers below come from [README.md → Expected outcomes](README.md#expected-outcomes) and [CONTEXT.md](CONTEXT.md). Nothing here is estimated.
 
+> **Rule change (25 Oct 2026):** a labelled synthetic FDR dataset is now allowed; see section 3. The results below predate it.
+>
 > **Every model result is a proxy.** No public FDR dataset exists, so each model was measured on the closest open dataset. A result shows how the method performs on that dataset, not on FDRs. FDR-level numbers need labelled real FDRs. Earlier results measured on synthetic data were withdrawn on 23 Oct 2026.
 
 ## 1. Model metrics against targets
@@ -80,6 +82,25 @@ No baseline or portal numbers exist yet. Each needs manual-vs-portal timing runs
 | Visibility into pending cases | Time to answer "which cases need action today?" | — | — | Pending |
 
 ## 3. Pending work, in order
+
+### Check on 25 Oct 2026 and the new data rule
+
+Checked on a fresh clone of `main` (macOS, Python 3.11, Node 22):
+
+- API: **412 passed**, ruff clean. Run as `python -m pytest`; a bare `pytest` fails to import `tests.flow_support`.
+- Mock bank: **48 passed**. `ml/tests`: **18 passed**, but only with the `data` extra installed (`pip install -e "apps/api[data,ml]"`); without it one test fails on `kagglehub`.
+- Web: ESLint, `tsc --noEmit` and `next build` pass.
+- Confirmed in code: `GET /institutions` still uses `len(roles) == 1` (`apps/api/app/api/admin.py`); the web app shows none of `store_error`, `receipt` or `immudb_problem`; there is no `.github/`.
+- Not on GitHub: the branches `forgery-model-on-find-it-again` and `main-local-with-ci`, and `../retired-synthetic-models/`, exist only on the maintainer's machine.
+- **Gap not listed above:** `ml/forgery/train.py` on `main` still trains on FDRs from the removed `ml/synth` generator (`fdrsynth`), so it cannot run on `main`.
+
+**New rule (25 Oct 2026, AGENTS.md rule 5):** a labelled synthetic dataset is allowed for FDR documents. This changes items 1, 2 and 4 below:
+
+- **1 → generate synthetic FDRs.** Bring back the generator from history (`git show a6e1efc~1:ml/synth`) as `ml/synthetic_fdr/`. Use real banks and IFSCs from the master data, add a `SYNTHETIC - NOT A REAL DEPOSIT` mark and tampered variants. Then walk upload → extraction → bank verification with a generated FDR. A real scan is still wanted for final validation.
+- **2 → retrain the forgery signal on synthetic tampered FDRs** (`ml/forgery/train.py` + `tamper.py` already expect this) and report the result as synthetic.
+- **4 → measure field extraction on synthetic FDRs** (exact-match overall, on amount and dates, seconds per page). Report the numbers as synthetic, and keep the real-FDR row open.
+
+The original list follows.
 
 1. **Real FDR scan (manual, maintainer).** Provide one with the owner's consent and personal details redacted. It is needed to walk the upload → extraction → bank verification story on the live stack. Record the same FDR on the mock bank's operator page before "Verify with bank". Until then, any real document with typed values tests everything except extraction accuracy.
 2. **Forgery signal: decision needed.** The Find it again! result is near chance. The options are other features or methods, or keeping the signal off and relying on the bank cross-check.
