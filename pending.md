@@ -15,9 +15,9 @@ The numbers below come from [README.md → Expected outcomes](README.md#expected
 
 | Metric | Target | Measured | Dataset | Reached? |
 | --- | --- | --- | --- | --- |
-| Field exact-match after rules, overall | ≥ 90% | — | — | **Not measured**: needs labelled real FDRs |
-| Exact-match on amount and dates | ≥ 95% | — | — | **Not measured**: needs labelled real FDRs |
-| Processing time per page (CPU) | < 5 s | — | — | **Not measured**: to be timed on real scans |
+| Field exact-match after rules, overall | ≥ 90% | **99.8%** | 300 synthetic FDRs (seed 2027) | **Yes, on synthetic** (upper bound: clean pages, known captions). Real FDRs: not measured |
+| Exact-match on amount and dates | ≥ 95% | **100%** | Same | **Yes, on synthetic**. Real FDRs: not measured |
+| Processing time per page (CPU) | < 5 s | **0.66 s** mean, 0.84 s p95 | Same | **Yes, on synthetic**. To be timed on real scans |
 | LayoutLMv3 entity F1 | No target | **0.906** (answer 0.928, question 0.917, header 0.649) | FUNSD test split, 50 forms (proxy) | **No target**. The LayoutLMv3 paper reports 90.29 on FUNSD; ours is close but slightly optimistic, because the best checkpoint was picked on the test split. To be re-run with the merged protocol (fixed 1,000 steps, one evaluation) |
 
 Pass A stays **off** live (`pass_a_enabled: false`), and the API refuses a model whose labels are not FDR fields.
@@ -96,9 +96,9 @@ Checked on a fresh clone of `main` (macOS, Python 3.11, Node 22):
 
 **New rule (25 Oct 2026, AGENTS.md rule 5):** a labelled synthetic dataset is allowed for FDR documents. This changes items 1, 2 and 4 below:
 
-- **1 → generate synthetic FDRs.** Bring back the generator from history (`git show a6e1efc~1:ml/synth`) as `ml/synthetic_fdr/`. Use real banks and IFSCs from the master data, add a `SYNTHETIC - NOT A REAL DEPOSIT` mark and tampered variants. Then walk upload → extraction → bank verification with a generated FDR. A real scan is still wanted for final validation.
+- **1 → generate synthetic FDRs.** **Generator done 26 Oct** (`ml/synthetic_fdr/`, 33 tests). The AICTE dashboard was unreachable from this network, so the runs so far used the 3-institution excerpt in the test fixtures. Re-run `fetch-institutions` from a network that reaches AICTE. Bring back the generator from history (`git show a6e1efc~1:ml/synth`) as `ml/synthetic_fdr/`. Use real banks and IFSCs from the master data, add a `SYNTHETIC - NOT A REAL DEPOSIT` mark and tampered variants. Then walk upload → extraction → bank verification with a generated FDR. A real scan is still wanted for final validation.
 - **2 → retrain the forgery signal on synthetic tampered FDRs** (`ml/forgery/train.py` + `tamper.py` already expect this) and report the result as synthetic.
-- **4 → measure field extraction on synthetic FDRs** (exact-match overall, on amount and dates, seconds per page). Report the numbers as synthetic, and keep the real-FDR row open.
+- **4 → measure field extraction on synthetic FDRs** (exact-match overall, on amount and dates, seconds per page). Report the numbers as synthetic, and keep the real-FDR row open. **Done 26 Oct** (`ml/extraction/evaluate.py`): see section 1. The run also found and fixed two extraction bugs that affect real FDRs: shorter captions were winning over longer ones ("Depositor" over "Depositor Name"), and an IFSC whose fifth character OCR read as `O` was dropped.
 
 The original list follows.
 
