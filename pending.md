@@ -32,6 +32,15 @@ Pass A stays **off** live (`pass_a_enabled: false`), and the API refuses a model
 
 The texture and ELA features miss these hand-made edits. The retrain is on the branch `forgery-model-on-find-it-again`, **not merged and not live**.
 
+**Retrained on synthetic FDRs (26 Oct 2026):** 600 generated FDRs, half of them tampered by `ml/forgery/tamper.py` (copy-paste, insertion, noise, blur and combinations). Train 420 / test 180.
+
+| Metric | Target | Measured | Dataset | Reached? |
+| --- | --- | --- | --- | --- |
+| Recall on tampered pages | ≥ 0.90 | **0.75** | 180 synthetic FDRs (held out) | **No**. By edit: blur 1.00, insert+noise 0.90, copy+blur 0.89, insert+blur 0.88, noise 0.71, insertion 0.70, copy-paste **0.27** |
+| False-alarm rate on genuine scans | ≤ 5% | **5.7%** | Same | **No**, just above. The threshold is set on the same genuine pages, so this is slightly optimistic |
+
+Much better than the receipt proxy (0.114), but below target, and a synthetic result. Live stays **off**: the API now refuses a forgery model unless its `meta.json` has `"live_scoring": true`. Next ideas, if wanted: a copy-move detector that compares patches across the page (copy-paste is the miss), and a threshold set on a separate validation split.
+
 ### Renewal risk (N9): LightGBM + SHAP reasons
 
 | Metric | Target | Measured | Dataset | Reached? |
@@ -62,11 +71,11 @@ Live scoring is **off**: the API loads a model only if its `meta.json` has `"liv
 
 - **Reached:** 1 target (access control).
 - **Missed:** 5 targets.
-  - Forgery recall: 0.114 against ≥ 0.90.
-  - Forgery false alarms: 6.6% against ≤ 5%.
+  - Forgery recall: 0.114 against ≥ 0.90 (proxy); 0.75 on synthetic FDRs.
+  - Forgery false alarms: 6.6% against ≤ 5% (proxy); 5.7% on synthetic FDRs.
   - Renewal-risk AUC: 0.789 against ≥ 0.80.
   - Renewal-risk lead time: 14.1 days against ≥ 21 days.
-  - Field extraction: both accuracy targets and the speed target are unmeasured, so they are not reached yet.
+  - Field extraction: met on synthetic FDRs (99.8%, 100% on amount and dates, 0.66 s/page). Still unmeasured on real FDRs.
 - **Not built:** 2 (discrepancy risk, officer assistant).
 
 ## 2. PS improvement areas: baseline vs portal (all pending)
@@ -97,7 +106,7 @@ Checked on a fresh clone of `main` (macOS, Python 3.11, Node 22):
 **New rule (25 Oct 2026, AGENTS.md rule 5):** a labelled synthetic dataset is allowed for FDR documents. This changes items 1, 2 and 4 below:
 
 - **1 → generate synthetic FDRs.** **Generator done 26 Oct** (`ml/synthetic_fdr/`, 33 tests). The AICTE dashboard was unreachable from this network, so the runs so far used the 3-institution excerpt in the test fixtures. Re-run `fetch-institutions` from a network that reaches AICTE. Bring back the generator from history (`git show a6e1efc~1:ml/synth`) as `ml/synthetic_fdr/`. Use real banks and IFSCs from the master data, add a `SYNTHETIC - NOT A REAL DEPOSIT` mark and tampered variants. Then walk upload → extraction → bank verification with a generated FDR. A real scan is still wanted for final validation.
-- **2 → retrain the forgery signal on synthetic tampered FDRs** (`ml/forgery/train.py` + `tamper.py` already expect this) and report the result as synthetic.
+- **2 → retrain the forgery signal on synthetic tampered FDRs** (`ml/forgery/train.py` + `tamper.py` already expect this) and report the result as synthetic. **Done 26 Oct**: recall 0.75 at 5.7% false alarms (section 1). Below target, so live stays off.
 - **4 → measure field extraction on synthetic FDRs** (exact-match overall, on amount and dates, seconds per page). Report the numbers as synthetic, and keep the real-FDR row open. **Done 26 Oct** (`ml/extraction/evaluate.py`): see section 1. The run also found and fixed two extraction bugs that affect real FDRs: shorter captions were winning over longer ones ("Depositor" over "Depositor Name"), and an IFSC whose fifth character OCR read as `O` was dropped.
 
 The original list follows.
