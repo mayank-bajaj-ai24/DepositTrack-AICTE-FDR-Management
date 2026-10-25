@@ -66,7 +66,11 @@ def _normalize(field: str, raw: str, rules: dict) -> str | None:
         return normalize_amount(raw)
     if field in ("issue_date", "maturity_date"):
         return normalize_date(raw, rules["date_formats"])
-    if field in ("ifsc", "fdr_no"):
+    if field == "ifsc":
+        code = raw.replace(" ", "").upper()
+        # An IFSC's 5th character is always 0 (RBI); OCR reads it as O before letters.
+        return code[:4] + "0" + code[5:] if len(code) == 11 and code[4] == "O" else code
+    if field == "fdr_no":
         return raw.replace(" ", "").upper()
     return " ".join(raw.split())
 
@@ -106,8 +110,9 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
             )
 
     for field, spec in rules["fields"].items():
-        # 1. caption on a line; value after it on the same line or the next line in the row
-        for caption in spec.get("captions", []):
+        # 1. caption on a line; value after it on the same line or the next line in the row.
+        # Longest caption first, so "Depositor Name: X" is not read as "Depositor" + "Name: X".
+        for caption in sorted(spec.get("captions", []), key=len, reverse=True):
             for row in rows:
                 for index, line in enumerate(row):
                     if not line.text.lower().startswith(caption.lower()):
