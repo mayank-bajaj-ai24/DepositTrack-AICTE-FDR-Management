@@ -536,6 +536,7 @@ flowchart LR
 - [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
 - [x] Real master data instead of fictional seeds: AICTE approved institutions (public dashboard) and the RBI IFSC bank master with RBI-cited mergers (M12)
 - [x] Synthetic FDR generator, simulator and synthetic-trained notebook removed (PRs #9, #10)
+- [x] Synthetic FDR generator brought back under the 25 Oct rule (`ml/synthetic_fdr/`): real RBI IFSC branches and AICTE institutions, three layouts, `SYNTHETIC - NOT A REAL DEPOSIT` banner, word labels for LayoutLMv3, a mock-bank record per FDR; 33 tests
 - [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
 - [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
@@ -615,6 +616,7 @@ DepositTrack-AICTE-FDR-Management/
     mock-bank/               # simulated issuing bank: operator page, insert-only ledger, signed credentials
   ml/
     open_datasets.json       # open datasets: pinned Kaggle versions, licences, citations
+    synthetic_fdr/           # synthetic FDR generator (fdrsynth), labelled SYNTHETIC; output in data/synthetic_fdr/
     download_open_data.py    # downloads a catalog entry into data/<name>/
     forgery/                 # forgery signal training (Find it again! retrain on a separate branch)
     risk/                    # renewal-risk proxy training (BPI Challenge 2017)
@@ -630,7 +632,7 @@ DepositTrack-AICTE-FDR-Management/
     Mayank_Kathe/            # 7 papers + research notes
 ```
 
-Generated and downloaded files are not committed: `data/open/` (public master data), `data/<dataset>/` (open datasets), `models/` (trained models), `var/` (local storage, keys, ledgers).
+Generated and downloaded files are not committed: `data/open/` (public master data), `data/synthetic_fdr/` (generated FDRs), `data/<dataset>/` (open datasets), `models/` (trained models), `var/` (local storage, keys, ledgers).
 
 **Planned additions:** `apps/api/app/workers/` (Celery tasks and schedules), `docs/` (ADRs, API spec, dataset cards).
 
