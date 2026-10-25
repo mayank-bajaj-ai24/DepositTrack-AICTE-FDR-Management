@@ -16,7 +16,7 @@ The numbers below come from [README.md → Expected outcomes](README.md#expected
 | Field exact-match after rules, overall | ≥ 90% | — | — | **Not measured**: needs labelled real FDRs |
 | Exact-match on amount and dates | ≥ 95% | — | — | **Not measured**: needs labelled real FDRs |
 | Processing time per page (CPU) | < 5 s | — | — | **Not measured**: to be timed on real scans |
-| LayoutLMv3 entity F1 | No target | **0.906** (answer 0.928, question 0.917, header 0.649) | FUNSD test split, 50 forms (proxy) | **No target**. The LayoutLMv3 paper reports 90.29 on FUNSD; ours is close but slightly optimistic, because the best checkpoint was picked on the test split. To be re-run with the merged protocol (fixed 1,000 steps, one evaluation) |
+| LayoutLMv3 entity F1 | No target | **0.894** (answer 0.911, question 0.911, header 0.612); 0.888 with cut-off words counted as missed | FUNSD test split, 50 forms (proxy) | **No target**. Merged protocol (fixed 1,000 steps, one evaluation); the paper reports 90.29. Run on Apple MPS (fp32, batch 2 × 8 = 16, seed 7) rather than the Colab T4, so fp16 and GPU differences may move it slightly |
 
 Pass A stays **off** live (`pass_a_enabled: false`), and the API refuses a model whose labels are not FDR fields.
 
@@ -83,7 +83,7 @@ No baseline or portal numbers exist yet. Each needs manual-vs-portal timing runs
 
 1. **Real FDR scan (manual, maintainer).** Provide one with the owner's consent and personal details redacted. It is needed to walk the upload → extraction → bank verification story on the live stack. Record the same FDR on the mock bank's operator page before "Verify with bank". Until then, any real document with typed values tests everything except extraction accuracy.
 2. **Forgery signal: decision needed.** The Find it again! result is near chance. The options are other features or methods, or keeping the signal off and relying on the bank cross-check.
-3. **Re-run the LayoutLMv3 notebook (manual, free Colab T4)** with the merged protocol, then record the score in README.
+3. ~~**Re-run the LayoutLMv3 notebook**~~ — done 26 Oct 2026 with the merged protocol on Apple MPS: entity F1 0.894 (proxy). Recorded in README.
 4. **Measure field extraction on labelled real FDRs:** exact-match overall, on amount and dates, and seconds per page.
 5. **Demo story walk-through** (plan §12) on the live stack. Restart the API, mock bank and web first; they were stopped because memory was low. Run taste-skill `inspect.mjs --app` on every screen (1440/768/390) and fix the FAILs. Show PR #7's anchor fields (`store_error`, `receipt`, `immudb_problem`) in the admin and audit screens.
 6. **Manual-vs-portal timing runs** for section 2, then fill in the Expected outcomes table.
