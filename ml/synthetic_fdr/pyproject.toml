@@ -1,0 +1,39 @@
+[project]
+name = "fdrsynth"
+version = "0.1.0"
+description = "Synthetic FDR receipt generator with field annotations, built on public bank and institution master data (DepositTrack, AGENTS.md rule 5)"
+requires-python = ">=3.11"
+dependencies = [
+    "pillow>=10.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["fdrsynth*"]
+
+[tool.setuptools.package-data]
+fdrsynth = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+# Seeded pseudo-randomness is intended here: it generates reproducible sample data, not secrets.
+ignore = ["S311"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
