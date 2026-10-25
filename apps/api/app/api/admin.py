@@ -59,6 +59,7 @@ def system_status(
         "layoutlm_available": bool(load_config("extraction.yaml").get("pass_a_enabled"))
         and layoutlm.is_available(settings.models_dir),
         "forgery_model_available": forgery_model.is_available(settings.models_dir),
+        "forgery_model_training_data": forgery_model.training_data(settings.models_dir),
         "risk_model_available": risk_model.is_available(settings.models_dir),
         "immudb_enabled": immudb.enabled,
         # Detected with importlib.util.find_spec, without importing the client.
