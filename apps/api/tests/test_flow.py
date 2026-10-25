@@ -746,3 +746,33 @@ def test_list_and_detail_agree_on_who_may_read(env):
         assert env.client.get("/api/v1/instruments", headers=env.h(who)).status_code == code
         detail = env.client.get(f"/api/v1/instruments/{instrument_id}", headers=env.h(who))
         assert detail.status_code == code
+
+
+def test_missing_documents_report_lists_incomplete_records_in_scope(env):
+    # T-06: an FDR whose IFSC is neither declared nor readable is flagged and listed with the
+    # reason; a complete FDR is not; the report follows the caller's region.
+    complete = submit(env.client, env.tokens["inst_a"], values()).json()["id"]
+    env.extracted["values"] = values(fdr_no="XN7777777777", ifsc=None)
+    incomplete = submit(
+        env.client, env.tokens["inst_a"], values(fdr_no="XN7777777777", ifsc=None)
+    ).json()["id"]
+    env.extracted["values"] = values(fdr_no="XN6666666666", ifsc=None, depositor="B")
+    submit(env.client, env.tokens["inst_b"], values(fdr_no="XN6666666666", ifsc=None))
+
+    report = env.client.get("/api/v1/reports/missing-documents", headers=env.h("west")).json()
+    numbers = [row[2] for row in report["rows"]]
+    assert numbers == ["XN7777777777"]  # West only: B's incomplete FDR is in the East
+    assert "ifsc is missing" in report["rows"][0][-1]
+    assert any(f["type"] == "missing_field" for f in _detail(env, incomplete)["flags"])
+    assert not any(f["type"] == "missing_field" for f in _detail(env, complete)["flags"])
+
+    every = env.client.get("/api/v1/reports/missing-documents", headers=env.h("scrutiny")).json()
+    assert sorted(row[2] for row in every["rows"]) == ["XN6666666666", "XN7777777777"]
+    csv_text = env.client.get(
+        "/api/v1/reports/missing-documents?format=csv", headers=env.h("scrutiny")
+    ).text
+    assert csv_text.splitlines()[0].startswith("Institution,AICTE ID,FDR number")
+    assert len(csv_text.splitlines()) == 3
+    # An institution account cannot read reports about other institutions' records.
+    own = env.client.get("/api/v1/reports/missing-documents", headers=env.h("inst_a")).json()
+    assert [row[2] for row in own["rows"]] == ["XN7777777777"]
