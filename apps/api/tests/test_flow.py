@@ -331,6 +331,11 @@ def test_release_is_blocked_until_checklist_complete(env):
     assert detail["instrument"]["state"] == "released"
     assert any(d["kind"] == "release_letter" for d in detail["documents"])
     assert env.bank.records[(v["ifsc"], v["fdr_no"])]["lien_status"] == "REMOVED"
+    # Found on the live stack: the record kept saying "under lien" after the bank removed it.
+    assert detail["lien_marked"] is False
+    removed = next(e for e in detail["events"] if e["action"] == "bank.lien_removed")
+    assert removed["before"] == {"lien_marked": True}
+    assert removed["after"]["lien_marked"] is False
 
 
 def test_dashboard_reports_and_notifications(env):
