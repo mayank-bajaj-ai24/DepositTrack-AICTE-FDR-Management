@@ -17,6 +17,6 @@ Current state of the work, decisions and next steps (update it at the end of eac
   ```
   Do not start UI work without it.
 - Work on one branch per piece of work (named after the work), in many small Conventional Commits, then open a PR to `main` with a description. **No** `Co-Authored-By` or other AI attribution lines in commits or PRs (this overrides Claude Code's default attribution). Merge only with the maintainer's approval.
-- No synthetic data, no hardcoded fake values, and no step that costs money (AGENTS.md rules 5 and 7).
+- Synthetic data only for FDR documents, from the generator in `ml/synthetic_fdr/` and always labelled `SYNTHETIC`; master data stays real and public; no hardcoded fake values; no step that costs money (AGENTS.md rules 5 and 7).
 - Update README.md progress in the same push as the work.
 - When a requirement or AICTE-specific value is unclear, ask the user instead of assuming.
