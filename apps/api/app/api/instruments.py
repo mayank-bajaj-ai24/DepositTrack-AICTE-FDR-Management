@@ -22,7 +22,7 @@ from app.core.access import (
 )
 from app.core.config import Settings, get_settings
 from app.core.configfiles import load_config, workflow
-from app.core.permissions import Action, Role
+from app.core.permissions import Action, Role, known_roles
 from app.core.policy import Policy
 from app.db.session import get_session
 from app.models import (
@@ -283,17 +283,26 @@ def detail(
         "replaced_by": [ser.instrument_summary(r) for r in replaced_by],
         "notifications": [ser.notification(n) for n in notifications],
         "coverage": cov,
+        **_hints(session, scope, instrument),
+    }
+
+
+def _hints(session: Session, scope: Scope, instrument: Instrument) -> dict:
+    """UI hints from the caller's roles that can reach this instrument, the same test the
+    edit and transition endpoints apply, so the UI never offers a step they would refuse."""
+    reaching = set()
+    for role in known_roles(scope.principal.roles):
+        query = select(Instrument.id).where(Instrument.id == instrument.id)
+        if session.scalars(scope_instruments(query, scope, acting=frozenset({role}))).first():
+            reaching.add(role.value)
+    return {
         "editable_fields": sorted(
-            {
-                f
-                for role in scope.principal.roles
-                for f in workflow()["editable_fields"].get(role, [])
-            }
+            {f for role in reaching for f in workflow()["editable_fields"].get(role, [])}
         ),
         "next_states": [
             t.split("->")[1]
             for t, roles in workflow()["transitions"].items()
-            if t.startswith(f"{instrument.state}->") and set(roles) & set(scope.principal.roles)
+            if t.startswith(f"{instrument.state}->") and set(roles) & reaching
         ],
     }
 
