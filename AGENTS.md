@@ -67,17 +67,21 @@ Rules and thresholds live in `apps/api/config/*.yaml` (policy, extraction, check
 workflow, alerts, conformance, master_data, bank_mergers). Web URLs come from `apps/web/.env.local`. Demo values
 live only in `config/policy.demo.yaml`, labelled as placeholders.
 
-### 5. Real and open data only (no synthetic data)
+### 5. Real and open data, plus a labelled synthetic FDR dataset
 
-Decided by the maintainer on 23 Oct 2026; it replaces the earlier "synthetic data only" rule.
+Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No public FDR dataset exists and real FDRs are confidential, so the FDR documents themselves may be synthetic. Everything else stays real or open.
 
-- **No synthetic data and no hardcoded fake values** in code, config, seeds or the UI. Nothing is generated to look like an FDR, an institution or a bank record.
+- **Synthetic data is allowed only for FDR documents:** generated FDR images/PDFs, their field labels and their tampered variants, used to build, train and evaluate the FDR models (extraction pass A, forgery signal, discrepancy checks) and to walk the demo story. The generator and its configuration live in the repo (`ml/synthetic_fdr/`); the generated files go to the git-ignored `data/synthetic_fdr/` and are never committed.
+- **Synthetic FDRs are always labelled.** Every generated document carries a visible `SYNTHETIC - NOT A REAL DEPOSIT` mark. Results measured on them are reported as **synthetic results**, separately from proxy results on open datasets, and are never presented as results on real FDRs.
+- **A synthetic FDR uses real public master data and invents nothing else that could be mistaken for a real record.** Banks, IFSCs and institutions come from the imported public master data. FDR numbers, amounts, dates and names are generated, and names are drawn from an obvious placeholder list. Layouts imitate the common structure of an FDR and never copy a real bank's logo or branding.
+- **No hardcoded fake values** in application code, config, seeds or the UI. Synthetic FDRs are produced by the generator, not typed into the app.
 - **Master data comes from public sources:** AICTE's approved-institutions dashboard and the RBI IFSC master (Razorpay IFSC dataset), imported with `python -m app.masterdata` (sources in `apps/api/config/master_data.yaml`). Bank mergers are listed in `apps/api/config/bank_mergers.yaml`, each with its RBI press release.
-- **Models are trained on open datasets, as proxies.** No public FDR dataset exists, so each model is trained on the closest open dataset and its results are reported as *proxy results on that dataset, not FDR results*. Datasets (with pinned versions), licences and citations are listed in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` into the git-ignored `data/<name>/`; a dataset whose licence is not confirmed needs `--accept-unconfirmed-licence`. Check a dataset's licence before using it and never commit downloaded data (`data/` is not in git).
+- **Models are trained on synthetic FDRs or on open datasets as proxies.** Results on the closest open dataset are reported as *proxy results on that dataset*; results on synthetic FDRs as *synthetic results*. Neither is an FDR result. Results on real FDRs need labelled real FDRs. Datasets (with pinned versions), licences and citations are listed in `ml/open_datasets.json` and downloaded with `ml/download_open_data.py` into the git-ignored `data/<name>/`; a dataset whose licence is not confirmed needs `--accept-unconfirmed-licence`. Check a dataset's licence before using it and never commit downloaded data (`data/` is not in git).
+- A model trained only on synthetic FDRs may run live only after the maintainer approves it, and is labelled "trained on synthetic FDRs" in the UI.
 - A model trained on a proxy that cannot speak for AICTE institutions (renewal risk, LayoutLMv3 pass A) stays **off** in the live system until it can be trained on DepositTrack's own data; one whose features do not depend on the document type (forgery signals) may run live, labelled with its training dataset, but only if its proxy result is useful. The code enforces this: the risk loader needs `"live_scoring": true` in the model's `meta.json`, and extraction needs `pass_a_enabled: true` plus a model with FDR labels. Ask the maintainer before switching a proxy model on.
 - **Real FDRs are confidential.** A real FDR is used only with the owner's consent and personal details redacted, and is never committed.
 - **The mock bank is a simulation**, clearly labelled as one. Its ledger starts empty; the bank operator records each FDR. Real bank names and IFSC codes may appear there, but never a bank's branding.
-- **Test fixtures** use excerpts of the real public data (for example `apps/api/tests/fixtures/masterdata`) or minimal values that a test needs to exercise a rule. They are never presented as real records.
+- **Test fixtures** use excerpts of the real public data (for example `apps/api/tests/fixtures/masterdata`), minimal values that a test needs to exercise a rule, or small synthetic FDRs from the generator. They are never presented as real records.
 
 ### 6. Ask, and flag manual work
 
