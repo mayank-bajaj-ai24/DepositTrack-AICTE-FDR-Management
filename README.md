@@ -445,7 +445,7 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 | Field extraction | Field exact-match after rules (overall) | ≥ 90% | — | Not measured: needs labelled real FDRs |
 | Field extraction | Exact-match on amount and dates | ≥ 95% | — | Not measured: needs labelled real FDRs |
 | Field extraction | Processing time per page (CPU) | < 5 s | — | To be measured on real scans |
-| Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
+| Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.894 — **proxy**, FUNSD test split (50 forms); answer 0.911, question 0.911, header 0.612; 0.888 when words cut off at 512 tokens count as missed | Merged notebook protocol: fixed 1,000 steps, evaluated once (the paper reports 90.29). Run 26 Oct 2026 on Apple MPS (fp32, batch 2 × 8 accumulation = 16, seed 7) instead of the Colab T4. The first Colab run's 0.906 picked its checkpoint on test. Pass A off live |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
@@ -572,7 +572,7 @@ Immediate next steps, in order:
 
 1. **A real FDR scan** (with the owner's consent, personal details redacted) from the maintainer, to walk the upload → extraction → bank verification story on the live stack. Record the same FDR at the mock bank (its operator page) before "Verify with bank".
 2. **Forgery signal:** decide how to proceed after the weak Find it again! result (other features or methods, or keep the signal off and rely on the bank cross-check).
-3. **Re-run the LayoutLMv3 notebook** with the merged protocol (fixed 1,000 steps, single evaluation) and record the score.
+3. ~~**Re-run the LayoutLMv3 notebook** with the merged protocol~~ — done 26 Oct 2026: entity F1 0.894 on FUNSD (proxy).
 4. **Security fix in PR #12:** instrument detail needs a read permission, and unknown role mixes are denied by default.
 5. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
 6. **CI workflow** once the GitHub token has the `workflow` scope.
