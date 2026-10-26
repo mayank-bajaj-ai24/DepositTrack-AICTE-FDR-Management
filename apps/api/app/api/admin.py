@@ -63,8 +63,7 @@ def system_status(
         "layoutlm_training_data": layoutlm.training_data(
             Path(settings.models_dir) / layoutlm.MODEL_SUBDIR
         ),
-        "forgery_model_available": forgery_model.is_available(settings.models_dir),
-        "forgery_model_training_data": forgery_model.training_data(settings.models_dir),
+        **{f"forgery_model_{k}": v for k, v in forgery_model.status(settings.models_dir).items()},
         "risk_model_available": risk_model.is_available(settings.models_dir),
         "immudb_enabled": immudb.enabled,
         # Detected with importlib.util.find_spec, without importing the client.
