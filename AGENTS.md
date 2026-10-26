@@ -32,7 +32,7 @@ Update [README.md](README.md) in the same push as the change that makes progress
 
 - Tick items in the **Progress** checklist when they are actually done.
 - Update the **Test scenarios** status column when a test is implemented or passing.
-- Fill the **Expected outcomes** *Measured* column **only with real measured values**, and name the dataset they come from (a proxy dataset is labelled as a proxy, not as an FDR result). Never write a target as if it were a result.
+- Fill the **Expected outcomes** *Measured* column **only with real measured values**, and name the dataset they come from: a result on an open dataset is labelled **proxy**, a result on generated FDRs is labelled **synthetic** (rule 5), and neither is presented as an FDR result. Never write a target as if it were a result.
 - Keep **Repository structure** and **Work to be done** in line with what exists in the repo.
 
 ### 3. No invented AICTE values
