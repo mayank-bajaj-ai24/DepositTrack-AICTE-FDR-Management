@@ -147,7 +147,7 @@ apps/api/.venv/Scripts/python ml/download_open_data.py bpi-2017        # Kaggle 
 apps/api/.venv/Scripts/python ml/risk/train.py --out models            # proxy, writes renewal_risk_proxy/, live off
 apps/api/.venv/Scripts/python -m pytest ml/tests
 # LayoutLMv3: run ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb on the free Colab T4 GPU (proxy, live off)
-# Forgery (Find it again!): on branch forgery-model-on-find-it-again, not merged (result near chance)
+# Forgery (Find it again!): the retrain is uncommitted in the maintainer's local worktree, not on any branch (result near chance)
 ```
 
 Run lint and tests before every push. CI is not set up yet, so these local checks are the only gate.
@@ -159,7 +159,7 @@ apps/api/        FastAPI backend (modules per plan §8), config/ holds every rul
 apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
 services/mock-bank/  Mock bank (simulation): the operator records issued FDRs; signed credentials, lien status
 ml/open_datasets.json, ml/download_open_data.py  Open-dataset catalog and download helper
-ml/forgery/      Forgery signal training (Find it again! retrain on an unmerged branch)
+ml/forgery/      Forgery signal training (Find it again! retrain not committed yet)
 ml/risk/         Renewal-risk proxy training (BPI Challenge 2017)
 ml/layoutlm/     LayoutLMv3 FUNSD proxy notebook
 ml/tests/        Tests for the ml scripts
