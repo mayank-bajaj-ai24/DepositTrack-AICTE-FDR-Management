@@ -1,0 +1,12 @@
+{
+  "_comment": "Generated values for synthetic FDRs. None of these are AICTE rules: amounts, tenures, beneficiary and lien wording are open questions (IMPLEMENTATION_PLAN.md section 14). Banks and institutions are not listed here; they come from the public master data, and captions and date formats from apps/api/config/extraction.yaml.",
+  "bank_types": ["PSB", "Private", "SFB"],
+  "beneficiary": ["AICTE, New Delhi", "All India Council for Technical Education, New Delhi"],
+  "lien_text": [
+    "Lien marked in favour of AICTE (synthetic placeholder wording)",
+    "Under lien to AICTE, New Delhi (synthetic placeholder wording)"
+  ],
+  "amount": {"step_inr": 50000, "min_steps": 1, "max_steps": 200},
+  "tenure_months": [12, 24, 36, 60, 120],
+  "deposit_date": {"start": "2021-01-01", "span_days": 2000}
+}
