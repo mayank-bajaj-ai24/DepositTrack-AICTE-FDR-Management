@@ -54,7 +54,7 @@ Live scoring is **off**: the API loads a model only if its `meta.json` has `"liv
 
 | Component | Metric | Target | Measured | Reached? |
 | --- | --- | --- | --- | --- |
-| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 412 API tests pass, ruff clean | **Yes** |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 423 API tests pass, ruff clean | **Yes** |
 
 ### Summary
 
@@ -94,10 +94,11 @@ No baseline or portal numbers exist yet. Each needs manual-vs-portal timing runs
 
 ### Small follow-ups from the PR #12 review
 
-All three were fixed on 26 Oct, on the branch `institutions-scope-and-detail-hints`:
+All three were fixed on 26 Oct in PR #17 (API side):
 
 - ~~`GET /institutions` scopes by `len(roles) == 1` and region.~~ It now uses the action-aware rule (`scope_institutions`). An institution with a bank role sees only its own institution, and a bank account sees none.
-- ~~`next_states` and `editable_fields` come from all of the caller's roles.~~ They now come from the roles that can reach the instrument, the same test the endpoints apply.
+- ~~`next_states` and `editable_fields` come from all of the caller's roles.~~ They now come from the roles that can reach the instrument, and `next_states` also leaves out moves that policy (bank attestation before *Active*) or an open critical flag blocks, the same checks the endpoints apply. Editing a visible instrument without an editor role now returns 403 instead of 404.
+- **Still open, web UI (waits for the UI work):** `apps/web/src/components/InstrumentView.tsx` shows the Verify-field, Verify-with-bank, observation and resolve-flag controls by `auth.has(role)` and never reads `editable_fields` / `next_states`, so it can still offer actions the API refuses (e.g. an institution-plus-West-officer account opening its own East FDR). `apps/web/src/app/my/page.tsx` treats `items[0]` of `/institutions` as the caller's own institution, which is wrong for an account that also holds an officer role; it should identify the caller's institution explicitly.
 - ~~`CONTEXT.md` and README list #11/#12 as open.~~ Corrected.
 
 ### Unfinished test scenarios and gates
