@@ -1,6 +1,6 @@
 # pending.md: what is left, and how the models measure up
 
-State on `main` as of 24 Oct 2026, after PR #12. The prototype deadline is before 28 Oct 2026.
+State on `main` as of 24 Oct 2026, after PR #12, plus the T-06 work in PR #18 (26 Oct). The prototype deadline is before 28 Oct 2026.
 The numbers below come from [README.md → Expected outcomes](README.md#expected-outcomes) and [CONTEXT.md](CONTEXT.md). Nothing here is estimated.
 
 > **Rule change (25 Oct 2026):** a labelled synthetic FDR dataset is now allowed; see section 3. The results below predate it.
@@ -56,7 +56,7 @@ Live scoring is **off**: the API loads a model only if its `meta.json` has `"liv
 
 | Component | Metric | Target | Measured | Reached? |
 | --- | --- | --- | --- | --- |
-| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 429 API tests pass, ruff clean | **Yes** |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 434 API tests pass, ruff clean | **Yes** |
 
 ### Summary
 
@@ -124,7 +124,7 @@ All three were fixed on 26 Oct in PR #17 (API side):
 ### Unfinished test scenarios and gates
 
 - **T-05:** the forgery part (recall ≥ 0.90, false alarms ≤ 5%) is not met; see section 1.
-- **T-06:** the missing-documents report endpoint is built but not separately tested.
+- ~~**T-06:** the missing-documents report endpoint is built but not separately tested.~~ API tests added in PR #18. The review of that PR also fixed the report: filling in a missing field now resolves its flag, released/renewed/rejected/archived records leave the report, flags are filtered in SQL in a stable order, and an unknown export format returns 422.
 - **T-11:** drill-down clicks have not been walked in the browser.
 - **Phase 2 gate:** the full story from upload to maturity reminder passes in API tests; on the live stack it waits for a real FDR scan.
 - **Phase 3 gate:** feature freeze, not declared yet.

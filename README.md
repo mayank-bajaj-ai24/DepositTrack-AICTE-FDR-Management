@@ -479,7 +479,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
 | T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal being retrained on an open proxy dataset, see [Expected outcomes](#expected-outcomes) |
-| T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
+| T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests; API: missing fields and documents flagged and listed with their reasons, scoped by region and institution, record leaves the list once the field is filled in or the record is closed, CSV export) |
 | T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants; unit tests for a same deposit across a bank merger and for unrelated same-number FDRs of two merged banks) |
 | T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
 | T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
@@ -500,7 +500,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 429 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
+- [x] Backend: 434 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 - [x] Data policy changed again (25 Oct 2026): a labelled synthetic dataset is allowed for FDR documents only

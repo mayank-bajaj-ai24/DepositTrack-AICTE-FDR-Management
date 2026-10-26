@@ -1,5 +1,7 @@
 """End-to-end flow through the API: the six SIH test scenarios plus audit and access."""
 
+import csv
+import io
 import json
 import uuid
 from datetime import date, timedelta
@@ -21,6 +23,7 @@ from app.models import (
     Instrument,
     Notification,
     Obligation,
+    UserAccount,
 )
 from tests.flow_support import (
     API_ROOT,
@@ -747,6 +750,113 @@ def test_list_and_detail_agree_on_who_may_read(env):
         assert env.client.get("/api/v1/instruments", headers=env.h(who)).status_code == code
         detail = env.client.get(f"/api/v1/instruments/{instrument_id}", headers=env.h(who))
         assert detail.status_code == code
+
+
+def _report(env, who, fmt="json"):
+    return env.client.get(f"/api/v1/reports/missing-documents?format={fmt}", headers=env.h(who))
+
+
+def _second_west_institution(env, make_token):
+    """Institution C in the West (A's region), with its own account."""
+    with env.factory() as s:
+        c = Institution(
+            aicte_id="SYN-C", name="Synthetic Institute C", institution_type="any", region="West"
+        )
+        s.add(c)
+        s.flush()
+        s.add(UserAccount(username="inst.c", institution_id=c.id))
+        s.add(
+            Obligation(
+                institution_id=c.id,
+                basis_ref="demo approval case",
+                rule_version="demo-0.1",
+                required_amount=500000,
+                required_from=date.today() - timedelta(days=30),
+                required_until=date.today() + timedelta(days=5 * 365),
+            )
+        )
+        s.commit()
+    env.tokens["inst_c"] = make_token(["institution"], username="inst.c")
+
+
+def test_missing_documents_report_lists_incomplete_records_in_scope(env, make_token):
+    # T-06: an FDR whose IFSC is neither declared nor readable is flagged and listed with the
+    # reason; a complete FDR is not; the report follows the caller's region and institution.
+    _second_west_institution(env, make_token)
+    complete = submit(env.client, env.tokens["inst_a"], values()).json()["id"]
+    env.extracted["values"] = values(fdr_no="XN7777777777", ifsc=None)
+    incomplete = submit(
+        env.client, env.tokens["inst_a"], values(fdr_no="XN7777777777", ifsc=None)
+    ).json()["id"]
+    b_values = values(fdr_no="XN6666666666", ifsc=None, depositor="Synthetic Institute B")
+    env.extracted["values"] = b_values
+    submit(env.client, env.tokens["inst_b"], b_values)
+    c_values = values(fdr_no="XN5555555555", ifsc=None, depositor="Synthetic Institute C")
+    env.extracted["values"] = c_values
+    submit(env.client, env.tokens["inst_c"], c_values)
+
+    west = _report(env, "west").json()
+    assert [row[2] for row in west["rows"]] == ["XN7777777777", "XN5555555555"]  # A, C
+    assert "ifsc is missing" in west["rows"][0][-1]
+    assert any(f["type"] == "missing_field" for f in _detail(env, incomplete)["flags"])
+    assert not any(f["type"] == "missing_field" for f in _detail(env, complete)["flags"])
+
+    every = _report(env, "scrutiny").json()
+    assert sorted(row[2] for row in every["rows"]) == [
+        "XN5555555555",
+        "XN6666666666",
+        "XN7777777777",
+    ]
+    exported = list(csv.reader(io.StringIO(_report(env, "scrutiny", "csv").text)))
+    assert exported[0][:3] == ["Institution", "AICTE ID", "FDR number"]
+    assert len(exported) == 4
+    # An institution account sees its own records only, not those of its region.
+    own = _report(env, "inst_a").json()
+    assert [row[2] for row in own["rows"]] == ["XN7777777777"]
+
+
+def test_missing_document_is_listed_and_a_filled_field_leaves_the_report(env, monkeypatch):
+    from app.core.configfiles import checks
+    from app.modules.instruments import intake
+
+    stricter = checks() | {
+        "required_fields": [*checks()["required_fields"], "branch"],
+        "required_documents": [*checks()["required_documents"], "board_resolution"],
+    }
+    monkeypatch.setattr(intake, "checks", lambda: stricter)
+    env.extracted["values"] = values(branch=None)
+    instrument = submit(env.client, env.tokens["inst_a"], values(branch=None)).json()["id"]
+    reason = _report(env, "scrutiny").json()["rows"][0][-1]
+    assert reason == "branch is missing; required document 'board_resolution' not uploaded"
+
+    filled = env.client.post(
+        f"/api/v1/instruments/{instrument}/fields/branch",
+        json={"value": "Pune Main Branch", "reason": "read from the bank's letter"},
+        headers=env.h("scrutiny"),
+    )
+    assert filled.is_success
+    reason = _report(env, "scrutiny").json()["rows"][0][-1]
+    assert reason == "required document 'board_resolution' not uploaded"
+    assert "flag.resolved" in [e["action"] for e in _detail(env, instrument)["events"]]
+
+
+def test_closed_records_leave_the_missing_documents_report(env):
+    env.extracted["values"] = values(ifsc=None)
+    instrument = submit(env.client, env.tokens["inst_a"], values(ifsc=None)).json()["id"]
+    assert len(_report(env, "scrutiny").json()["rows"]) == 1
+    with env.factory() as s:
+        s.execute(
+            update(Instrument)
+            .where(Instrument.id == uuid.UUID(instrument))
+            .values(state="released")
+        )
+        s.commit()
+    assert _report(env, "scrutiny").json()["rows"] == []
+
+
+@pytest.mark.parametrize("fmt", ["CSV", "pdf"])
+def test_unknown_report_format_is_refused(env, fmt):
+    assert _report(env, "scrutiny", fmt).status_code == 422
 
 
 def test_detail_hints_only_offer_steps_the_endpoints_allow(env):
