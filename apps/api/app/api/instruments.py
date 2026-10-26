@@ -407,6 +407,32 @@ def change_state(
     return {"id": str(instrument.id), "state": str(instrument.state)}
 
 
+def _close_missing_field_flags(
+    session: Session, scope: Scope, instrument: Instrument, field: str
+) -> None:
+    """A filled-in field is no longer missing: resolve its open completeness flag, audited."""
+    open_flags = session.scalars(
+        select(Flag).where(
+            Flag.instrument_id == instrument.id,
+            Flag.flag_type == "missing_field",
+            Flag.status == "open",
+        )
+    ).all()
+    for flag in open_flags:
+        if (flag.fact or {}).get("field") != field:
+            continue
+        flag.status = "resolved"
+        flag.resolved_by = scope.principal.username
+        record_event(
+            session,
+            actor=actor_of(scope),
+            action="flag.resolved",
+            instrument_id=instrument.id,
+            after={"flag_id": str(flag.id), "type": flag.flag_type},
+            reason=f"{field} filled in by an officer",
+        )
+
+
 class ObservationIn(BaseModel):
     text: str
 
@@ -527,6 +553,8 @@ def edit_field(
         after=ser.field_value(fv),
         reason=body.reason,
     )
+    if not body.verify and (body.value or "").strip():
+        _close_missing_field_flags(session, scope, instrument, field)
     session.commit()
     return ser.field_value(fv)
 
