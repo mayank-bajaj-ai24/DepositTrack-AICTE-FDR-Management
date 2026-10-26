@@ -5,11 +5,12 @@ tenures, dates and wording come from the placeholder ranges. This module holds o
 formatting and sampling logic.
 """
 
+import calendar
 import random
 from dataclasses import asdict, dataclass
 from datetime import date, timedelta
 
-from fdrsynth.catalog import Catalog
+from fdrsynth.catalog import Branch, Catalog
 
 # English number words used to spell amounts in Indian numbering.
 ONES = [
@@ -69,47 +70,50 @@ def _three_digits(n: int) -> str:
     return " ".join(parts)
 
 
-def amount_in_words(amount: int) -> str:
-    """Indian numbering: crore, lakh, thousand. 1500000 -> 'Rupees Fifteen Lakh Only'."""
-    if amount <= 0:
-        raise ValueError("amount must be positive")
-    crore, rest = divmod(amount, 10_000_000)
+def _words(n: int) -> str:
+    """n >= 1 in words, Indian numbering; crores above 99 are spelled the same way."""
+    crore, rest = divmod(n, 10_000_000)
     lakh, rest = divmod(rest, 100_000)
     thousand, rest = divmod(rest, 1000)
     parts = []
     if crore:
-        parts.append(f"{amount_in_words_plain(crore)} Crore")
+        parts.append(f"{_words(crore)} Crore")
     if lakh:
         parts.append(f"{_two_digits(lakh)} Lakh")
     if thousand:
         parts.append(f"{_two_digits(thousand)} Thousand")
     if rest:
         parts.append(_three_digits(rest))
-    return f"Rupees {' '.join(parts)} Only"
+    return " ".join(parts)
 
 
-def amount_in_words_plain(n: int) -> str:
-    return amount_in_words(n).removeprefix("Rupees ").removesuffix(" Only")
+def amount_in_words(amount: int) -> str:
+    """Indian numbering: crore, lakh, thousand. 1500000 -> 'Rupees Fifteen Lakh Only'."""
+    if amount <= 0:
+        raise ValueError("amount must be positive")
+    return f"Rupees {_words(amount)} Only"
+
+
+def _indian_digits(amount: int) -> str:
+    """1500000 -> '15,00,000' (groups of two above the last three digits)."""
+    head, tail = divmod(amount, 1000)
+    if not head:
+        return str(tail)
+    groups = []
+    while head:
+        head, group = divmod(head, 100)
+        groups.insert(0, str(group) if not head else f"{group:02d}")
+    return ",".join(groups) + f",{tail:03d}"
 
 
 def indian_format(amount: int) -> str:
     """1500000 -> 'Rs. 15,00,000/-'."""
-    digits = str(amount)
-    if len(digits) > 3:
-        head, tail = digits[:-3], digits[-3:]
-        groups = []
-        while len(head) > 2:
-            groups.insert(0, head[-2:])
-            head = head[:-2]
-        if head:
-            groups.insert(0, head)
-        digits = ",".join(groups) + "," + tail
-    return f"Rs. {digits}/-"
+    return f"Rs. {_indian_digits(amount)}/-"
 
 
 def amount_text(amount: int, rng: random.Random) -> str:
     """The figure as banks print it, in one of the forms extraction reads."""
-    rupees = indian_format(amount).removeprefix("Rs. ").removesuffix("/-")
+    rupees = _indian_digits(amount)
     return rng.choice([f"Rs. {rupees}/-", f"Rs. {rupees}.00", f"INR {rupees}.00"])
 
 
@@ -117,12 +121,14 @@ def add_months(start: date, months: int) -> date:
     """Same day `months` later, clamped to the month's last day (31 Jan + 1 -> 28/29 Feb)."""
     year, month = divmod(start.month - 1 + months, 12)
     year, month = start.year + year, month + 1
-    for day in (start.day, 30, 29, 28):
-        try:
-            return date(year, month, day)
-        except ValueError:
-            continue
-    raise AssertionError("unreachable")
+    return date(year, month, min(start.day, calendar.monthrange(year, month)[1]))
+
+
+def branch_text(branch: Branch) -> str:
+    """'AMBUR Branch, Chennai'; no second 'Branch' when the name already has one."""
+    if "BRANCH" in branch.branch.upper():
+        return f"{branch.branch}, {branch.city}"
+    return f"{branch.branch} Branch, {branch.city}"
 
 
 def fdr_number(rng: random.Random) -> str:
@@ -142,7 +148,7 @@ def random_values(rng: random.Random, catalog: Catalog) -> FDRValues:
     return FDRValues(
         fdr_no=fdr_number(rng),
         bank=branch.bank,
-        branch=f"{branch.branch} Branch, {branch.city}",
+        branch=branch_text(branch),
         ifsc=branch.ifsc,
         amount=amount,
         amount_text=amount_text(amount, rng),
