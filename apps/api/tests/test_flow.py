@@ -23,6 +23,7 @@ from app.models import (
     Obligation,
 )
 from tests.flow_support import (
+    API_ROOT,
     FakeBank,
     fake_extractor,
     make_sessionmaker,
@@ -777,6 +778,8 @@ def test_detail_hints_only_offer_steps_the_endpoints_allow(env):
         ("west_inst_b", ["SYN-A", "SYN-B"]),
         ("scrutiny", ["SYN-A", "SYN-B"]),  # no region: every institution
         ("bank", []),
+        ("nobody", []),  # Keycloak default roles only: no DepositTrack role
+        ("east_verifier_bank", ["SYN-B"]),  # the bank role never widens the officer's region
     ],
 )
 def test_institution_list_follows_the_action_aware_rule(env, who, expected):
