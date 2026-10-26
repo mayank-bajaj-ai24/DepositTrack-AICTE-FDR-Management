@@ -14,7 +14,7 @@
 
 > **Current status (23 Oct 2026):** prototype built in code — backend (modules M1–M10, M12, M13), mock bank and the bilingual web app — and **run on the live Docker stack**: migrations, real master-data import (13,088 AICTE institutions, RBI IFSC bank master), Keycloak login, immudb anchoring and the main screens in a browser. The upload → bank-verification story still waits for a real FDR scan. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**.
 >
-> **Data policy (25 Oct 2026):** synthetic data only for FDR documents. No public FDR dataset exists, so a generator makes FDRs labelled `SYNTHETIC`, and results on them are reported as **synthetic results**. Master data comes from public sources; other models are trained on open datasets as **labelled proxies**. See [Expected outcomes](#expected-outcomes) and AGENTS.md rule 5.
+> **Data policy (25 Oct 2026):** synthetic data only for FDR documents. No public FDR dataset exists, so a generator (`ml/synthetic_fdr/`, PR #14) makes FDR pages marked `SYNTHETIC - NOT A REAL DEPOSIT`, and results on them are reported as **synthetic results**. Master data comes from public sources; other models are trained on open datasets as **labelled proxies**. See [Expected outcomes](#expected-outcomes) and AGENTS.md rule 5.
 >
 > Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
 >
@@ -328,7 +328,7 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | Database | PostgreSQL 16 + pgvector |
 | File storage | SeaweedFS (S3-compatible); replaces MinIO from the plan, which no longer publishes Docker images |
 | Tamper evidence | immudb receipts via `immudb-py` (optional `anchoring` extra); permissioned ledger as production option |
-| OCR / document AI | RapidOCR + configured rules (pass B); LayoutLMv3 (pass A) only once trained on labelled real FDRs |
+| OCR / document AI | RapidOCR + configured rules (pass B); LayoutLMv3 (pass A) only once the maintainer approves a model trained on FDRs, recorded in its `metrics.json` |
 | Machine learning | scikit-learn, scikit-image, LightGBM, SHAP; open datasets fetched with `kagglehub` (`data` extra) |
 | Master data | AICTE approved-institutions dashboard; RBI IFSC master via the Razorpay IFSC dataset (MIT) |
 | Credentials | Ed25519 signed JSON |
@@ -542,7 +542,7 @@ flowchart LR
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
-- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until it can be trained on labelled real FDRs; FUNSD proxy notebook, and the API refuses non-FDR models (M3)
+- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until the maintainer approves a model trained on FDRs; FUNSD proxy notebook, and the API refuses non-FDR or unapproved models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
 - [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
 - [x] Reminders once per threshold, overdue / coverage-gap / time-box escalation (M8)
@@ -571,8 +571,8 @@ flowchart LR
 
 Immediate next steps, in order:
 
-1. **A real FDR scan** (with the owner's consent, personal details redacted) from the maintainer, to walk the upload → extraction → bank verification story on the live stack. Record the same FDR at the mock bank (its operator page) before "Verify with bank".
-2. **Forgery signal:** decide how to proceed after the weak Find it again! result (other features or methods, or keep the signal off and rely on the bank cross-check).
+1. **Synthetic FDRs** from the generator (PR #14), marked `SYNTHETIC - NOT A REAL DEPOSIT`, to walk the upload → extraction → bank verification story on a demo database. A real FDR scan (with the owner's consent, personal details redacted) is still wanted for final validation; record the same FDR at the mock bank (its operator page) before "Verify with bank".
+2. **Forgery signal:** retrain on synthetic FDRs (PR #16) and report the result as synthetic; if it still misses the targets, try other features or keep the signal off and rely on the bank cross-check.
 3. **Re-run the LayoutLMv3 notebook** with the merged protocol (fixed 1,000 steps, single evaluation) and record the score.
 4. **Security fix in PR #12:** instrument detail needs a read permission, and unknown role mixes are denied by default.
 5. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
