@@ -92,11 +92,11 @@ Checked on a fresh clone of `main` (macOS, Python 3.11, Node 22):
 - Web: ESLint, `tsc --noEmit` and `next build` pass.
 - Confirmed in code: `GET /institutions` still uses `len(roles) == 1` (`apps/api/app/api/admin.py`); the web app shows none of `store_error`, `receipt` or `immudb_problem`; there is no `.github/`.
 - Not on GitHub: the branch `main-local-with-ci` and `../retired-synthetic-models/` exist only on the maintainer's machine. The branch `forgery-model-on-find-it-again` has no commits beyond `main` (its tip `0e38de0` is an ancestor of `main`): the Find it again! retrain behind the 0.114 / 6.6% / 0.534 numbers exists only as **uncommitted edits in the maintainer's `../wt-forgery` worktree**. Those edits also delete `ml/forgery/tamper.py`, which item 2 still needs. **Maintainer:** commit them to that branch, keeping `tamper.py`, before removing or resetting that worktree.
-- **Gap not listed above:** `ml/forgery/train.py` on `main` still trains on FDRs from the removed `ml/synth` generator (`fdrsynth`), so it cannot run on `main`.
+- **Gap not listed above:** `ml/forgery/train.py` on `main` still trains on FDRs from the removed `ml/synth` generator (`fdrsynth`), so it cannot run on `main`. PR #14 brings the generator back as `ml/synthetic_fdr/` and points `train.py` at it.
 
 The 25 Oct rule (AGENTS.md rule 5) allows a labelled synthetic dataset for FDR documents, so items 1, 2, 4 and 5 below now use generated FDRs. A real scan is still wanted for final validation.
 
-1. **Generate synthetic FDRs (PR #14).** Restore the generator from history (`git checkout a6e1efc~1 -- ml/synth && git mv ml/synth ml/synthetic_fdr`). Then:
+1. ~~**Generate synthetic FDRs**~~ — done in PR #14 (the walk itself is item 5). Restore the generator from history (`git checkout a6e1efc~1 -- ml/synth && git mv ml/synth ml/synthetic_fdr`). Then:
    - replace its fictional banks, IFSCs and institutions with ones from the imported master data;
    - replace its `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT` mark with `SYNTHETIC - NOT A REAL DEPOSIT`, and register the new mark in `apps/api/config/extraction.yaml` (`ignore_lines_containing: ["NOT A REAL DEPOSIT"]`, plus `ignore_lines_equal` entries for fragments OCR reads alone, such as `SYNTHETIC`), so it is not read as the bank or scored as a text region;
    - write PNG pages only (the app cannot read a PDF), clean pages only (tampered copies are made by `ml/forgery/train.py`), and default the output to the repo-root `data/synthetic_fdr/`.
