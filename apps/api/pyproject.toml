@@ -58,6 +58,7 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]  # tests import tests.flow_support; makes a bare `pytest` work
 
 [tool.ruff]
 line-length = 100
