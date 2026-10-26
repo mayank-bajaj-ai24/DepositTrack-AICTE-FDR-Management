@@ -5,8 +5,9 @@
 
 row_tolerance_px: 18          # lines whose vertical centres differ by less than this share a row
 human_review_below: 0.8       # route a field to human confirmation below this confidence (P13 default)
-# Pass A (LayoutLMv3) stays off until a model trained on labelled real FDRs exists
-# (maintainer decision); with false, a model in models/layoutlmv3-fdr/ is not used.
+# Pass A (LayoutLMv3) stays off until the maintainer approves a model trained on FDRs (real,
+# or synthetic per AGENTS.md rule 5); its metrics.json must also say "live_extraction": true and
+# name its "training_data". With false, a model in models/layoutlmv3-fdr/ is not used.
 pass_a_enabled: false
 
 # Text that is never a field value (e.g. a bank's watermark or stamp text), matched
@@ -24,9 +25,13 @@ fields:
     pattern: "^[A-Z0-9/-]{6,20}$"
   ifsc:
     captions: ["IFSC", "IFSC Code"]
-    # The 5th character is always 0 (RBI); OCR often reads it as the letter O before letters.
-    pattern: "[A-Z]{4}[0O][A-Z0-9]{6}"
+    pattern: "[A-Z]{4}0[A-Z0-9]{6}"
     search_anywhere: true
+    # The 5th character is always 0 (RBI); OCR often reads it as the letter O before letters.
+    # The O is accepted only next to an IFSC caption, because away from one ordinary words
+    # match too (CORPORATION, METHODOLOGY), and fixed_characters then sets it back to 0.
+    caption_pattern: "[A-Z]{4}[0O][A-Z0-9]{6}"
+    fixed_characters: {4: "0"}
   amount:
     captions: ["Amount", "Deposit Amount", "Principal"]
     pattern: "(?:Rs\\.?|INR|₹)\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?"

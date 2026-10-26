@@ -40,9 +40,11 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
 - **Never assume — ask**; any plan change is agreed first. Tell the user about every manual step
   (installs, accounts, keys, Docker, GitHub permissions, Colab runs) instead of doing it.
 - **Synthetic data only for FDR documents** (decided 25 Oct 2026, replacing the 23 Oct "no synthetic
-  data" rule): a generator in `ml/synthetic_fdr/` makes FDRs labelled `SYNTHETIC`, and their results
-  are reported as synthetic results. Master data stays real and public (AICTE dashboard, RBI IFSC
-  master); other models stay on open datasets as **labelled proxies**. No hardcoded fake values.
+  data" rule): a generator in `ml/synthetic_fdr/` makes PNG FDR pages marked
+  `SYNTHETIC - NOT A REAL DEPOSIT`, and their results are reported as synthetic results. They are
+  walked only on a demo DB that is reset afterwards. Master data stays real and public (AICTE
+  dashboard, RBI IFSC master); other models stay on open datasets as **labelled proxies**. No
+  hardcoded fake values. Full rule: AGENTS.md rule 5.
 - **No step that costs money**; free tiers only (free Colab T4, free Kaggle). Ask before anything paid.
 - **Usage:** stop and warn at 80% of the session token budget; continue only if the user agrees.
 - **No invented AICTE values**: `policy.example.yaml` stays all-`null`; demo values only in
@@ -53,9 +55,11 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
   SKILL.md and run `lint.mjs` / `inspect.mjs --app`). 21st.dev only on its free plan.
 - Decisions: no officer assistant (LLM) for now; OCR = RapidOCR; object storage = SeaweedFS; UI =
   English + Hindi, DepositTrack brand only (no AICTE logo); deck (SIH PPT) on hold.
-- Proxy-model decisions: renewal risk and LayoutLMv3 pass A are **proxy only, live off**. The
-  forgery model now loads only with `"live_scoring": true` in its meta.json (26 Oct); it is off
-  because its synthetic result (recall 0.75, false alarms 5.7%) misses both targets.
+- Model decisions: no model runs live without the maintainer's approval, recorded on its files
+  (`"live_scoring": true` / `"live_extraction": true` plus a `"training_data"` name), and a live
+  model is labelled with what it was trained on (e.g. "trained on synthetic FDRs"). Renewal risk
+  and LayoutLMv3 on FUNSD are **proxy only, live off**.
+  The forgery model is off: its synthetic result misses both targets (section 5a).
 - The demo institution user is linked to **R.V. College of Engineering, AICTE ID `1-43655541828`**
   (the ID as AICTE's public dashboard lists it; the user gave the permanent ID 1-10906981, which the
   dashboard does not show). Passed with `--institution-user-aicte-id`; nothing is committed about it.
@@ -69,7 +73,7 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. **Run end
 to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak login, immudb anchor.
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 412 tests pass, ruff clean; `ml/tests`: 18)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 418 tests pass, ruff clean; `ml/tests`: 18)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, action-aware ABAC: every lookup names its action (or workflow roles) and only the caller's roles that grant it contribute visibility (`acting_roles`, `visible_institution_ids`); bank_service only ever reaches its own bank's instruments for attestation |
@@ -171,11 +175,11 @@ Pushed as PRs (none merged yet; the maintainer approves each):
 
 ## 6. Next steps (in order)
 
-1. **User (manual):** provide an FDR scan (real, with consent, personal details redacted) so the
-   upload → extraction → bank verification story can be tested; the user has none yet, so the flow
-   can be tested with any real document and typed values (everything except extraction accuracy).
-   Re-run the LayoutLMv3 notebook with the merged protocol.
-2. Decide the forgery signal's future (result near chance); merge #11 and #12.
+1. Generate synthetic FDRs (PR #14) and walk upload → extraction → bank verification on a demo DB;
+   a real scan (with consent, redacted) is still wanted for final validation. Re-run the
+   LayoutLMv3 notebook with the merged protocol.
+2. Retrain the forgery signal on synthetic FDRs (PR #16) and report it as synthetic; merge #11 and
+   #12.
 3. Live stack processes (API, mock bank, web) were stopped for low memory; restart when needed.
 4. Walk the demo story (plan §12) on the live stack; run taste-skill `inspect.mjs --app` on every
    screen (1440/768/390) and fix FAILs; show PR #7's anchor fields in the admin/audit UI.

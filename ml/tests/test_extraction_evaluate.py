@@ -32,6 +32,18 @@ def test_expected_fields_use_the_normalised_forms():
     assert set(expected) == set(ev.FIELDS)
 
 
+def test_fields_are_the_services_fields():
+    from app.modules.extraction import service
+
+    assert ev.FIELDS == list(service.FIELDS)
+
+
+def test_expected_text_uses_the_extractors_normalisation():
+    expected = ev.expected_fields(dict(VALUES, ifsc="punb 0440200", fdr_no="fd 123456789"))
+    assert expected["ifsc"] == "PUNB0440200"
+    assert expected["fdr_no"] == "FD123456789"
+
+
 def test_missing_and_wrong_fields_count_as_misses():
     expected = ev.expected_fields(VALUES)
     extracted = dict(expected, amount="55000")
@@ -55,3 +67,15 @@ def test_summary_rates():
     assert summary["exact_match_by_field"]["issue_date"] == 0.5
     assert summary["exact_match_by_layout"]["classic"] == 1.0
     assert summary["seconds_per_page_mean"] == 2.0
+
+
+def _summary_of_times(times):
+    expected = ev.expected_fields(VALUES)
+    page = ev.score_page(expected, expected)
+    return ev.summarise([{"layout": "classic", "match": page, "seconds": s} for s in times])
+
+
+def test_p95_is_the_nearest_rank():
+    assert _summary_of_times([1.0, 2.0])["seconds_per_page_p95"] == 2.0
+    assert _summary_of_times([float(i) for i in range(1, 11)])["seconds_per_page_p95"] == 10.0
+    assert _summary_of_times([float(i) for i in range(1, 101)])["seconds_per_page_p95"] == 95.0
