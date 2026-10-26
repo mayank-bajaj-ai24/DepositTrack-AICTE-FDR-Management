@@ -4,6 +4,7 @@ import csv
 import io
 from collections import Counter, defaultdict
 from datetime import date, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -286,7 +287,7 @@ def list_reports() -> dict:
 @router.get("/reports/{name}")
 def report(
     name: str,
-    format: str = "json",
+    format: Literal["json", "csv", "xlsx"] = "json",
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ):
