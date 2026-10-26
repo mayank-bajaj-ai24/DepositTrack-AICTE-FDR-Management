@@ -1,6 +1,6 @@
 # pending.md: what is left, and how the models measure up
 
-State on `main` as of 24 Oct 2026, after PR #12. The prototype deadline is before 28 Oct 2026.
+State on `main` as of 24 Oct 2026, after PR #12, plus the T-06 work in PR #18 (26 Oct). The prototype deadline is before 28 Oct 2026.
 The numbers below come from [README.md → Expected outcomes](README.md#expected-outcomes) and [CONTEXT.md](CONTEXT.md). Nothing here is estimated.
 
 > **Every model result is a proxy.** No public FDR dataset exists, so each model was measured on the closest open dataset. A result shows how the method performs on that dataset, not on FDRs. FDR-level numbers need labelled real FDRs. Earlier results measured on synthetic data were withdrawn on 23 Oct 2026.
@@ -101,7 +101,7 @@ No baseline or portal numbers exist yet. Each needs manual-vs-portal timing runs
 ### Unfinished test scenarios and gates
 
 - **T-05:** the forgery part (recall ≥ 0.90, false alarms ≤ 5%) is not met; see section 1.
-- ~~**T-06:** the missing-documents report endpoint is built but not separately tested.~~ API test added on 26 Oct (branch `missing-documents-report-test`).
+- ~~**T-06:** the missing-documents report endpoint is built but not separately tested.~~ API tests added in PR #18. The review of that PR also fixed the report: filling in a missing field now resolves its flag, released/renewed/rejected/archived records leave the report, flags are filtered in SQL in a stable order, and an unknown export format returns 422.
 - **T-11:** drill-down clicks have not been walked in the browser.
 - **Phase 2 gate:** the full story from upload to maturity reminder passes in API tests; on the live stack it waits for a real FDR scan.
 - **Phase 3 gate:** feature freeze, not declared yet.
