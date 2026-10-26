@@ -99,19 +99,27 @@ def main() -> None:
     from sklearn.svm import SVC
 
     records = sorted(args.data.glob("fdr_*.json"))  # not labels.json or metrics
-    split = int(len(records) * 0.7)
-    X_train, y_train, _ = build(records[:split], args.seed)
-    X_test, y_test, pages_test = build(records[split:], args.seed + 1)
+    # 55% train, 15% validation (sets the bands), 30% test (reported, never used for tuning).
+    train_end, val_end = int(len(records) * 0.55), int(len(records) * 0.70)
+    X_train, y_train, pages_train = build(records[:train_end], args.seed)
+    X_val, _, pages_val = build(records[train_end:val_end], args.seed + 1)
+    X_test, _, pages_test = build(records[val_end:], args.seed + 2)
 
     svm = SVC(kernel="rbf", C=4.0, class_weight="balanced", random_state=args.seed)
     model = make_pipeline(StandardScaler(), CalibratedClassifierCV(svm, cv=5))
     model.fit(X_train, y_train)
 
+    validation = page_scores(model, X_val, pages_val)
+    val_genuine = sorted(s for forged, _, s in validation.values() if not forged)
+    # The "suspicious" threshold keeps false alarms on genuine validation pages at the target
+    # rate; the test pages then show how that threshold does on pages it was not set on.
+    if val_genuine:
+        suspicious = float(np.quantile(val_genuine, 1 - args.target_false_alarm))
+        grey = float(np.quantile(val_genuine, 0.80))
+    else:
+        suspicious, grey = 0.5, 0.3
     scores = page_scores(model, X_test, pages_test)
     genuine = sorted(s for forged, _, s in scores.values() if not forged)
-    # "suspicious" threshold keeps false alarms on genuine pages at the target rate
-    suspicious = float(np.quantile(genuine, 1 - args.target_false_alarm)) if genuine else 0.5
-    grey = float(np.quantile(genuine, 0.80)) if genuine else 0.3
     forged_pages = [(op, s) for forged, op, s in scores.values() if forged]
     recall = sum(s >= suspicious for _, s in forged_pages) / max(1, len(forged_pages))
     false_alarm = sum(s >= suspicious for s in genuine) / max(1, len(genuine))
@@ -121,8 +129,12 @@ def main() -> None:
 
     metrics = {
         "data": "synthetic",
-        "train_pages": split,
-        "test_pages": len(records) - split,
+        # Pages actually scored: build() skips pages with too few fields or OCR regions.
+        "train_pages": len({page for page, _, _ in pages_train}),
+        "validation_pages": len(validation),
+        "test_pages": len(scores),
+        "test_pages_tampered": len(forged_pages),
+        "thresholds_set_on": "validation split (genuine pages)",
         "suspicious_threshold": round(suspicious, 4),
         "grey_threshold": round(grey, 4),
         "page_recall_suspicious": round(recall, 4),
