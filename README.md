@@ -448,8 +448,8 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 | Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
-| Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.75 — **synthetic**, 180 held-out generated FDRs (seed 2026), tampered by `ml/forgery/tamper.py`; by edit: blur 1.00, insert+noise 0.90, copy+blur 0.89, insert+blur 0.88, noise 0.71, insertion 0.70, copy-paste 0.27 | Below target; copy-paste is the weak spot. Live off (`live_scoring: false`) |
-| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 5.7% — **synthetic**, same split (threshold set on the same genuine pages, so slightly optimistic) | Just above target |
+| Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.67 — **synthetic**, 180 held-out generated FDRs (seed 2026, 95 tampered by `ml/forgery/tamper.py`); by edit: blur 0.89, copy+blur 0.93, insert+blur 0.92, noise 0.72, insertion 0.67, insert+noise 0.57, copy-paste **0.08** | Below target; live off. Copy-paste of another field's own text is the main miss |
+| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 5.9% — **synthetic**, same test pages; the bands are set on a separate 90-page validation split | Just above target |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
 | Renewal risk | AUC | ≥ 0.80 | 0.789 pooled — **proxy**, BPI Challenge 2017 (6,197 later applications held out by time); by week since the offer 0.588 / 0.599 / 0.640 / 0.691 / 0.833; a one-feature baseline (days since last event) reaches 0.767 pooled | Below target on the proxy; early-week warning is weak. Live scoring off |
 | Renewal risk | Mean warning lead time | ≥ 21 days | 14.1 days mean, 16.5 median — **proxy**; 99.8% of missed deadlines caught at 12.0% false alarms | Below target on the proxy, whose deadline is only about 30 days after the offer |
@@ -502,7 +502,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 427 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 24 tests
+- [x] Backend: 440 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 24 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 - [x] Data policy changed again (25 Oct 2026): a labelled synthetic dataset is allowed for FDR documents only
@@ -545,7 +545,7 @@ flowchart LR
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
-- [x] Forgery signal retrained on synthetic tampered FDRs: recall 0.75 at 5.7% false alarms (below target); the API now loads a forgery model only with `live_scoring: true` and reports its training data
+- [x] Forgery signal retrained on synthetic tampered FDRs: recall 0.67 at 5.9% false alarms on held-out pages, bands set on a validation split (below target); the API now loads a forgery model only with `live_scoring: true` and a training-data name, re-read on change, and names the training data in status and in every forgery flag
 - [x] Extraction measured on synthetic FDRs (`ml/extraction/evaluate.py`, through `service.extract`): 99.4% exact-match, 99.3% on amount and dates, 0.66 s/page. Fixes found by it: a shorter caption never reads a longer caption's line (config order kept), an IFSC with `O` for `0` is read next to its caption only, the banner is ignored
 - [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until the maintainer approves a model trained on FDRs; FUNSD proxy notebook, and the API refuses non-FDR or unapproved models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
