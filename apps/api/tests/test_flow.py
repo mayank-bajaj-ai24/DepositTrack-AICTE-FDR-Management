@@ -1,5 +1,7 @@
 """End-to-end flow through the API: the six SIH test scenarios plus audit and access."""
 
+import csv
+import io
 import json
 import uuid
 from datetime import date, timedelta
@@ -21,6 +23,7 @@ from app.models import (
     Instrument,
     Notification,
     Obligation,
+    UserAccount,
 )
 from tests.flow_support import (
     FakeBank,
@@ -748,21 +751,52 @@ def test_list_and_detail_agree_on_who_may_read(env):
         assert detail.status_code == code
 
 
-def test_missing_documents_report_lists_incomplete_records_in_scope(env):
+def _report(env, who, fmt="json"):
+    return env.client.get(f"/api/v1/reports/missing-documents?format={fmt}", headers=env.h(who))
+
+
+def _second_west_institution(env, make_token):
+    """Institution C in the West (A's region), with its own account."""
+    with env.factory() as s:
+        c = Institution(
+            aicte_id="SYN-C", name="Synthetic Institute C", institution_type="any", region="West"
+        )
+        s.add(c)
+        s.flush()
+        s.add(UserAccount(username="inst.c", institution_id=c.id))
+        s.add(
+            Obligation(
+                institution_id=c.id,
+                basis_ref="demo approval case",
+                rule_version="demo-0.1",
+                required_amount=500000,
+                required_from=date.today() - timedelta(days=30),
+                required_until=date.today() + timedelta(days=5 * 365),
+            )
+        )
+        s.commit()
+    env.tokens["inst_c"] = make_token(["institution"], username="inst.c")
+
+
+def test_missing_documents_report_lists_incomplete_records_in_scope(env, make_token):
     # T-06: an FDR whose IFSC is neither declared nor readable is flagged and listed with the
-    # reason; a complete FDR is not; the report follows the caller's region.
+    # reason; a complete FDR is not; the report follows the caller's region and institution.
+    _second_west_institution(env, make_token)
     complete = submit(env.client, env.tokens["inst_a"], values()).json()["id"]
     env.extracted["values"] = values(fdr_no="XN7777777777", ifsc=None)
     incomplete = submit(
         env.client, env.tokens["inst_a"], values(fdr_no="XN7777777777", ifsc=None)
     ).json()["id"]
-    env.extracted["values"] = values(fdr_no="XN6666666666", ifsc=None, depositor="B")
-    submit(env.client, env.tokens["inst_b"], values(fdr_no="XN6666666666", ifsc=None))
+    b_values = values(fdr_no="XN6666666666", ifsc=None, depositor="Synthetic Institute B")
+    env.extracted["values"] = b_values
+    submit(env.client, env.tokens["inst_b"], b_values)
+    c_values = values(fdr_no="XN5555555555", ifsc=None, depositor="Synthetic Institute C")
+    env.extracted["values"] = c_values
+    submit(env.client, env.tokens["inst_c"], c_values)
 
-    report = env.client.get("/api/v1/reports/missing-documents", headers=env.h("west")).json()
-    numbers = [row[2] for row in report["rows"]]
-    assert numbers == ["XN7777777777"]  # West only: B's incomplete FDR is in the East
-    assert "ifsc is missing" in report["rows"][0][-1]
+    west = _report(env, "west").json()
+    assert [row[2] for row in west["rows"]] == ["XN7777777777", "XN5555555555"]  # A, C
+    assert "ifsc is missing" in west["rows"][0][-1]
     assert any(f["type"] == "missing_field" for f in _detail(env, incomplete)["flags"])
     assert not any(f["type"] == "missing_field" for f in _detail(env, complete)["flags"])
 
