@@ -2,10 +2,15 @@
 
 Run with the API's virtual environment (it holds the feature code and ML extras):
 
-    ml/synth/.venv/Scripts/python -m fdrsynth --count 600 --out data/forgery-src --seed 2026
-    apps/api/.venv/Scripts/python ml/forgery/train.py --data data/forgery-src --out models
+    apps/api/.venv/Scripts/python -m fdrsynth --count 600 --seed 2026 \
+        --out data/synthetic_fdr/forgery
+    apps/api/.venv/Scripts/python ml/forgery/train.py --data data/synthetic_fdr/forgery \
+        --out data/synthetic_fdr/forgery-model
 
-Writes models/forgery/{model.joblib, meta.json, metrics.json}. All numbers are on
+The generator writes clean pages; this script tampers about half of them itself (tamper.py),
+so every positive label comes from the edit that made it. Writes <out>/forgery/{model.joblib,
+meta.json, metrics.json}. The API's forgery loader has no approval gate yet (PR #16) and
+loads any model in models/forgery/, so keep the output out of models/. All numbers are on
 synthetic data and must be labelled as such.
 """
 
@@ -94,7 +99,7 @@ def main() -> None:
     from sklearn.preprocessing import StandardScaler
     from sklearn.svm import SVC
 
-    records = sorted(args.data.glob("*.json"))
+    records = sorted(args.data.glob("fdr_*.json"))  # not labels.json or metrics
     split = int(len(records) * 0.7)
     X_train, y_train, _ = build(records[:split], args.seed)
     X_test, y_test, pages_test = build(records[split:], args.seed + 1)

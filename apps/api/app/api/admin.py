@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -58,6 +59,10 @@ def system_status(
         "bank_keys_pinned": len(load_pinned(settings.bank_keys_file)),
         "layoutlm_available": bool(load_config("extraction.yaml").get("pass_a_enabled"))
         and layoutlm.is_available(settings.models_dir),
+        # What the approved pass A model was trained on, for the "trained on ..." label.
+        "layoutlm_training_data": layoutlm.training_data(
+            Path(settings.models_dir) / layoutlm.MODEL_SUBDIR
+        ),
         "forgery_model_available": forgery_model.is_available(settings.models_dir),
         "risk_model_available": risk_model.is_available(settings.models_dir),
         "immudb_enabled": immudb.enabled,
