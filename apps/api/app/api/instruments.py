@@ -17,6 +17,7 @@ from app.core.access import (
     Scope,
     get_scope,
     get_visible_instrument,
+    reaches,
     require,
     scope_instruments,
 )
@@ -204,6 +205,7 @@ def detail(
     instrument_id: uuid.UUID,
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
+    policy: Policy = Depends(policy_dep),
 ) -> dict:
     instrument = get_visible_instrument(session, scope, instrument_id, INSTRUMENT_READ)
     institution = session.get(Institution, instrument.institution_id)
@@ -229,16 +231,7 @@ def detail(
         .order_by(Notification.created_at)
     ).all()
     # The history shows only if a role that reads it can itself see this instrument.
-    can_audit = (
-        session.scalars(
-            scope_instruments(
-                select(Instrument.id).where(Instrument.id == instrument.id),
-                scope,
-                (Action.AUDIT_READ, Action.INSTRUMENT_READ_ALL),
-            )
-        ).first()
-        is not None
-    )
+    can_audit = reaches(session, scope, instrument, (Action.AUDIT_READ, Action.INSTRUMENT_READ_ALL))
     cov = None
     obligation = session.scalars(
         select(Obligation)
@@ -283,28 +276,59 @@ def detail(
         "replaced_by": [ser.instrument_summary(r) for r in replaced_by],
         "notifications": [ser.notification(n) for n in notifications],
         "coverage": cov,
-        **_hints(session, scope, instrument),
+        **_hints(session, scope, instrument, policy),
     }
 
 
-def _hints(session: Session, scope: Scope, instrument: Instrument) -> dict:
-    """UI hints from the caller's roles that can reach this instrument, the same test the
-    edit and transition endpoints apply, so the UI never offers a step they would refuse."""
-    reaching = set()
-    for role in known_roles(scope.principal.roles):
-        query = select(Instrument.id).where(Instrument.id == instrument.id)
-        if session.scalars(scope_instruments(query, scope, acting=frozenset({role}))).first():
-            reaching.add(role.value)
+def _hints(session: Session, scope: Scope, instrument: Instrument, policy: Policy) -> dict:
+    """UI hints: the fields the caller's roles that can reach this instrument may edit, and
+    the moves change_state would accept now (the same role, reach, policy and flag checks),
+    so the UI never offers a step the API refuses. Only roles that could edit a field or make
+    a move from this state are checked, one query each."""
+    editable = workflow()["editable_fields"]
+    moves = {
+        t.split("->")[1]: set(roles)
+        for t, roles in workflow()["transitions"].items()
+        if t.startswith(f"{instrument.state}->")
+    }
+    useful = {r for r, fields in editable.items() if fields}.union(*moves.values())
+    reaching = {
+        role.value
+        for role in known_roles(scope.principal.roles)
+        if role.value in useful and reaches(session, scope, instrument, acting=frozenset({role}))
+    }
     return {
-        "editable_fields": sorted(
-            {f for role in reaching for f in workflow()["editable_fields"].get(role, [])}
-        ),
+        "editable_fields": sorted({f for role in reaching for f in editable.get(role, [])}),
         "next_states": [
-            t.split("->")[1]
-            for t, roles in workflow()["transitions"].items()
-            if t.startswith(f"{instrument.state}->") and set(roles) & reaching
+            target
+            for target, roles in moves.items()
+            if roles & reaching
+            and _move_blocker(session, instrument, InstrumentState(target), policy) is None
         ],
     }
+
+
+def _move_blocker(
+    session: Session, instrument: Instrument, target: InstrumentState, policy: Policy
+) -> str | None:
+    """Why policy or an open flag blocks this move now, or None."""
+    if (
+        target == InstrumentState.ACTIVE
+        and policy.require_bank_attestation_for_active
+        and instrument.trust_level < TrustLevel.BANK_ATTESTED
+    ):
+        return "Policy requires bank attestation before activation"
+    if target == InstrumentState.VERIFIED:
+        critical = session.scalars(
+            select(Flag).where(
+                Flag.instrument_id == instrument.id,
+                Flag.status == "open",
+                Flag.severity == "critical",
+            )
+        ).first()
+        if critical:
+            return f"Resolve the critical flag first: {critical.reason_text}"
+    return None
 
 
 def coverage_payload(report) -> dict:
@@ -389,26 +413,9 @@ def change_state(
         ) from exc
     if not body.reason.strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A reason is required")
-    if (
-        body.target == InstrumentState.ACTIVE
-        and policy.require_bank_attestation_for_active
-        and instrument.trust_level < TrustLevel.BANK_ATTESTED
-    ):
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "Policy requires bank attestation before activation"
-        )
-    if body.target == InstrumentState.VERIFIED:
-        critical = session.scalars(
-            select(Flag).where(
-                Flag.instrument_id == instrument.id,
-                Flag.status == "open",
-                Flag.severity == "critical",
-            )
-        ).first()
-        if critical:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT, f"Resolve the critical flag first: {critical.reason_text}"
-            )
+    blocker = _move_blocker(session, instrument, body.target, policy)
+    if blocker:
+        raise HTTPException(status.HTTP_409_CONFLICT, blocker)
     move(session, instrument, body.target, actor_of(scope), scope.principal.roles, body.reason)
     if body.target == InstrumentState.ACTIVE:
         coverage.allocate(session, instrument)
