@@ -43,7 +43,7 @@ def test_diagonal_mark_crosses_the_field_rows(catalog):
         y
         for y in range(top, bottom, 4)
         for x in range(100, WIDTH - 100, 8)
-        if (lambda p: p[0] - p[2] > 20)(rendered.image.getpixel((x, y)))
+        if (lambda p: p[0] - p[2] > 8)(rendered.image.getpixel((x, y)))
     ]
     assert reddish and min(reddish) < (top + bottom) / 2 < max(reddish)
 

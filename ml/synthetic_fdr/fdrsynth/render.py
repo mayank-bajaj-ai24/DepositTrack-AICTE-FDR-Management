@@ -120,7 +120,7 @@ class Page:
         stamp = Image.new("L", (right - left + 20, bottom - top + 20), 0)
         ImageDraw.Draw(stamp).text((10 - left, 10 - top), WATERMARK, fill=255, font=font)
         stamp = stamp.rotate(rng.uniform(14, 20), expand=True, resample=Image.BILINEAR)
-        alpha = stamp.point(lambda v: v * 45 // 255)
+        alpha = stamp.point(lambda v: v * 25 // 255)
         x = (WIDTH - stamp.width) // 2
         y = 470 - stamp.height // 2
         self.image.paste(Image.new("RGB", stamp.size, MARK), (x, y), alpha)
@@ -287,9 +287,10 @@ def render(
 ) -> Rendered:
     layout = layout or rng.choice(list(LAYOUTS))
     page = Page(rng)
+    # The diagonal goes on first, so the text is drawn over it and keeps its full contrast.
+    page.diagonal_mark(rng)
     page.mark()
     LAYOUTS[layout](page, values, captions, rng)
-    page.diagonal_mark(rng)
     page.draw.rectangle([10, 10, WIDTH - 10, HEIGHT - 10], outline=(60, 60, 90), width=3)
     for word in page.words:
         word.box = clamp(word.box)
