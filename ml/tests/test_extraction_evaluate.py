@@ -55,3 +55,15 @@ def test_summary_rates():
     assert summary["exact_match_by_field"]["issue_date"] == 0.5
     assert summary["exact_match_by_layout"]["classic"] == 1.0
     assert summary["seconds_per_page_mean"] == 2.0
+
+
+def _summary_of_times(times):
+    expected = ev.expected_fields(VALUES)
+    page = ev.score_page(expected, expected)
+    return ev.summarise([{"layout": "classic", "match": page, "seconds": s} for s in times])
+
+
+def test_p95_is_the_nearest_rank():
+    assert _summary_of_times([1.0, 2.0])["seconds_per_page_p95"] == 2.0
+    assert _summary_of_times([float(i) for i in range(1, 11)])["seconds_per_page_p95"] == 10.0
+    assert _summary_of_times([float(i) for i in range(1, 101)])["seconds_per_page_p95"] == 95.0

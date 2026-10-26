@@ -85,7 +85,8 @@ def summarise(pages: list[dict]) -> dict:
         "exact_match_by_layout": {k: rate(v) for k, v in sorted(by_layout.items())},
         "seconds_per_page_mean": round(statistics.fmean(seconds), 3) if seconds else None,
         "seconds_per_page_median": round(statistics.median(seconds), 3) if seconds else None,
-        "seconds_per_page_p95": round(seconds[int(0.95 * (len(seconds) - 1))], 3)
+        # Nearest rank: the smallest time that at least 95% of pages do not exceed.
+        "seconds_per_page_p95": round(seconds[-(-95 * len(seconds) // 100) - 1], 3)
         if seconds
         else None,
     }
@@ -100,7 +101,7 @@ def main() -> None:
 
     rules = load_config("extraction.yaml")
     records = sorted(p for p in args.data.glob("*.json") if p.name != "extraction_metrics.json")
-    records = records[: args.limit] if args.limit else records
+    records = records[: args.limit]
     if not records:
         raise SystemExit(f"No generated FDRs in {args.data}: run python -m fdrsynth first")
     # The first OCR call loads the models; keep it out of the per-page timing.
