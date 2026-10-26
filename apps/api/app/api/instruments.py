@@ -505,7 +505,11 @@ def edit_field(
             "Only officers can verify fields" if body.verify else f"Your role cannot edit {field}"
         )
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail)
-    instrument = get_visible_instrument(session, scope, instrument_id, roles=editors)
+    # 404 only when the caller cannot see the instrument at all; 403 when it can, but not
+    # through a role that may edit it (as change_state does).
+    instrument = get_visible_instrument(session, scope, instrument_id, INSTRUMENT_READ)
+    if not reaches(session, scope, instrument, roles=editors):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Your role cannot edit this instrument")
     fv = session.scalars(
         select(FieldValue).where(
             FieldValue.instrument_id == instrument.id, FieldValue.field == field
