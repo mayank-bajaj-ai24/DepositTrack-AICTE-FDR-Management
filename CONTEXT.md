@@ -40,7 +40,7 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
 - **Never assume — ask**; any plan change is agreed first. Tell the user about every manual step
   (installs, accounts, keys, Docker, GitHub permissions, Colab runs) instead of doing it.
 - **Synthetic data only for FDR documents** (decided 25 Oct 2026, replacing the 23 Oct "no synthetic
-  data" rule): a generator in `ml/synthetic_fdr/` (PR #14) makes PNG FDR pages marked
+  data" rule): a generator in `ml/synthetic_fdr/` makes PNG FDR pages marked
   `SYNTHETIC - NOT A REAL DEPOSIT`, and their results are reported as synthetic results. They are
   walked only on a demo DB that is reset afterwards. Master data stays real and public (AICTE
   dashboard, RBI IFSC master); other models stay on open datasets as **labelled proxies**. No

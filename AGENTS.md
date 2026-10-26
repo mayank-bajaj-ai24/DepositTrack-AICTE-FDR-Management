@@ -71,9 +71,9 @@ live only in `config/policy.demo.yaml`, labelled as placeholders.
 
 Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No public FDR dataset exists and real FDRs are confidential, so the FDR documents themselves may be synthetic. Everything else stays real or open.
 
-- **Synthetic data is allowed only for FDR documents:** generated FDR images (PNG or JPEG; the app cannot read a PDF until a PDF renderer is added) and their field labels, used to build, train and evaluate the FDR models (extraction pass A, forgery signal, discrepancy checks) and to walk the demo story. The generator will live in `ml/synthetic_fdr/` (PR #14); the generated files go to the git-ignored `data/synthetic_fdr/` and are never committed. The generator writes clean pages only: tampered copies for forgery training are made by `ml/forgery/train.py` with `tamper.py`, so that every "tampered" label comes from the edit that made it.
+- **Synthetic data is allowed only for FDR documents:** generated FDR images (PNG or JPEG; the app cannot read a PDF until a PDF renderer is added) and their field labels, used to build, train and evaluate the FDR models (extraction pass A, forgery signal, discrepancy checks) and to walk the demo story. The generator and its configuration live in `ml/synthetic_fdr/`; the generated files go to the git-ignored `data/synthetic_fdr/` and are never committed. The generator writes clean pages only: tampered copies for forgery training are made by `ml/forgery/train.py` with `tamper.py`, so that every "tampered" label comes from the edit that made it.
 - **Synthetic FDRs are always labelled.** Every generated page carries the visible mark `SYNTHETIC - NOT A REAL DEPOSIT`, exactly this text; it replaces the old generator's `SYNTHETIC SAMPLE - NOT A REAL INSTRUMENT`. Extraction and the forgery signal must not read the mark as data, so it is registered in `apps/api/config/extraction.yaml`: the full line under `ignore_lines_containing` and the fragments OCR reads on their own (such as `SYNTHETIC`) under `ignore_lines_equal`. Never add a bare `DEPOSIT` to `ignore_lines_containing`, because it would drop captions like "Deposit Amount". Results measured on generated FDRs are **synthetic results**, labelled "synthetic" in README Expected outcomes and kept apart from proxy results; they are never presented as results on real FDRs.
-- **A synthetic FDR uses real public master data and invents nothing else that could be mistaken for a real record.** Banks, branches, IFSCs and institutions come from the imported public master data. FDR numbers, amounts and dates are generated from the ranges in the generator's config (placeholders, not AICTE rules). Layouts imitate the common structure of an FDR and never copy a real bank's logo or branding.
+- **A synthetic FDR uses real public master data and invents nothing else that could be mistaken for a real record.** Banks, branches, IFSCs and depositor institutions come from the public master data (RBI IFSC master, AICTE snapshot). FDR numbers, amounts, dates and wording are generated from the placeholder ranges in `ml/synthetic_fdr/fdrsynth/data/placeholders.json`, which are not AICTE rules. Layouts imitate the common structure of an FDR and never copy a real bank's logo or branding.
 - **Synthetic FDRs stay in a demo database.** A generated FDR names a real institution, bank and IFSC, and the records made from it (instrument, flags, bank attestation, audit events, report rows) carry no synthetic marker. Walk them only on a development or demo database that is reset afterwards (`alembic downgrade base && alembic upgrade head`), never on one that holds real deposits, and never pass its reports or exports off as real.
 - **No hardcoded fake values** in application code, config, seeds or the UI. Synthetic FDRs come from the generator, not from values written into the app's code, config or seeds. Typing a generated FDR's values into the submit form or the mock bank's operator page during a demo walk is fine.
 - **Master data comes from public sources:** AICTE's approved-institutions dashboard and the RBI IFSC master (Razorpay IFSC dataset), imported with `python -m app.masterdata` (sources in `apps/api/config/master_data.yaml`). Bank mergers are listed in `apps/api/config/bank_mergers.yaml`, each with its RBI press release.
@@ -146,6 +146,11 @@ npm install
 npm run dev                                          # http://localhost:3000
 npx eslint src && npx tsc --noEmit && npx next build
 
+# Synthetic FDRs (repo root, API's virtual environment; needs data/open/ from fetch-banks and fetch-institutions)
+pip install -e "ml/synthetic_fdr[dev]"
+apps/api/.venv/Scripts/python -m fdrsynth --count 500 --out data/synthetic_fdr/train --seed 2026   # PNG + labels + mockbank.jsonl; --overwrite to replace a run
+apps/api/.venv/Scripts/python -m pytest ml/synthetic_fdr
+
 # Models on open data (repo root, API's virtual environment; outputs go to models/, not committed)
 pip install -e "apps/api[data,ml]"                                     # kagglehub + model libraries
 apps/api/.venv/Scripts/python ml/download_open_data.py bpi-2017        # Kaggle token needed (free)
@@ -164,6 +169,7 @@ apps/api/        FastAPI backend (modules per plan §8), config/ holds every rul
 apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
 services/mock-bank/  Mock bank (simulation): the operator records issued FDRs; signed credentials, lien status
 ml/open_datasets.json, ml/download_open_data.py  Open-dataset catalog and download helper
+ml/synthetic_fdr/  Synthetic FDR generator (marked SYNTHETIC - NOT A REAL DEPOSIT; output in data/synthetic_fdr/, not committed)
 ml/forgery/      Forgery signal training (Find it again! retrain not committed yet)
 ml/risk/         Renewal-risk proxy training (BPI Challenge 2017)
 ml/layoutlm/     LayoutLMv3 FUNSD proxy notebook
