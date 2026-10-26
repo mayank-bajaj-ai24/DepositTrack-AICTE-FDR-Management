@@ -146,6 +146,21 @@ def scope_instruments(
     return _scoped_instruments(query, scope, acting)
 
 
+def reaches(
+    session: Session,
+    scope: Scope,
+    instrument: Instrument,
+    actions: Iterable[Action] = (),
+    roles: Iterable[str] = (),
+    acting: frozenset[Role] | None = None,
+) -> bool:
+    """True when the roles performing the step (or `acting`) can see this instrument."""
+    query = select(Instrument.id).where(Instrument.id == instrument.id)
+    return (
+        session.scalars(scope_instruments(query, scope, actions, roles, acting)).first() is not None
+    )
+
+
 def scope_institutions(
     query: Select, scope: Scope, actions: Iterable[Action] = (), roles: Iterable[str] = ()
 ) -> Select:
