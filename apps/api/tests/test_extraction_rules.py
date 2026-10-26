@@ -1,5 +1,7 @@
 """Pass B extraction rules on hand-built OCR lines (no OCR engine needed)."""
 
+import pytest
+
 from app.core.configfiles import load_config
 from app.modules.extraction.ocr import OcrLine
 from app.modules.extraction.rules import extract_fields, normalize_amount, normalize_date
@@ -76,11 +78,21 @@ def test_caption_priority_follows_the_config_order():
     assert extract_fields(lines, RULES)["issue_date"].normalized == "2024-01-01"
 
 
-def test_ifsc_with_letter_o_as_fifth_character_is_read_as_zero():
+def test_ifsc_with_letter_o_as_fifth_character_is_read_as_zero_next_to_a_caption():
     got = extract_fields([line("IFSC Code: BARBOBANGAX", 10, 10)], RULES)
     assert got["ifsc"].normalized == "BARB0BANGAX"
-    got = extract_fields([line("Ref BARBOBANGAX", 10, 10)], RULES)  # pattern anywhere
-    assert got["ifsc"].normalized == "BARB0BANGAX"
+
+
+@pytest.mark.parametrize(
+    "text", ["CORPORATION BANK", "GUJARAT TECHNOLOGICAL UNIVERSITY", "METHODOLOGY"]
+)
+def test_ordinary_words_are_never_an_ifsc(text):
+    assert "ifsc" not in extract_fields([line(text, 10, 10)], RULES)
+
+
+def test_header_word_does_not_hide_the_ifsc_further_down():
+    lines = [line("CORPORATION BANK", 10, 10), line("IFS Code: CORP0001234", 10, 60)]
+    assert extract_fields(lines, RULES)["ifsc"].normalized == "CORP0001234"
 
 
 def test_synthetic_banner_is_never_the_bank():

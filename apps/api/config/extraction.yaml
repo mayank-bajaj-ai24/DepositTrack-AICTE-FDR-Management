@@ -25,9 +25,13 @@ fields:
     pattern: "^[A-Z0-9/-]{6,20}$"
   ifsc:
     captions: ["IFSC", "IFSC Code"]
-    # The 5th character is always 0 (RBI); OCR often reads it as the letter O before letters.
-    pattern: "[A-Z]{4}[0O][A-Z0-9]{6}"
+    pattern: "[A-Z]{4}0[A-Z0-9]{6}"
     search_anywhere: true
+    # The 5th character is always 0 (RBI); OCR often reads it as the letter O before letters.
+    # The O is accepted only next to an IFSC caption, because away from one ordinary words
+    # match too (CORPORATION, METHODOLOGY), and fixed_characters then sets it back to 0.
+    caption_pattern: "[A-Z]{4}[0O][A-Z0-9]{6}"
+    fixed_characters: {4: "0"}
   amount:
     captions: ["Amount", "Deposit Amount", "Principal"]
     pattern: "(?:Rs\\.?|INR|₹)\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?"
