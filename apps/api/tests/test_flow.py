@@ -766,13 +766,59 @@ def test_missing_documents_report_lists_incomplete_records_in_scope(env):
     assert any(f["type"] == "missing_field" for f in _detail(env, incomplete)["flags"])
     assert not any(f["type"] == "missing_field" for f in _detail(env, complete)["flags"])
 
-    every = env.client.get("/api/v1/reports/missing-documents", headers=env.h("scrutiny")).json()
-    assert sorted(row[2] for row in every["rows"]) == ["XN6666666666", "XN7777777777"]
-    csv_text = env.client.get(
-        "/api/v1/reports/missing-documents?format=csv", headers=env.h("scrutiny")
-    ).text
-    assert csv_text.splitlines()[0].startswith("Institution,AICTE ID,FDR number")
-    assert len(csv_text.splitlines()) == 3
-    # An institution account cannot read reports about other institutions' records.
-    own = env.client.get("/api/v1/reports/missing-documents", headers=env.h("inst_a")).json()
+    every = _report(env, "scrutiny").json()
+    assert sorted(row[2] for row in every["rows"]) == [
+        "XN5555555555",
+        "XN6666666666",
+        "XN7777777777",
+    ]
+    exported = list(csv.reader(io.StringIO(_report(env, "scrutiny", "csv").text)))
+    assert exported[0][:3] == ["Institution", "AICTE ID", "FDR number"]
+    assert len(exported) == 4
+    # An institution account sees its own records only, not those of its region.
+    own = _report(env, "inst_a").json()
     assert [row[2] for row in own["rows"]] == ["XN7777777777"]
+
+
+def test_missing_document_is_listed_and_a_filled_field_leaves_the_report(env, monkeypatch):
+    from app.core.configfiles import checks
+    from app.modules.instruments import intake
+
+    stricter = checks() | {
+        "required_fields": [*checks()["required_fields"], "branch"],
+        "required_documents": [*checks()["required_documents"], "board_resolution"],
+    }
+    monkeypatch.setattr(intake, "checks", lambda: stricter)
+    env.extracted["values"] = values(branch=None)
+    instrument = submit(env.client, env.tokens["inst_a"], values(branch=None)).json()["id"]
+    reason = _report(env, "scrutiny").json()["rows"][0][-1]
+    assert reason == "branch is missing; required document 'board_resolution' not uploaded"
+
+    filled = env.client.post(
+        f"/api/v1/instruments/{instrument}/fields/branch",
+        json={"value": "Pune Main Branch", "reason": "read from the bank's letter"},
+        headers=env.h("scrutiny"),
+    )
+    assert filled.is_success
+    reason = _report(env, "scrutiny").json()["rows"][0][-1]
+    assert reason == "required document 'board_resolution' not uploaded"
+    assert "flag.resolved" in [e["action"] for e in _detail(env, instrument)["events"]]
+
+
+def test_closed_records_leave_the_missing_documents_report(env):
+    env.extracted["values"] = values(ifsc=None)
+    instrument = submit(env.client, env.tokens["inst_a"], values(ifsc=None)).json()["id"]
+    assert len(_report(env, "scrutiny").json()["rows"]) == 1
+    with env.factory() as s:
+        s.execute(
+            update(Instrument)
+            .where(Instrument.id == uuid.UUID(instrument))
+            .values(state="released")
+        )
+        s.commit()
+    assert _report(env, "scrutiny").json()["rows"] == []
+
+
+@pytest.mark.parametrize("fmt", ["CSV", "pdf"])
+def test_unknown_report_format_is_refused(env, fmt):
+    assert _report(env, "scrutiny", fmt).status_code == 422
