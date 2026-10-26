@@ -23,6 +23,7 @@ from app.models import (
     Obligation,
 )
 from tests.flow_support import (
+    API_ROOT,
     FakeBank,
     fake_extractor,
     make_sessionmaker,
@@ -746,3 +747,98 @@ def test_list_and_detail_agree_on_who_may_read(env):
         assert env.client.get("/api/v1/instruments", headers=env.h(who)).status_code == code
         detail = env.client.get(f"/api/v1/instruments/{instrument_id}", headers=env.h(who))
         assert detail.status_code == code
+
+
+def test_detail_hints_only_offer_steps_the_endpoints_allow(env):
+    # A West officer who is also institution B (East) opens B's FDR as the institution:
+    # the officer role cannot reach it, so no officer edit or move is offered.
+    b = submit(env.client, env.tokens["inst_b"], values(depositor="B")).json()["id"]
+    a = submit(env.client, env.tokens["inst_a"], values(fdr_no="XN8888888888")).json()["id"]
+    own = _detail(env, b, who="west_inst_b")
+    assert own["editable_fields"] == []
+    assert own["next_states"] == []
+    refused = env.client.post(
+        f"/api/v1/instruments/{b}/transition",
+        json={"target": "verified", "reason": "x"},
+        headers=env.h("west_inst_b"),
+    )
+    assert refused.status_code == 403
+    # In the officer's own region the same user gets the officer's hints.
+    west = _detail(env, a, who="west_inst_b")
+    assert west["editable_fields"] == ["beneficiary", "branch", "depositor"]
+    assert "verified" in west["next_states"]
+
+
+@pytest.mark.parametrize(
+    ("who", "expected"),
+    [
+        ("inst_a", ["SYN-A"]),
+        ("inst_a_bank", ["SYN-A"]),  # the bank role adds no institution
+        ("west", ["SYN-A"]),
+        ("west_inst_b", ["SYN-A", "SYN-B"]),
+        ("scrutiny", ["SYN-A", "SYN-B"]),  # no region: every institution
+        ("bank", []),
+        ("nobody", []),  # Keycloak default roles only: no DepositTrack role
+        ("east_verifier_bank", ["SYN-B"]),  # the bank role never widens the officer's region
+    ],
+)
+def test_institution_list_follows_the_action_aware_rule(env, who, expected):
+    items = env.client.get("/api/v1/institutions", headers=env.h(who)).json()["items"]
+    assert sorted(i["aicte_id"] for i in items) == expected
+
+
+def _require_bank_attestation(env):
+    from app.api import deps
+    from app.core.policy import Policy, load_policy
+
+    raw = load_policy(str(API_ROOT / "config" / "policy.demo.yaml"))
+    raw["require_bank_attestation_for_active"] = {"value": True, "source": "test"}
+    env.client.app.dependency_overrides[deps.policy_dep] = lambda: Policy(raw)
+
+
+def test_hints_leave_out_moves_that_policy_or_a_critical_flag_blocks(env):
+    submit(env.client, env.tokens["inst_a"], values())
+    second = submit(
+        env.client, env.tokens["inst_b"], values(depositor="Synthetic Institute B")
+    ).json()["id"]
+    # A double pledge is a critical flag: verification is refused, so it is not offered.
+    assert "verified" not in _detail(env, second)["next_states"]
+    blocked = env.client.post(
+        f"/api/v1/instruments/{second}/transition",
+        json={"target": "verified", "reason": "x"},
+        headers=env.h("scrutiny"),
+    )
+    assert blocked.status_code == 409
+    # Activation before bank attestation, when policy requires it.
+    _require_bank_attestation(env)
+    a = submit(env.client, env.tokens["inst_a"], values(fdr_no="XN7777777777")).json()["id"]
+    verified = env.client.post(
+        f"/api/v1/instruments/{a}/transition",
+        json={"target": "verified", "reason": "fields checked"},
+        headers=env.h("scrutiny"),
+    )
+    assert verified.is_success
+    assert "active" not in _detail(env, a, who="verifier")["next_states"]
+    refused = env.client.post(
+        f"/api/v1/instruments/{a}/transition",
+        json={"target": "active", "reason": "x"},
+        headers=env.h("verifier"),
+    )
+    assert refused.status_code == 409
+
+
+def test_editing_a_visible_instrument_without_an_editor_role_is_403_not_404(env):
+    b = submit(env.client, env.tokens["inst_b"], values(depositor="B")).json()["id"]
+    r = env.client.post(
+        f"/api/v1/instruments/{b}/fields/branch",
+        json={"value": "Other", "reason": "x"},
+        headers=env.h("west_inst_b"),
+    )
+    assert r.status_code == 403
+    assert env.client.get(f"/api/v1/instruments/{b}", headers=env.h("west_inst_b")).is_success
+    unseen = env.client.post(
+        f"/api/v1/instruments/{b}/fields/branch",
+        json={"value": "Other", "reason": "x"},
+        headers=env.h("west"),
+    )
+    assert unseen.status_code == 404

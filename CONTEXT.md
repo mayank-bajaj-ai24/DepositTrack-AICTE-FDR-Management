@@ -26,8 +26,8 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
 - **Also merged (23 Oct):** #8 open-dataset catalog + download helper, #10 renewal-risk proxy on
   BPI 2017, #9 LayoutLMv3 FUNSD proxy notebook and removal of the synthetic generator (each fixed
   after review first).
-- **Open PRs:** #11 docs (this file), #12 instrument-detail permission + default-deny role mixes.
-  The forgery branch `forgery-model-on-find-it-again` has no PR: its result was near chance.
+- **Also merged:** #11 docs (this file, 23 Oct), #12 instrument-detail permission + default-deny
+  role mixes (24 Oct). The forgery branch `forgery-model-on-find-it-again` has no PR: its result was near chance.
 - **CI:** not set up. Pushing `.github/workflows/` needs the `workflow` scope on the `dreamybear66`
   gh token (user runs in PowerShell: `gh auth refresh -h github.com -s workflow`). The old CI file
   is kept on the local branch `main-local-with-ci` (`git show main-local-with-ci:.github/workflows/ci.yml`).
@@ -72,7 +72,7 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. **Run end
 to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak login, immudb anchor.
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 418 tests pass, ruff clean; `ml/tests`: 18)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 429 tests pass, ruff clean; `ml/tests`: 18)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, action-aware ABAC: every lookup names its action (or workflow roles) and only the caller's roles that grant it contribute visibility (`acting_roles`, `visible_institution_ids`); bank_service only ever reaches its own bank's instruments for attestation |
