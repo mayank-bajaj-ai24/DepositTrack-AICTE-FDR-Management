@@ -442,9 +442,9 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 
 | Component | Metric | Target | Measured | Status |
 | --- | --- | --- | --- | --- |
-| Field extraction | Field exact-match after rules (overall) | ≥ 90% | 99.8% — **synthetic**, 300 generated FDRs (seed 2027, three layouts), RapidOCR + rules; 97.3% of pages have every field right | Met on synthetic FDRs (an upper bound). Remaining misses are OCR reading `I` as `l`. Real FDRs: not measured |
-| Field extraction | Exact-match on amount and dates | ≥ 95% | 100% — **synthetic**, same set | Met on synthetic FDRs. Real FDRs: not measured |
-| Field extraction | Processing time per page (CPU) | < 5 s | 0.66 s mean, 0.84 s p95 — **synthetic**, same set, Apple M-series CPU, OCR models already loaded | Met on synthetic FDRs. To be timed on real scans |
+| Field extraction | Field exact-match after rules (overall) | ≥ 90% | 99.4% — **synthetic**, 300 generated FDRs (seed 2027, three layouts), measured through the API's `service.extract`; 93.7% of pages have every field right | Met on synthetic FDRs (an upper bound: known captions). Most misses are the faint diagonal `SYNTHETIC` mark read into the beneficiary line, which a real FDR does not carry. Real FDRs: not measured |
+| Field extraction | Exact-match on amount and dates | ≥ 95% | 99.3% — **synthetic**, same set | Met on synthetic FDRs. Real FDRs: not measured |
+| Field extraction | Processing time per page (CPU) | < 5 s | 0.66 s mean, 0.75 s p95 (nearest rank) — **synthetic**, same set, Apple M-series CPU, OCR models already loaded, no forgery model | Met on synthetic FDRs. To be timed on real scans |
 | Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
@@ -500,7 +500,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 418 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
+- [x] Backend: 427 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 24 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 - [x] Data policy changed again (25 Oct 2026): a labelled synthetic dataset is allowed for FDR documents only
@@ -543,7 +543,7 @@ flowchart LR
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
-- [x] Extraction measured on synthetic FDRs (`ml/extraction/evaluate.py`): 99.8% exact-match, 100% on amount and dates, 0.66 s/page. Fixes found by it: longest caption wins, IFSC fifth-character `O` read as `0`, banner ignored
+- [x] Extraction measured on synthetic FDRs (`ml/extraction/evaluate.py`, through `service.extract`): 99.4% exact-match, 99.3% on amount and dates, 0.66 s/page. Fixes found by it: a shorter caption never reads a longer caption's line (config order kept), an IFSC with `O` for `0` is read next to its caption only, the banner is ignored
 - [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until the maintainer approves a model trained on FDRs; FUNSD proxy notebook, and the API refuses non-FDR or unapproved models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
 - [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
