@@ -73,7 +73,7 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. **Run end
 to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak login, immudb anchor.
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 427 tests pass, ruff clean; `ml/tests`: 24)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 440 tests pass, ruff clean; `ml/tests`: 24)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, action-aware ABAC: every lookup names its action (or workflow roles) and only the caller's roles that grant it contribute visibility (`acting_roles`, `visible_institution_ids`); bank_service only ever reaches its own bank's instruments for attestation |
@@ -163,12 +163,12 @@ Port note: a Wondershare app listens on `0.0.0.0:8090`; the mock bank binds `127
 
 Pushed as PRs (none merged yet; the maintainer approves each):
 - Stack, merge in order: `synthetic-fdr-dataset-rule` (rule change) → `synthetic-fdr-generator`
-  (`ml/synthetic_fdr/`, 33 tests) → `extraction-on-synthetic-fdrs` (99.8% exact-match, 100% on
-  amount and dates, 0.66 s/page, synthetic; fixed longest-caption and IFSC O/0) →
-  `forgery-signal-on-synthetic-fdrs` (recall 0.75 at 5.7% false alarms, synthetic; live off).
+  (`ml/synthetic_fdr/`, 65 tests) → `extraction-on-synthetic-fdrs` (99.4% exact-match, 99.3% on
+  amount and dates, 0.66 s/page, synthetic; caption priority and IFSC O/0 next to a caption) →
+  `forgery-signal-on-synthetic-fdrs` (recall 0.67 at 5.9% false alarms on held-out pages, bands from a validation split, synthetic; live off).
 - Independent, from `main`: `institutions-scope-and-detail-hints` (PR #12 follow-ups),
   `missing-documents-report-test` (T-06), `ci-workflow` (needs the `workflow` scope to push).
-- README test counts differ per branch (412/413/415/419/423): resolve the line when merging.
+- README test counts differ per branch (#13 418, #15 427, #16 440, #17 423, #18 417): resolve the line when merging.
 - Not done, and why: UI items (taste-skill not installed on that machine); demo walk-through
   (no Docker there); the AICTE dashboard was unreachable from that network, so the synthetic
   FDRs used the 3-institution fixture as depositors (re-run `fetch-institutions`).
