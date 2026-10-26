@@ -148,7 +148,7 @@ npx eslint src && npx tsc --noEmit && npx next build
 
 # Synthetic FDRs (repo root, API's virtual environment; needs data/open/ from fetch-banks and fetch-institutions)
 pip install -e "ml/synthetic_fdr[dev]"
-apps/api/.venv/Scripts/python -m fdrsynth --count 500 --out data/synthetic_fdr/train --seed 2026   # PNG + labels + mockbank.jsonl
+apps/api/.venv/Scripts/python -m fdrsynth --count 500 --out data/synthetic_fdr/train --seed 2026   # PNG + labels + mockbank.jsonl; --overwrite to replace a run
 apps/api/.venv/Scripts/python -m pytest ml/synthetic_fdr
 
 # Models on open data (repo root, API's virtual environment; outputs go to models/, not committed)
