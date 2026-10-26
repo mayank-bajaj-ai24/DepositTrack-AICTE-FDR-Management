@@ -15,9 +15,9 @@ The numbers below come from [README.md → Expected outcomes](README.md#expected
 
 | Metric | Target | Measured | Dataset | Reached? |
 | --- | --- | --- | --- | --- |
-| Field exact-match after rules, overall | ≥ 90% | **99.8%** | 300 synthetic FDRs (seed 2027) | **Yes, on synthetic** (upper bound: clean pages, known captions). Real FDRs: not measured |
-| Exact-match on amount and dates | ≥ 95% | **100%** | Same | **Yes, on synthetic**. Real FDRs: not measured |
-| Processing time per page (CPU) | < 5 s | **0.66 s** mean, 0.84 s p95 | Same | **Yes, on synthetic**. To be timed on real scans |
+| Field exact-match after rules, overall | ≥ 90% | **99.4%** | 300 synthetic FDRs (seed 2027) | **Yes, on synthetic** (upper bound: known captions). Real FDRs: not measured |
+| Exact-match on amount and dates | ≥ 95% | **99.3%** | Same | **Yes, on synthetic**. Real FDRs: not measured |
+| Processing time per page (CPU) | < 5 s | **0.66 s** mean, 0.75 s p95 | Same | **Yes, on synthetic**. To be timed on real scans |
 | LayoutLMv3 entity F1 | No target | **0.906** (answer 0.928, question 0.917, header 0.649) | FUNSD test split, 50 forms (proxy) | **No target**. The LayoutLMv3 paper reports 90.29 on FUNSD; ours is close but slightly optimistic, because the best checkpoint was picked on the test split. To be re-run with the merged protocol (fixed 1,000 steps, one evaluation) |
 
 Pass A stays **off** live (`pass_a_enabled: false`), and the API refuses a model whose labels are not FDR fields.
@@ -56,7 +56,7 @@ Live scoring is **off**: the API loads a model only if its `meta.json` has `"liv
 
 | Component | Metric | Target | Measured | Reached? |
 | --- | --- | --- | --- | --- |
-| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 418 API tests pass, ruff clean | **Yes** |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 427 API tests pass, ruff clean | **Yes** |
 
 ### Summary
 
@@ -66,7 +66,7 @@ Live scoring is **off**: the API loads a model only if its `meta.json` has `"liv
   - Forgery false alarms: 6.6% against ≤ 5%.
   - Renewal-risk AUC: 0.789 against ≥ 0.80.
   - Renewal-risk lead time: 14.1 days against ≥ 21 days.
-  - Field extraction: both accuracy targets and the speed target are unmeasured, so they are not reached yet.
+  - Field extraction: met on synthetic FDRs only (99.4%, 99.3% on amount and dates, 0.66 s/page), not measured on real FDRs, so it stays counted as missed.
 - **Not built:** 2 (discrepancy risk, officer assistant).
 
 ## 2. PS improvement areas: baseline vs portal (all pending)
@@ -103,7 +103,7 @@ The 25 Oct rule (AGENTS.md rule 5) allows a labelled synthetic dataset for FDR d
    - **Real scan (manual, maintainer), for final validation:** one FDR with the owner's consent and personal details redacted. Record the same FDR on the mock bank's operator page before "Verify with bank".
 2. **Retrain the forgery signal on synthetic FDRs.** `ml/forgery/train.py` takes clean generated pages and tampers half of them with `tamper.py`; update its docstring to the new generator paths. Report the result as synthetic. Add the forgery loader's approval gate first (`"live_scoring": true` and `"training_data"` in `meta.json`); until then, write the output outside `models/`. If it still misses the targets, the options are other features or methods, or keeping the signal off and relying on the bank cross-check.
 3. **Re-run the LayoutLMv3 notebook (manual, free Colab T4)** with the merged protocol, then record the score in README.
-4. **Measure field extraction on synthetic FDRs** (exact-match overall, on amount and dates, seconds per page) and report the numbers as synthetic. Keep the real-FDR row open until labelled real FDRs exist.
+4. ~~**Measure field extraction on synthetic FDRs**~~ — done in PR #15 (section 1): 99.4% overall, 99.3% on amount and dates, 0.66 s/page, synthetic. Keep the real-FDR row open until labelled real FDRs exist.
    - **Pass A on synthetic FDRs: out of scope for the prototype.** The FDR LayoutLMv3 notebook was removed in `a309ab7` and is not restored. A synthetic-trained pass A could go live only with the maintainer's approval, recorded as `"live_extraction": true` and a `"training_data"` name in its `metrics.json` (the loader now checks both).
 5. **Demo story walk-through** (plan §12) on the live stack, with generated FDRs, on a demo database that is reset afterwards. Restart the API, mock bank and web first; they were stopped because memory was low. Run taste-skill `inspect.mjs --app` on every screen (1440/768/390) and fix the FAILs. Show PR #7's anchor fields (`store_error`, `receipt`, `immudb_problem`) in the admin and audit screens.
 6. **Manual-vs-portal timing runs** for section 2, then fill in the Expected outcomes table.
