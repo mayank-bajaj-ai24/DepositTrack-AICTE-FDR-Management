@@ -32,6 +32,18 @@ def test_expected_fields_use_the_normalised_forms():
     assert set(expected) == set(ev.FIELDS)
 
 
+def test_fields_are_the_services_fields():
+    from app.modules.extraction import service
+
+    assert ev.FIELDS == list(service.FIELDS)
+
+
+def test_expected_text_uses_the_extractors_normalisation():
+    expected = ev.expected_fields(dict(VALUES, ifsc="punb 0440200", fdr_no="fd 123456789"))
+    assert expected["ifsc"] == "PUNB0440200"
+    assert expected["fdr_no"] == "FD123456789"
+
+
 def test_missing_and_wrong_fields_count_as_misses():
     expected = ev.expected_fields(VALUES)
     extracted = dict(expected, amount="55000")
