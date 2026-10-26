@@ -82,7 +82,7 @@ to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak
 | Intake M2 | `modules/instruments/intake.py`, `modules/storage/store.py` | Fernet-encrypted docs (local or S3), versioned, SHA-256 |
 | Extraction M3/N6 | `modules/extraction/` + `config/extraction.yaml` | RapidOCR; pass B = config rules; pass A plugs in only if a model trained on labelled FDRs exists (none) |
 | Checks M4/N7/N8 | `modules/checks/`, `config/checks.yaml` | Flags with fact/rule/clause/reason; double pledge via issuing + canonical bank (cross-merger needs same issue date and amount), near-duplicate, amount-in-words, continuity gap |
-| Forgery N6 | `modules/forgery/` | RGB-GLCM + ELA + ink + copy-move per OCR line; SVM; grey/suspicious bands; model being retrained on Find it again! |
+| Forgery N6 | `modules/forgery/` | RGB-GLCM + ELA + ink + copy-move per OCR line; SVM; grey/suspicious bands; loads only with `live_scoring: true` + `training_data` (re-read on change); retrained on synthetic FDRs (PR #16), off |
 | Bank M5/N3/N4 | `modules/bank/` | Pinned Ed25519 keys, credential verify, field compare → Trust L3/L4, freshness decay |
 | Lifecycle M7/N2 | `modules/lifecycle/` + `config/workflow.yaml` | State machine, coverage curves + first-gap forecast (bulk `coverage.reports()`), daily sweep with demo clock |
 | Alerts M8 | `modules/alerts/`, `config/alerts.yaml` | One notification per threshold/audience; overdue, coverage gap, risk, time boxes |

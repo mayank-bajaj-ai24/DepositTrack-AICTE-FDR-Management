@@ -447,9 +447,9 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 | Field extraction | Processing time per page (CPU) | < 5 s | 0.66 s mean, 0.84 s p95 — **synthetic**, same set, Apple M-series CPU, OCR models already loaded | Met on synthetic FDRs. To be timed on real scans |
 | Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
+| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.75 — **synthetic**, 180 held-out generated FDRs (seed 2026), tampered by `ml/forgery/tamper.py`; by edit: blur 1.00, insert+noise 0.90, copy+blur 0.89, insert+blur 0.88, noise 0.71, insertion 0.70, copy-paste 0.27 | Below target; copy-paste is the weak spot. Live off (`live_scoring: false`) |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 5.7% — **synthetic**, same split (threshold set on the same genuine pages, so slightly optimistic) | Just above target |
-| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
 | Renewal risk | AUC | ≥ 0.80 | 0.789 pooled — **proxy**, BPI Challenge 2017 (6,197 later applications held out by time); by week since the offer 0.588 / 0.599 / 0.640 / 0.691 / 0.833; a one-feature baseline (days since last event) reaches 0.767 pooled | Below target on the proxy; early-week warning is weak. Live scoring off |
 | Renewal risk | Mean warning lead time | ≥ 21 days | 14.1 days mean, 16.5 median — **proxy**; 99.8% of missed deadlines caught at 12.0% false alarms | Below target on the proxy, whose deadline is only about 30 days after the offer |
@@ -480,7 +480,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-02 | Repository completeness | All required fields stored and searchable | Passing (API: fields, search and filters) |
 | T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
-| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal being retrained on an open proxy dataset, see [Expected outcomes](#expected-outcomes) |
+| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal retrained on synthetic FDRs, below target and off live (proxy on Find it again! near chance), see [Expected outcomes](#expected-outcomes) |
 | T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
 | T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants; unit tests for a same deposit across a bank merger and for unrelated same-number FDRs of two merged banks) |
 | T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
