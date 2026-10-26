@@ -58,10 +58,22 @@ def test_configured_ignore_text_is_never_a_value():
     assert got["bank"].normalized == "Real Bank"
 
 
-def test_longest_caption_wins_when_captions_share_a_prefix():
+def test_longer_caption_wins_when_captions_share_a_prefix():
     lines = [line("Depositor Name: ABC INSTITUTE OF TECHNOLOGY", 10, 10)]
     got = extract_fields(lines, RULES)
     assert got["depositor"].normalized == "ABC INSTITUTE OF TECHNOLOGY"
+
+
+def test_shorter_caption_is_not_used_when_the_longer_one_has_no_value():
+    lines = [line("Depositor Name", 10, 200), line("ABC INSTITUTE", 10, 240)]
+    assert "depositor" not in extract_fields(lines, RULES)
+
+
+def test_caption_priority_follows_the_config_order():
+    lines = [line("Receipt No. A123456", 10, 10), line("FDR No. 9988776655", 10, 60)]
+    assert extract_fields(lines, RULES)["fdr_no"].normalized == "9988776655"
+    lines = [line("Date of Issue 05/03/2025", 10, 10), line("Deposit Date 01/01/2024", 10, 60)]
+    assert extract_fields(lines, RULES)["issue_date"].normalized == "2024-01-01"
 
 
 def test_ifsc_with_letter_o_as_fifth_character_is_read_as_zero():

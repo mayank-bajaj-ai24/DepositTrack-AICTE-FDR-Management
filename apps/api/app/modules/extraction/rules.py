@@ -83,6 +83,20 @@ def _match_pattern(spec: dict, text: str) -> str | None:
     return found.group(0) if found else None
 
 
+def _starts_with(text: str, caption: str) -> bool:
+    return text.lower().startswith(caption.lower())
+
+
+def _shadowed(text: str, caption: str, captions: list[str]) -> bool:
+    """True when a longer caption of the same field that begins with `caption` also starts
+    `text`: "Depositor Name: X" is never read as "Depositor" + "Name: X", even when the
+    longer caption finds no value on that line."""
+    return any(
+        len(other) > len(caption) and _starts_with(other, caption) and _starts_with(text, other)
+        for other in captions
+    )
+
+
 def is_ignored(text: str, rules: dict) -> bool:
     """True for text that is never a field value (configured watermark or stamp text).
 
@@ -111,11 +125,14 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
 
     for field, spec in rules["fields"].items():
         # 1. caption on a line; value after it on the same line or the next line in the row.
-        # Longest caption first, so "Depositor Name: X" is not read as "Depositor" + "Name: X".
-        for caption in sorted(spec.get("captions", []), key=len, reverse=True):
+        # Captions are tried in the YAML's order (its priority).
+        captions = spec.get("captions", [])
+        for caption in captions:
             for row in rows:
                 for index, line in enumerate(row):
-                    if not line.text.lower().startswith(caption.lower()):
+                    if not _starts_with(line.text, caption) or _shadowed(
+                        line.text, caption, captions
+                    ):
                         continue
                     sources = [(_strip_caption(line.text, caption), line)]
                     sources += [(other.text, other) for other in row[index + 1 :]]
