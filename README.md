@@ -536,7 +536,7 @@ flowchart LR
 - [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
 - [x] Real master data instead of fictional seeds: AICTE approved institutions (public dashboard) and the RBI IFSC bank master with RBI-cited mergers (M12)
 - [x] Synthetic FDR generator, simulator and synthetic-trained notebook removed (PRs #9, #10)
-- [x] Synthetic FDR generator brought back under the 25 Oct rule (`ml/synthetic_fdr/`): real RBI IFSC branches and AICTE institutions, three layouts, `SYNTHETIC - NOT A REAL DEPOSIT` banner, word labels for LayoutLMv3, a mock-bank record per FDR; 33 tests
+- [x] Synthetic FDR generator brought back under the 25 Oct rule (`ml/synthetic_fdr/`): real RBI IFSC branches named by their IFSC's bank (no payment, office or merged-bank rows) and AICTE institutions; captions and date formats read from `extraction.yaml`; three layouts; `SYNTHETIC - NOT A REAL DEPOSIT` banners plus a diagonal across the fields; word and line boxes with B-/I- tags for LayoutLMv3; seeded so the same `--seed` gives the same files; a mock-bank record per FDR; 65 tests
 - [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
 - [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
