@@ -142,9 +142,13 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
                         continue
                     sources = [(_strip_caption(line.text, caption), line)]
                     sources += [(other.text, other) for other in row[index + 1 :]]
-                    for candidate, source in sources:
+                    # The looser caption_pattern applies only to the caption's own line;
+                    # other lines in the row are ordinary text and use the strict pattern.
+                    for position, (candidate, source) in enumerate(sources):
                         value = (
-                            _match_pattern(spec, candidate, captioned=True) if candidate else None
+                            _match_pattern(spec, candidate, captioned=position == 0)
+                            if candidate
+                            else None
                         )
                         if value:
                             keep(field, value, source.score, source.box)

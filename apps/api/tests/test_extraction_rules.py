@@ -90,6 +90,18 @@ def test_ordinary_words_are_never_an_ifsc(text):
     assert "ifsc" not in extract_fields([line(text, 10, 10)], RULES)
 
 
+@pytest.mark.parametrize(
+    "caption_line, beside",
+    [
+        ("IFSC: SBIN 0001234", "Branch: CORPORATION ROAD"),
+        ("IFSC:", "Depositor: GUJARAT TECHNOLOGICAL UNIVERSITY"),
+    ],
+)
+def test_loose_ifsc_pattern_is_only_for_the_caption_line(caption_line, beside):
+    lines = [line(caption_line, 10, 10), line(beside, 400, 10)]
+    assert "ifsc" not in extract_fields(lines, RULES)
+
+
 def test_header_word_does_not_hide_the_ifsc_further_down():
     lines = [line("CORPORATION BANK", 10, 10), line("IFS Code: CORP0001234", 10, 60)]
     assert extract_fields(lines, RULES)["ifsc"].normalized == "CORP0001234"
