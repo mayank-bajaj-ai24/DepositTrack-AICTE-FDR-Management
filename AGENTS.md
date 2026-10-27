@@ -112,7 +112,7 @@ Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No publ
 | Audit anchoring | immudb receipts via `immudb-py==1.5.0` (`anchoring` extra in `apps/api`; pinned because of its large dependency tree) |
 | Mock bank | `services/mock-bank` (FastAPI), simulation of a bank's signed confirmation channel |
 | Infrastructure | Docker Compose: PostgreSQL 16 + pgvector, SeaweedFS (S3), Redis, Keycloak, immudb |
-| CI | GitHub Actions — pending: adding `.github/workflows/` needs a token with the `workflow` scope |
+| CI | GitHub Actions (`.github/workflows/ci.yml`): every package's lint and tests, the web build and a Compose check; changing it needs a token with the `workflow` scope |
 
 MinIO from the original plan was replaced by SeaweedFS because MinIO no longer publishes Docker images. The app uses the plain S3 API, so the store can be swapped.
 
@@ -165,7 +165,7 @@ apps/api/.venv/Scripts/python -m pytest ml/tests
 # Forgery (Find it again!): the retrain is uncommitted in the maintainer's local worktree, not on any branch (result near chance)
 ```
 
-Run lint and tests before every push. CI is not set up yet, so these local checks are the only gate.
+Run lint and tests before every push; CI runs the same checks on every pull request.
 
 ## Repository layout
 

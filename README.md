@@ -529,7 +529,7 @@ flowchart LR
 **Phase 1: foundations**
 - [x] Contributor and AI agent rules ([AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md))
 - [x] Docker Compose for PostgreSQL + pgvector, Redis, SeaweedFS, Keycloak, immudb (run end to end on 23 Oct 2026)
-- [ ] CI workflow (backend, generator, mock bank, web, compose checks) — written, but not on this branch: pushing `.github/workflows/` needs a GitHub token with the `workflow` scope. Add it once that permission is granted; until then run the checks locally (see [Getting started](#getting-started))
+- [x] CI workflow (`.github/workflows/ci.yml`): API, ML scripts and synthetic FDR generator, mock bank, web lint/types/build, Compose config; green on GitHub (PR #19)
 - [x] Backend skeleton: settings, health, policy status, `/api/v1/me`
 - [x] Keycloak realm with seven roles and development users; token verification and role-based permission checks (M1, backend side)
 - [x] Database schema (21 tables, Alembic migrations 0001–0005)

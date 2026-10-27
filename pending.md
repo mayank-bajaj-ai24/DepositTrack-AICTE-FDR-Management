@@ -117,7 +117,7 @@ The 25 Oct rule (AGENTS.md rule 5) allows a labelled synthetic dataset for FDR d
 5. **Demo story walk-through** (plan §12) on the live stack, with generated FDRs, on a demo database that is reset afterwards. **API side done 26 Oct:** every step passes with synthetic FDRs (`scripts/demo_story.py`, 0 failures), and the run found one bug: the lien flag stayed set after the bank removed the lien (fixed in PR #21). **Still open:** the browser walk-through and the screen checks, which wait for the UI work. Original note: Restart the API, mock bank and web first; they were stopped because memory was low. Run taste-skill `inspect.mjs --app` on every screen (1440/768/390) and fix the FAILs. Show PR #7's anchor fields (`store_error`, `receipt`, `immudb_problem`) in the admin and audit screens.
 6. **Manual-vs-portal timing runs** for section 2, then fill in the Expected outcomes table.
 7. **Recorded backup demo video.**
-8. **CI workflow (manual permission first).** Run `gh auth refresh -h github.com -s workflow` in PowerShell; after that the workflow can be added. The old file is on the local branch `main-local-with-ci`.
+8. ~~**CI workflow**~~ **Done 26 Oct:** `.github/workflows/ci.yml` (PR #19), all five jobs green on GitHub. Old note: Run `gh auth refresh -h github.com -s workflow` in PowerShell; after that the workflow can be added. The old file is on the local branch `main-local-with-ci`.
 9. **Hindi translations:** `apps/web/src/i18n/hi.json` was written by Claude and needs a fluent reviewer.
 10. **Idea submission** for the PS deadline (on hold).
 
