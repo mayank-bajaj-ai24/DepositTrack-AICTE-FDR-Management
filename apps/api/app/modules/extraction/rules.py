@@ -93,12 +93,21 @@ def _starts_with(text: str, caption: str) -> bool:
     return text.lower().startswith(caption.lower())
 
 
+def _starts_with_word(text: str, caption: str) -> bool:
+    """`caption` starts `text` and ends at a non-letter: "Depositor Name: X" yes,
+    "Depositor Namespace Trust" no."""
+    rest = text[len(caption) :]
+    return _starts_with(text, caption) and not (rest and rest[0].isalpha())
+
+
 def _shadowed(text: str, caption: str, captions: list[str]) -> bool:
     """True when a longer caption of the same field that begins with `caption` also starts
     `text`: "Depositor Name: X" is never read as "Depositor" + "Name: X", even when the
     longer caption finds no value on that line."""
     return any(
-        len(other) > len(caption) and _starts_with(other, caption) and _starts_with(text, other)
+        len(other) > len(caption)
+        and _starts_with(other, caption)
+        and _starts_with_word(text, other)
         for other in captions
     )
 
@@ -142,9 +151,13 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
                         continue
                     sources = [(_strip_caption(line.text, caption), line)]
                     sources += [(other.text, other) for other in row[index + 1 :]]
-                    for candidate, source in sources:
+                    # The looser caption_pattern applies only to the caption's own line;
+                    # other lines in the row are ordinary text and use the strict pattern.
+                    for position, (candidate, source) in enumerate(sources):
                         value = (
-                            _match_pattern(spec, candidate, captioned=True) if candidate else None
+                            _match_pattern(spec, candidate, captioned=position == 0)
+                            if candidate
+                            else None
                         )
                         if value:
                             keep(field, value, source.score, source.box)
