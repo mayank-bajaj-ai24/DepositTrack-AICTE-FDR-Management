@@ -436,15 +436,15 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 
 ## Expected outcomes
 
-> **No synthetic-data results are reported any more.** Earlier numbers measured on synthetic FDRs were withdrawn when the project moved to real and open data (23 Oct 2026). No public FDR dataset exists, so models are measured on the closest open dataset and the result is labelled **proxy**: it shows how the method performs on that dataset, not on FDRs. FDR-level numbers need labelled real FDRs.
+> **Three kinds of result, never mixed.** No public FDR dataset exists. A **proxy** result is measured on the closest open dataset and shows how the method performs there. A **synthetic** result is measured on FDRs from `ml/synthetic_fdr/` (allowed since 25 Oct 2026, AGENTS.md rule 5); those pages are clean and use captions that extraction already knows, so synthetic results are an upper bound. Neither is a result on real FDRs, which needs labelled real scans.
 
 ### Component targets
 
 | Component | Metric | Target | Measured | Status |
 | --- | --- | --- | --- | --- |
-| Field extraction | Field exact-match after rules (overall) | ≥ 90% | — | Not measured: needs labelled real FDRs |
-| Field extraction | Exact-match on amount and dates | ≥ 95% | — | Not measured: needs labelled real FDRs |
-| Field extraction | Processing time per page (CPU) | < 5 s | — | To be measured on real scans |
+| Field extraction | Field exact-match after rules (overall) | ≥ 90% | 99.4% — **synthetic**, 300 generated FDRs (seed 2027, three layouts), measured through the API's `service.extract`; 93.7% of pages have every field right | Met on synthetic FDRs (an upper bound: known captions). Most misses are the faint diagonal `SYNTHETIC` mark read into the beneficiary line, which a real FDR does not carry. Real FDRs: not measured |
+| Field extraction | Exact-match on amount and dates | ≥ 95% | 99.3% — **synthetic**, same set | Met on synthetic FDRs. Real FDRs: not measured |
+| Field extraction | Processing time per page (CPU) | < 5 s | 0.66 s mean, 0.75 s p95 (nearest rank) — **synthetic**, same set, Apple M-series CPU, OCR models already loaded, no forgery model | Met on synthetic FDRs. To be timed on real scans |
 | Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
@@ -474,7 +474,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 
 | ID | Scenario | Pass condition | Status |
 | --- | --- | --- | --- |
-| T-01 | New FDR submission | Stored, hashed, versioned; fields extracted; L1 when clean | Passing (API end-to-end test) |
+| T-01 | New FDR submission | Stored, hashed, versioned; fields extracted; L1 when clean | Passing (API end-to-end test); extraction measured on 300 synthetic FDRs (`ml/extraction/evaluate.py`) |
 | T-02 | Repository completeness | All required fields stored and searchable | Passing (API: fields, search and filters) |
 | T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
@@ -500,7 +500,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 434 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
+- [x] Backend: 446 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 24 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 - [x] Data policy changed again (25 Oct 2026): a labelled synthetic dataset is allowed for FDR documents only
@@ -543,6 +543,7 @@ flowchart LR
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
+- [x] Extraction measured on synthetic FDRs (`ml/extraction/evaluate.py`, through `service.extract`): 99.4% exact-match, 99.3% on amount and dates, 0.66 s/page. Fixes found by it: a shorter caption never reads a longer caption's line (config order kept), an IFSC with `O` for `0` is read next to its caption only, the banner is ignored
 - [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until the maintainer approves a model trained on FDRs; FUNSD proxy notebook, and the API refuses non-FDR or unapproved models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
 - [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
@@ -616,6 +617,7 @@ DepositTrack-AICTE-FDR-Management/
   ml/
     open_datasets.json       # open datasets: pinned Kaggle versions, licences, citations
     synthetic_fdr/           # synthetic FDR generator (fdrsynth), labelled SYNTHETIC; output in data/synthetic_fdr/
+    extraction/              # extraction measurement on synthetic FDRs (evaluate.py)
     download_open_data.py    # downloads a catalog entry into data/<name>/
     forgery/                 # forgery signal training (Find it again! retrain on a separate branch)
     risk/                    # renewal-risk proxy training (BPI Challenge 2017)
