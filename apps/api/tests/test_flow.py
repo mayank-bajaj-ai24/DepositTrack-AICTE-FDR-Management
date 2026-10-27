@@ -335,6 +335,11 @@ def test_release_is_blocked_until_checklist_complete(env):
     assert detail["instrument"]["state"] == "released"
     assert any(d["kind"] == "release_letter" for d in detail["documents"])
     assert env.bank.records[(v["ifsc"], v["fdr_no"])]["lien_status"] == "REMOVED"
+    # Found on the live stack: the record kept saying "under lien" after the bank removed it.
+    assert detail["lien_marked"] is False
+    removed = next(e for e in detail["events"] if e["action"] == "bank.lien_removed")
+    assert removed["before"] == {"lien_marked": True}
+    assert removed["after"]["lien_marked"] is False
 
 
 def test_dashboard_reports_and_notifications(env):
@@ -952,3 +957,27 @@ def test_editing_a_visible_instrument_without_an_editor_role_is_403_not_404(env)
         headers=env.h("west"),
     )
     assert unseen.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("who", "institution", "region", "bank_code"),
+    [
+        ("inst_a", "SYN-A", None, None),
+        # An officer who is also institution B: their own institution is B, though the
+        # institution list (their region plus B) starts with A.
+        ("west_inst_b", "SYN-B", "West", None),
+        ("west", None, "West", None),
+        ("bank", None, None, "XNBK"),
+    ],
+)
+def test_me_names_the_accounts_own_institution(env, who, institution, region, bank_code):
+    r = env.client.get("/api/v1/me", headers=env.h(who))
+    assert r.status_code == 200, r.text
+    me = r.json()
+    assert (me["institution"] or {}).get("aicte_id") == institution
+    assert (me["region"], me["bank_code"]) == (region, bank_code)
+
+
+def test_me_lists_only_depositrack_roles(env):
+    me = env.client.get("/api/v1/me", headers=env.h("nobody")).json()
+    assert me["roles"] == [] and me["institution"] is None

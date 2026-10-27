@@ -269,7 +269,8 @@ def submit_instrument(
                     flag_type,
                     checks()["severity"][flag_type],
                     f"image analysis marks the region '{forgery.region_text}' as "
-                    f"{forgery.band} (score {forgery.score:.2f}); compare with the bank's record",
+                    f"{forgery.band} (score {forgery.score:.2f}, model trained on "
+                    f"{forgery.training_data}); compare with the bank's record",
                     fact={
                         "score": forgery.score,
                         "band": forgery.band,

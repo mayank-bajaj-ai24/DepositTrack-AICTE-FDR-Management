@@ -4,7 +4,8 @@
 // marked), submit. The institution's confirmed values are the declared values (Trust Ladder L0).
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "@/components/Icon";
 import { Shell } from "@/components/Shell";
 import { errorText, useApi, useResource } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -26,6 +27,12 @@ function Submit() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [over, setOver] = useState(false);
+  const imageUrl = useMemo(() => (file && file.type.startsWith("image/") ? URL.createObjectURL(file) : null), [file]);
+  useEffect(() => () => {
+    if (imageUrl) URL.revokeObjectURL(imageUrl);
+  }, [imageUrl]);
+  const step = preview ? 2 : 1;
 
   async function read(f: File) {
     setFile(f);
@@ -75,17 +82,41 @@ function Submit() {
           </p>
         </div>
       </div>
-      {error && <p className="note neg" style={{ marginBottom: 12 }}>{error}</p>}
+      <ol className="steps" aria-label={t("submit.steps")}>
+        {[1, 2, 3].map((n) => (
+          <li key={n} aria-current={step === n ? "step" : undefined}>
+            <span className="n num">{step > n ? <Icon name="check" size={12} /> : n}</span>
+            {t(`submit.step.${n}`)}
+          </li>
+        ))}
+      </ol>
+      {error && <p className="note note-in neg" style={{ marginBottom: 16 }} role="alert">{error}</p>}
       <div className="grid top">
         <section className="span-4 stack">
-          <label className="drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) read(f); }}>
-            <span style={{ fontWeight: 500, color: "var(--text)" }}>{busy && !preview ? t("submit.reading") : file ? file.name : t("submit.file")}</span>
-            <span className="small">PNG · JPG</span>
-            <input ref={input} type="file" accept="image/png,image/jpeg" hidden onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} />
+          <label
+            className={`drop${over ? " over" : ""}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setOver(true);
+            }}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setOver(false);
+              const f = e.dataTransfer.files?.[0];
+              if (f) read(f);
+            }}
+          >
+            <Icon name="upload" size={24} />
+            <span style={{ fontWeight: 500, color: "var(--text)" }}>{busy && !preview ? t("submit.reading") : file ? file.name : t("submit.drop")}</span>
+            <span className="small" id="file-hint">{file ? t("submit.replace") : t("submit.limits")}</span>
+            <input ref={input} type="file" accept="image/png,image/jpeg" className="visually-hidden" aria-describedby="file-hint" onChange={(e) => e.target.files?.[0] && read(e.target.files[0])} />
           </label>
-          {file && file.type.startsWith("image/") && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={URL.createObjectURL(file)} alt={file.name} style={{ width: "100%", borderRadius: 8, border: "1px solid var(--border)" }} />
+          {imageUrl && file && (
+            <figure className={`scan${busy && !preview ? " reading" : ""}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt={file.name} />
+            </figure>
           )}
         </section>
         <section className="panel span-8">
@@ -96,7 +127,15 @@ function Submit() {
             </div>
           </header>
           {!preview ? (
-            <p className="empty">{busy ? t("submit.reading") : t("submit.file")}</p>
+            // Before a scan: the fields that will be read, each still a dash, in the form's order.
+            <div className="rows" aria-busy={busy}>
+              {FIELD_ORDER.map((k) => (
+                <div className="row" key={k}>
+                  <span className="grow muted">{t(`field.${k}`)}</span>
+                  {busy ? <span className="skeleton" style={{ width: 140, height: 14 }} /> : <span className="muted">—</span>}
+                </div>
+              ))}
+            </div>
           ) : (
             <form onSubmit={submit}>
               <div className="form-grid">

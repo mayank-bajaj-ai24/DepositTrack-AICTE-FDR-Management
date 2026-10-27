@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { BarList, BarsChart } from "@/components/Charts";
 import { Shell } from "@/components/Shell";
 import { ErrorBox, Loading } from "@/components/ui";
-import { useResource } from "@/lib/api";
+import { groupAlerts, useResource } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import type { Case, Dashboard, InstrumentSummary, Notification } from "@/lib/types";
@@ -195,7 +195,7 @@ function TrustCard({ dash }: { dash: Dashboard }) {
 function Alerts() {
   const { t, dateTime } = useI18n();
   const data = useResource<{ items: Notification[] }>("/api/v1/notifications");
-  const items = (data.data?.items ?? []).slice(0, 5);
+  const items = groupAlerts(data.data?.items ?? []).slice(0, 5);
   return (
     <section className="panel span-12">
       <header>
@@ -205,13 +205,16 @@ function Alerts() {
         <Loading rows={3} />
       ) : items.length ? (
         <div className="rows">
-          {items.map((n) => (
+          {items.map(({ n, times }) => (
             <Link className="row" key={n.id} href={`/instruments/${n.instrument_id}`}>
               <span className="grow">
                 {t(`notify.${n.kind}`, undefined, n.kind)}
                 <span className="line2">{n.message}</span>
               </span>
-              <span className="muted small end">{dateTime(n.created_at)}</span>
+              <span className="muted small end">
+                {dateTime(n.created_at)}
+                {times > 1 && <span className="line2">{t("my.reminder.times", { n: times })}</span>}
+              </span>
             </Link>
           ))}
         </div>
