@@ -4,6 +4,7 @@ import csv
 import io
 from collections import Counter, defaultdict
 from datetime import date, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
@@ -32,6 +33,7 @@ from app.modules.lifecycle.states import InstrumentState as S
 router = APIRouter(prefix="/api/v1", tags=["dashboard"])
 
 PENDING_STATES = {S.SUBMITTED, S.SCRUTINY, S.DISCREPANCY}
+CLOSED_STATES = {S.RELEASED, S.RENEWED, S.REJECTED, S.ARCHIVED}
 
 
 def _open_coverage(
@@ -53,8 +55,10 @@ def _open_coverage(
 
 def _visible(session: Session, scope: Scope) -> list[tuple[Instrument, Institution]]:
     """Instruments behind the dashboard and reports: what the reporting roles may see."""
-    query = select(Instrument, Institution).join(
-        Institution, Institution.id == Instrument.institution_id
+    query = (
+        select(Instrument, Institution)
+        .join(Institution, Institution.id == Instrument.institution_id)
+        .order_by(Institution.name, Instrument.instrument_no, Instrument.id)
     )
     return list(session.execute(scope_instruments(query, scope, REPORT_READ)).all())
 
@@ -241,10 +245,16 @@ def _report_rows(name: str, session: Session, scope: Scope) -> tuple[list[str], 
             and S(i.state) in (S.ACTIVE, S.EXPIRING)
         ]
     elif name == "missing-documents":
+        # Open records only: a released, renewed (replaced), rejected or archived one is done.
+        rows = [(i, inst) for i, inst in rows if S(i.state) not in CLOSED_STATES]
         flags = session.scalars(
-            select(Flag).where(
-                Flag.status == "open", Flag.flag_type.in_(["missing_field", "missing_document"])
+            select(Flag)
+            .where(
+                Flag.instrument_id.in_([i.id for i, _ in rows]),
+                Flag.status == "open",
+                Flag.flag_type.in_(["missing_field", "missing_document"]),
             )
+            .order_by(Flag.reason_text, Flag.id)
         ).all()
         by_inst = defaultdict(list)
         for f in flags:
@@ -286,7 +296,7 @@ def list_reports() -> dict:
 @router.get("/reports/{name}")
 def report(
     name: str,
-    format: str = "json",
+    format: Literal["json", "csv", "xlsx"] = "json",
     scope: Scope = Depends(get_scope),
     session: Session = Depends(get_session),
 ):
