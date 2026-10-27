@@ -45,8 +45,8 @@
   --float-shadow: 0 12px 32px rgba(19, 20, 22, 0.14);
 
   --font: var(--font-plex), var(--font-plex-deva), system-ui, sans-serif;
-  --mono: var(--font-plex-mono), ui-monospace, monospace;
-  --fs-title: 22px; --fs-section: 16px; --fs-kpi: 28px; --fs-lead: 32px; --fs-body: 14px; --fs-small: 12px;
+  --mono: var(--font-plex-mono), ui-monospace, monospace; /* taste-skill-ignore: Plex Mono has one job, identifiers (FDR numbers, IFSCs, hashes) */
+  --fs-title: 22px; --fs-section: 16px; --fs-kpi: 28px; --fs-lead: 32px; --fs-body: 14px; --fs-small: 13px;
 
   /* Grid arithmetic (1440 wide): 1440 - 228 sidebar - 8 inset = 1204 sheet; minus 2 x 24 padding
      = 1156 content = 12 x 74.33 + 11 x 24. Every card lands on both content edges. */
@@ -113,7 +113,7 @@ a { color: inherit; text-decoration: none; }
 :focus-visible { outline: 2px solid var(--hue); outline-offset: 2px; border-radius: 4px; }
 ::selection { background: color-mix(in srgb, var(--hue) 22%, transparent); }
 .num, table, .kpi-value { font-variant-numeric: tabular-nums; }
-.mono { font-family: var(--mono); font-size: 0.96em; }
+.mono { font-family: var(--mono); font-size: 0.96em; } /* taste-skill-ignore: identifiers only */
 .muted { color: var(--muted); }
 .small { font-size: var(--fs-small); line-height: 16px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -194,14 +194,13 @@ a { color: inherit; text-decoration: none; }
 .card-link:hover { text-decoration: underline; }
 .card-link:hover::after { transform: translateX(2px); }
 
-.rows { display: grid; }
+.rows { display: grid; grid-template-columns: minmax(0, 1fr); }
 .row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px 0; }
 .row + .row { border-top: 1px solid var(--rule); }
-a.row { margin: 0 -8px; padding-left: 8px; padding-right: 8px; border-radius: 6px; transition: background-color var(--t-hover) ease; }
+a.row { margin: 0 -8px; padding-left: 8px; padding-right: 8px; transition: background-color var(--t-hover) ease; }
 a.row:hover { background: var(--raised); }
-a.row + a.row { border-top-color: transparent; box-shadow: 0 -1px 0 var(--rule); border-radius: 0 0 6px 6px; }
 .row .grow { flex: 1; min-width: 0; }
-.row .line2 { display: block; color: var(--muted); font-size: var(--fs-small); line-height: 16px; margin-top: 2px; }
+.row .line2 { display: block; color: var(--muted); font-size: var(--fs-small); line-height: 18px; margin-top: 2px; }
 .row .end { text-align: right; white-space: nowrap; }
 
 /* KPIs: one divided strip, label above value */
@@ -235,7 +234,7 @@ tbody tr.link-row { cursor: pointer; }
 tbody tr.link-row td { transition: background-color var(--t-hover) ease; }
 tbody tr.link-row:hover td { background: var(--raised); }
 th.n, td.n { text-align: right; }
-td .sub { display: block; font-size: var(--fs-small); line-height: 16px; color: var(--muted); }
+td .sub { display: block; font-size: var(--fs-small); line-height: 18px; color: var(--muted); }
 .truncate { max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* pills: pale tint, dark ink of the same hue, one per row */
@@ -306,7 +305,7 @@ td .sub { display: block; font-size: var(--fs-small); line-height: 16px; color: 
 .field .warn { color: var(--warning); font-size: var(--fs-small); line-height: 16px; }
 .input, select.input, textarea.input { width: 100%; min-height: 38px; padding: 8px 12px; border: 1px solid var(--control); border-radius: var(--radius-control); background: var(--surface); transition: border-color var(--t-hover) ease, box-shadow var(--t-hover) ease; }
 .input:hover { border-color: color-mix(in srgb, var(--control) 60%, var(--text)); }
-.input:focus { outline: none; border-color: var(--hue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hue) 18%, transparent); }
+.input:focus { outline: none; border-color: var(--hue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--hue) 18%, transparent); } /* taste-skill-ignore: a focus ring, not a shadow */
 textarea.input { min-height: 88px; resize: vertical; }
 .input.attention { border-color: #d9a441; background: color-mix(in srgb, #d9a441 7%, var(--surface)); }
 .input::placeholder { color: var(--faint); }
@@ -314,7 +313,7 @@ textarea.input { min-height: 88px; resize: vertical; }
 .form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 .segmented { display: inline-flex; width: max-content; max-width: 100%; padding: 2px; border-radius: 8px; background: var(--raised); }
 .segmented button { height: 28px; padding: 0 12px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; transition: color var(--t-hover) ease, background-color var(--t-hover) ease; }
-.segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--border); }
+.segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); outline: 1px solid var(--border); outline-offset: -1px; }
 .tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--border); margin-bottom: var(--gap); overflow-x: auto; scrollbar-width: none; }
 .tabs a, .tabs button { position: relative; padding: 10px 0; border: 0; background: none; color: var(--muted); cursor: pointer; white-space: nowrap; transition: color var(--t-hover) ease; }
 .tabs a:hover, .tabs button:hover { color: var(--text); }
@@ -364,7 +363,7 @@ textarea.input { min-height: 88px; resize: vertical; }
 .drop:hover, .drop.over { border-color: var(--hue); color: var(--text); background: color-mix(in srgb, var(--hue) 5%, var(--surface)); }
 .drop svg { width: 24px; height: 24px; }
 
-dialog.modal { border: 1px solid var(--border); border-radius: 12px; padding: var(--card-pad); width: min(520px, calc(100vw - 32px)); background: var(--surface); color: var(--text); box-shadow: var(--float-shadow); }
+dialog.modal { border: 1px solid var(--border); border-radius: 12px; padding: var(--card-pad); width: min(520px, calc(100vw - 32px)); background: var(--surface); color: var(--text); box-shadow: var(--float-shadow); } /* taste-skill-ignore: a dialog floats */
 dialog.modal[open] { animation: lift 260ms var(--ease-out) both; }
 dialog.modal::backdrop { background: var(--scrim); animation: fade-in 200ms ease both; }
 dialog.modal h2 { font-size: var(--fs-section); margin-bottom: 12px; }
@@ -389,8 +388,8 @@ dialog.modal h2 { font-size: var(--fs-section); margin-bottom: 12px; }
 /* ---------- tablet and phone ---------- */
 @media (max-width: 1100px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--topbar) minmax(0, 1fr); }
-  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(320px, 86vw); height: 100%; background: var(--surface); box-shadow: var(--float-shadow); transform: translateX(-104%); transition: transform 280ms var(--ease-out); }
-  .sidebar.open { transform: none; }
+  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(320px, 86vw); height: 100%; background: var(--surface); transform: translateX(-104%); visibility: hidden; transition: transform 280ms var(--ease-out), visibility 0s linear 280ms; } /* taste-skill-ignore: the folded menu floats over the screen */
+  .sidebar.open { transform: none; visibility: visible; box-shadow: var(--float-shadow); transition: transform 280ms var(--ease-out), visibility 0s; } /* taste-skill-ignore: the open menu floats */
   .nav-scrim { position: fixed; inset: 0; z-index: 25; background: var(--scrim); animation: fade-in 200ms ease both; }
   .topbar { grid-column: 1; padding: 0 16px 0 8px; }
   .menu-toggle { display: inline-grid; }
@@ -439,7 +438,7 @@ dialog.modal h2 { font-size: var(--fs-section); margin-bottom: 12px; }
 .signin-top { display: flex; align-items: center; justify-content: space-between; height: 64px; }
 .signin-top .brand { padding: 0; }
 .signin-body { margin: auto 0; padding: 48px 0; max-width: 520px; }
-.signin-body h1 { font-size: clamp(32px, 3.4vw, 48px); line-height: 1.04; letter-spacing: -0.03em; font-weight: 600; max-width: 14ch; }
+.signin-body h1 { font-size: clamp(32px, 3.4vw, 48px); line-height: 1.04; letter-spacing: -0.03em; font-weight: 600; max-width: 16ch; }
 .signin-lead { margin-top: 20px; font-size: 18px; line-height: 28px; max-width: 44ch; }
 .signin-actions { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 32px; }
 .signin-btn { height: 44px; padding: 0 20px; font-size: 15px; }
@@ -483,3 +482,37 @@ dialog.modal h2 { font-size: var(--fs-section); margin-bottom: 12px; }
 /* field table on the detail screen: labels on one line, values cut with an ellipsis */
 .fields-table td:first-child { white-space: nowrap; }
 .fields-table td.truncate { max-width: 24ch; }
+
+/* the scan being read: a line in the hue sweeps the page while the API reads it */
+.scan { position: relative; overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--raised); }
+.scan img { width: 100%; height: auto; }
+.scan.reading::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--hue); animation: sweep 1.6s var(--ease-in-out) infinite alternate; }
+.scan.reading img { opacity: 0.85; }
+@keyframes sweep { from { top: 0; } to { top: calc(100% - 2px); } }
+
+/* the detail inside the queue's pane: fields take the pane's width, the side panels sit in a row under them */
+.grid.compact > * { grid-column: 1 / -1; }
+.grid.compact > .side { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 1280px) { .grid.compact > .side { grid-template-columns: minmax(0, 1fr); } }
+.stairs { container-type: inline-size; }
+@container (max-width: 300px) {
+  .stairs-legend .name { display: none; }
+}
+.nowrap { white-space: nowrap; }
+table.report td:first-child { min-width: 28ch; max-width: 44ch; }
+@media (max-width: 1100px) { .hide-md { display: none; } }
+.title-row .detail-title { font-size: var(--fs-title); line-height: 28px; font-weight: 600; }
+@media (max-width: 860px) {
+  /* filters scroll sideways in their own row; the page never does */
+  .toolbar .segmented { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .toolbar .segmented button { flex: none; }
+}
+.lv-badge { display: grid; place-items: center; width: 24px; height: 24px; flex: none; align-self: flex-start; margin-top: 2px; border-radius: 4px; background: var(--active); font-size: var(--fs-small); font-weight: 600; }
+
+/* sign-in callback: the mark, one line and a quiet bar while the token is exchanged */
+.callback { display: grid; justify-items: center; align-content: center; gap: 16px; min-height: 100svh; padding: 24px; text-align: center; }
+.callback h1 { font-size: 20px; font-weight: 600; }
+.callback .note { max-width: 520px; }
+.callback-bar { position: relative; width: 160px; height: 2px; overflow: hidden; border-radius: 2px; background: var(--active); }
+.callback-bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: var(--hue); animation: shuttle 1.1s var(--ease-in-out) infinite alternate; }
+@keyframes shuttle { to { transform: translateX(150%); } }
