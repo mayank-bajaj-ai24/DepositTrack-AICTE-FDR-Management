@@ -73,7 +73,7 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. **Run end
 to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak login, immudb anchor.
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 459 tests pass, ruff clean; `ml/tests`: 24)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 464 tests pass, ruff clean; `ml/tests`: 24)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, action-aware ABAC: every lookup names its action (or workflow roles) and only the caller's roles that grant it contribute visibility (`acting_roles`, `visible_institution_ids`); bank_service only ever reaches its own bank's instruments for attestation |
@@ -122,15 +122,22 @@ default) lists bank codes whose keys are published before any FDR. Settings in `
 - Not built: discrepancy-risk XGBoost from the plan; officer assistant (skipped).
 
 ### Web — `apps/web` (Next.js 16.4.3, React 19; ESLint, tsc and build pass; npm pinned 11.6.2)
-- taste-skill **achromatic-ledger** style (seed 549180210): blue-grey ground `#f2f4f7`, one hue
-  `#1d5fbf`; top-bar shell; coverage strip and Trust Ladder components.
+- Redesigned 27 Oct (branch `web-ui-redesign`, stacked on #16): taste-skill **framed-sheet** app style
+  (seed 871732628). A blue-grey L-frame (`#eef2f6`) holds a grouped sidebar and a 48px top bar (search
+  `/`, demo-clock stamp, language and theme); the work sits on a white sheet inset 8px. IBM Plex Sans
+  (with its Devanagari cut), Plex Mono only for FDR numbers, IFSCs and hashes, one hue `#1d5fbf` on
+  data. Light and dark themes (`dt.theme` in localStorage, set before first paint). Route changes
+  cross-fade and FDR numbers morph from list rows into the detail title (React `<ViewTransition>`).
+  3D: the sign-in screen draws five receipts climbing the Trust Ladder in three.js 0.186.1 (loaded
+  only there, still frame with reduced motion); the FDR detail shows the Trust Ladder as CSS 3D stairs.
 - Screens: `/overview`, `/queue`, `/instruments`, `/instruments/[id]`, `/cases`, `/cases/[id]`,
   `/reports`, `/audit`, `/verify`, `/admin`, `/my`, `/my/submit`, `/my/request/[id]`, `/bank`,
   `/auth/callback`.
-- **Opened in a browser on 23 Oct** (Chrome DevTools): sign-in, `/my`, `/admin`, `/overview`,
-  `/reports`, `/audit` load without console errors. taste-skill `inspect.mjs --app` not yet run on
-  the web app (only on the mock bank page). Admin/audit pages do not yet show `store_error`,
-  `receipt` or `immudb_problem` from PR #7.
+- **Checked 27 Oct** on the production build against the live stack: taste-skill `lint.mjs --app`
+  0 FAIL (1 WARN: the dash for missing values); `inspect.mjs --app` 0 FAIL on every screen at
+  1440/768/390, signed in as each dev role. The FDR detail uses the API's `editable_fields` /
+  `next_states`; `/my` names the caller's institution from `GET /me`; System shows what each model
+  was trained on or why it is off; Audit shows each anchor's immudb receipt, `store_error` and root check.
 - i18n: `src/i18n/en.json`, `hi.json` (Hindi written by Claude — **needs a fluent reviewer**).
 - Next 16 notes: read `node_modules/next/dist/docs/` first; Cache Components on, so
   `useParams`/`useSearchParams` must be inside `<Suspense>`; React 19 lint forbids setState in effects.
@@ -181,8 +188,7 @@ Pushed as PRs (none merged yet; the maintainer approves each):
 2. Retrain the forgery signal on synthetic FDRs (PR #16) and report it as synthetic; merge #11 and
    #12.
 3. Live stack processes (API, mock bank, web) were stopped for low memory; restart when needed.
-4. Walk the demo story (plan §12) on the live stack; run taste-skill `inspect.mjs --app` on every
-   screen (1440/768/390) and fix FAILs; show PR #7's anchor fields in the admin/audit UI.
+4. Walk the demo story (plan §12) on the live stack with the redesigned UI (`web-ui-redesign`).
 5. When the user grants the `workflow` scope: add the CI workflow.
 6. Open items needing AICTE answers: plan §14 (amounts, wording, release conditions, approvers,
    reminder days, integrations, state → regional office mapping).
