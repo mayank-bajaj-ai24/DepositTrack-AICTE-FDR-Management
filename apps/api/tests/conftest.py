@@ -8,7 +8,9 @@ from fastapi.testclient import TestClient
 
 from app.core import security
 from app.core.config import Settings, get_settings
+from app.db.session import get_session
 from app.main import create_app
+from tests.flow_support import make_sessionmaker
 
 # Tests must not pick up a developer's apps/api/.env (settings for the local stack); modules
 # imported above may already have cached settings read from it.
@@ -28,9 +30,18 @@ def other_rsa_key():
 
 @pytest.fixture
 def client(rsa_key, monkeypatch):
-    """Test client whose token verification uses a local key instead of Keycloak JWKS."""
+    """Test client whose token verification uses a local key instead of Keycloak JWKS, on an
+    empty in-memory database, so no test reaches a developer's Postgres (CI has none)."""
     monkeypatch.setattr(security, "get_signing_key", lambda token, settings: rsa_key.public_key())
-    return TestClient(create_app())
+    factory = make_sessionmaker()
+
+    def session_override():
+        with factory() as s:
+            yield s
+
+    app = create_app()
+    app.dependency_overrides[get_session] = session_override
+    return TestClient(app)
 
 
 @pytest.fixture
