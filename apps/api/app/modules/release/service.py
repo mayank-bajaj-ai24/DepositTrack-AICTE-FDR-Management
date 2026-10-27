@@ -243,12 +243,16 @@ def decide(
             select(Attestation).where(Attestation.instrument_id == instrument.id)
         ):
             attestation.revoked_at = _now()
+        # The bank removed AICTE's lien: the record must no longer say the FDR is under lien.
+        before = {"lien_marked": instrument.lien_marked}
+        instrument.lien_marked = False
         record_event(
             session,
             actor=SYSTEM,
             action="bank.lien_removed",
             instrument_id=instrument.id,
-            after=result,
+            before=before,
+            after={**result, "lien_marked": False},
         )
         move(session, instrument, S.RELEASED, SYSTEM, {"system"}, "bank confirmed lien removal")
     return case
