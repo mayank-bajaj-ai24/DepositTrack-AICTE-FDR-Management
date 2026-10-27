@@ -106,7 +106,7 @@ Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No publ
 | Python packaging | `pip` + `venv`, dependencies in each package's `pyproject.toml` |
 | Python lint / format | `ruff check` and `ruff format` |
 | Python tests | `pytest` |
-| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `npm` |
+| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "framed sheet" style), three.js on the sign-in screen only, `npm` |
 | Frontend lint / types | `npx eslint src`, `npx tsc --noEmit`, `npx next build` |
 | ML | scikit-learn, scikit-image, LightGBM (`ml` extra in `apps/api`); open datasets via `kagglehub` (`data` extra); OCR with RapidOCR |
 | Audit anchoring | immudb receipts via `immudb-py==1.5.0` (`anchoring` extra in `apps/api`; pinned because of its large dependency tree) |
@@ -166,7 +166,7 @@ Run lint and tests before every push. CI is not set up yet, so these local check
 
 ```
 apps/api/        FastAPI backend (modules per plan §8), config/ holds every rule file
-apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
+apps/web/        Next.js frontend (taste-skill framed-sheet style, light and dark, English + Hindi)
 services/mock-bank/  Mock bank (simulation): the operator records issued FDRs; signed credentials, lien status
 ml/open_datasets.json, ml/download_open_data.py  Open-dataset catalog and download helper
 ml/synthetic_fdr/  Synthetic FDR generator (marked SYNTHETIC - NOT A REAL DEPOSIT; output in data/synthetic_fdr/, not committed)
