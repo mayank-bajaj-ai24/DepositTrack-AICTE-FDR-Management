@@ -60,8 +60,27 @@ def _model_dir(tmp_path, id2label, metrics=None):
     return path
 
 
-def test_fdr_labelled_model_is_usable(tmp_path):
-    assert layoutlm.model_is_usable(_model_dir(tmp_path, FDR_LABELS))
+APPROVED = {"live_extraction": True, "training_data": "synthetic_fdr"}
+
+
+def test_approved_fdr_labelled_model_is_usable(tmp_path):
+    path = _model_dir(tmp_path, FDR_LABELS, APPROVED)
+    assert layoutlm.model_is_usable(path)
+    assert layoutlm.training_data(path) == "synthetic_fdr"
+
+
+@pytest.mark.parametrize(
+    "metrics",
+    [None, {}, {"live_extraction": True}, {"training_data": "synthetic_fdr"}, ["x"]],
+)
+def test_fdr_labels_without_recorded_approval_are_refused(tmp_path, metrics):
+    assert not layoutlm.model_is_usable(_model_dir(tmp_path, FDR_LABELS, metrics))
+
+
+def test_malformed_metrics_are_refused(tmp_path):
+    path = _model_dir(tmp_path, FDR_LABELS)
+    (path / "metrics.json").write_text("{", encoding="utf-8")
+    assert not layoutlm.model_is_usable(path)
 
 
 def test_funsd_proxy_model_is_refused(tmp_path):

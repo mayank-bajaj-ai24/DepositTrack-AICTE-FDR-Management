@@ -1,13 +1,16 @@
 """Pass A of extraction (N6): a fine-tuned LayoutLMv3 token classifier, when enabled.
 
-Pass A is off unless `pass_a_enabled: true` is set in config/extraction.yaml (it stays off
-until a model trained on labelled real FDRs exists). Such a model is saved to
-<models_dir>/layoutlmv3-fdr/ and must label words with "O" or B-/I- tags whose suffix,
-lower-cased, is a field in service.FIELDS (FDR_NO, BANK, ..., LIEN_TEXT); a folder whose
-labels do not map onto those fields, or whose metrics.json says "live_extraction": false
-(as the FUNSD proxy from ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb does), is refused.
-Without a valid folder, or without `transformers` and `torch` installed, pass A is
-reported as unavailable and pass B is used alone.
+Pass A is off unless `pass_a_enabled: true` is set in config/extraction.yaml. A model is
+saved to <models_dir>/layoutlmv3-fdr/ and must label words with "O" or B-/I- tags whose
+suffix, lower-cased, is a field in service.FIELDS (FDR_NO, BANK, ..., LIEN_TEXT). FDR labels
+alone do not say what the model was trained on (a model trained on synthetic FDRs has them
+too), so the maintainer's approval is recorded in its metrics.json: "live_extraction": true
+plus a "training_data" name (e.g. "synthetic_fdr"), which status shows next to the model
+(AGENTS.md rule 5). A folder without both, with labels that do not map onto the fields, or
+marked "live_extraction": false (as the FUNSD proxy from
+ml/layoutlm/train_layoutlmv3_funsd_proxy.ipynb is), is refused. Without a valid folder, or
+without `transformers` and `torch` installed, pass A is reported as unavailable and pass B is
+used alone.
 """
 
 import json
@@ -43,15 +46,21 @@ def model_is_usable(path: Path) -> bool:
         config = json.loads((path / "config.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
-    metrics_path = path / "metrics.json"
-    if metrics_path.exists():
-        try:
-            metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except ValueError:
-            return False
-        if isinstance(metrics, dict) and metrics.get("live_extraction") is False:
-            return False
+    if training_data(path) is None:
+        return False
     return labels_match_fields(config.get("id2label") or {}, FIELDS)
+
+
+def training_data(path: Path) -> str | None:
+    """The approved model's training-data name, or None when it is not approved for live use."""
+    try:
+        metrics = json.loads((path / "metrics.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(metrics, dict) or metrics.get("live_extraction") is not True:
+        return None
+    name = metrics.get("training_data")
+    return name if isinstance(name, str) and name else None
 
 
 @lru_cache

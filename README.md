@@ -14,7 +14,7 @@
 
 > **Current status (23 Oct 2026):** prototype built in code — backend (modules M1–M10, M12, M13), mock bank and the bilingual web app — and **run on the live Docker stack**: migrations, real master-data import (13,088 AICTE institutions, RBI IFSC bank master), Keycloak login, immudb anchoring and the main screens in a browser. The upload → bank-verification story still waits for a real FDR scan. The full design is in **[IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)**.
 >
-> **Data policy:** no synthetic data. Master data comes from public sources, and models are trained on open datasets as **labelled proxies** (no public FDR dataset exists); see [Expected outcomes](#expected-outcomes) and AGENTS.md rule 5.
+> **Data policy (25 Oct 2026):** synthetic data only for FDR documents. No public FDR dataset exists, so a generator (`ml/synthetic_fdr/`) makes FDR pages marked `SYNTHETIC - NOT A REAL DEPOSIT`, and results on them are reported as **synthetic results**. Master data comes from public sources; other models are trained on open datasets as **labelled proxies**. See [Expected outcomes](#expected-outcomes) and AGENTS.md rule 5.
 >
 > Contributors and AI agents: read **[AGENTS.md](AGENTS.md)** before making changes.
 >
@@ -328,7 +328,7 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 | Database | PostgreSQL 16 + pgvector |
 | File storage | SeaweedFS (S3-compatible); replaces MinIO from the plan, which no longer publishes Docker images |
 | Tamper evidence | immudb receipts via `immudb-py` (optional `anchoring` extra); permissioned ledger as production option |
-| OCR / document AI | RapidOCR + configured rules (pass B); LayoutLMv3 (pass A) only once trained on labelled real FDRs |
+| OCR / document AI | RapidOCR + configured rules (pass B); LayoutLMv3 (pass A) only once the maintainer approves a model trained on FDRs, recorded in its `metrics.json` |
 | Machine learning | scikit-learn, scikit-image, LightGBM, SHAP; open datasets fetched with `kagglehub` (`data` extra) |
 | Master data | AICTE approved-institutions dashboard; RBI IFSC master via the Razorpay IFSC dataset (MIT) |
 | Credentials | Ed25519 signed JSON |
@@ -479,7 +479,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
 | T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal being retrained on an open proxy dataset, see [Expected outcomes](#expected-outcomes) |
-| T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests); report endpoint built, not separately tested |
+| T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests; API: missing fields and documents flagged and listed with their reasons, scoped by region and institution, record leaves the list once the field is filled in or the record is closed, CSV export) |
 | T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants; unit tests for a same deposit across a bank merger and for unrelated same-number FDRs of two merged banks) |
 | T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
 | T-09 | Authorized release processing | Blocked while checklist incomplete; approved after; lien removal recorded | Passing (API) |
@@ -500,9 +500,10 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 412 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
+- [x] Backend: 434 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 18 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
+- [x] Data policy changed again (25 Oct 2026): a labelled synthetic dataset is allowed for FDR documents only
 
 ### Roadmap
 
@@ -535,13 +536,14 @@ flowchart LR
 - [x] Policy configuration with every AICTE value unconfirmed, guarded by tests
 - [x] Real master data instead of fictional seeds: AICTE approved institutions (public dashboard) and the RBI IFSC bank master with RBI-cited mergers (M12)
 - [x] Synthetic FDR generator, simulator and synthetic-trained notebook removed (PRs #9, #10)
+- [x] Synthetic FDR generator brought back under the 25 Oct rule (`ml/synthetic_fdr/`): real RBI IFSC branches named by their IFSC's bank (no payment, office or merged-bank rows) and AICTE institutions; captions and date formats read from `extraction.yaml`; three layouts; `SYNTHETIC - NOT A REAL DEPOSIT` banners plus a diagonal across the fields; word and line boxes with B-/I- tags for LayoutLMv3; seeded so the same `--seed` gives the same files; a mock-bank record per FDR; 65 tests
 - [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
 - [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
-- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until it can be trained on labelled real FDRs; FUNSD proxy notebook, and the API refuses non-FDR models (M3)
+- [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until the maintainer approves a model trained on FDRs; FUNSD proxy notebook, and the API refuses non-FDR or unapproved models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
 - [x] Lifecycle sweep with obligation coverage and gap forecast (M7, N2)
 - [x] Reminders once per threshold, overdue / coverage-gap / time-box escalation (M8)
@@ -570,14 +572,13 @@ flowchart LR
 
 Immediate next steps, in order:
 
-1. **A real FDR scan** (with the owner's consent, personal details redacted) from the maintainer, to walk the upload → extraction → bank verification story on the live stack. Record the same FDR at the mock bank (its operator page) before "Verify with bank".
-2. **Forgery signal:** decide how to proceed after the weak Find it again! result (other features or methods, or keep the signal off and rely on the bank cross-check).
+1. **Synthetic FDRs** from the generator (PR #14), marked `SYNTHETIC - NOT A REAL DEPOSIT`, to walk the upload → extraction → bank verification story on a demo database. A real FDR scan (with the owner's consent, personal details redacted) is still wanted for final validation; record the same FDR at the mock bank (its operator page) before "Verify with bank".
+2. **Forgery signal:** retrain on synthetic FDRs (PR #16) and report the result as synthetic; if it still misses the targets, try other features or keep the signal off and rely on the bank cross-check.
 3. **Re-run the LayoutLMv3 notebook** with the merged protocol (fixed 1,000 steps, single evaluation) and record the score.
-4. **Security fix in PR #12:** instrument detail needs a read permission, and unknown role mixes are denied by default.
-5. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
-6. **CI workflow** once the GitHub token has the `workflow` scope.
-7. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
-8. **Idea submission** for the PS deadline (on hold).
+4. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
+5. **CI workflow** once the GitHub token has the `workflow` scope.
+6. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
+7. **Idea submission** for the PS deadline (on hold).
 
 Module-level build specs are in [plan §8](IMPLEMENTATION_PLAN.md#8-module-by-module-build-specification).
 
@@ -614,6 +615,7 @@ DepositTrack-AICTE-FDR-Management/
     mock-bank/               # simulated issuing bank: operator page, insert-only ledger, signed credentials
   ml/
     open_datasets.json       # open datasets: pinned Kaggle versions, licences, citations
+    synthetic_fdr/           # synthetic FDR generator (fdrsynth), labelled SYNTHETIC; output in data/synthetic_fdr/
     download_open_data.py    # downloads a catalog entry into data/<name>/
     forgery/                 # forgery signal training (Find it again! retrain on a separate branch)
     risk/                    # renewal-risk proxy training (BPI Challenge 2017)
@@ -629,7 +631,7 @@ DepositTrack-AICTE-FDR-Management/
     Mayank_Kathe/            # 7 papers + research notes
 ```
 
-Generated and downloaded files are not committed: `data/open/` (public master data), `data/<dataset>/` (open datasets), `models/` (trained models), `var/` (local storage, keys, ledgers).
+Generated and downloaded files are not committed: `data/open/` (public master data), `data/synthetic_fdr/` (generated FDRs), `data/<dataset>/` (open datasets), `models/` (trained models), `var/` (local storage, keys, ledgers).
 
 **Planned additions:** `apps/api/app/workers/` (Celery tasks and schedules), `docs/` (ADRs, API spec, dataset cards).
 
