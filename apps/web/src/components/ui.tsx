@@ -145,3 +145,35 @@ export function ReasonDialog({
 export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((new Date(toIso).getTime() - new Date(fromIso).getTime()) / 86_400_000);
 }
+
+/** The Trust Ladder as a flight of five steps in perspective, climbed up to the instrument's
+ *  level; the bank levels (L3, L4) take the hue. The legend under it says each level in words,
+ *  so the picture is never the only carrier of the meaning. */
+export function TrustStairs({ level }: { level: number }) {
+  const { t } = useI18n();
+  return (
+    <figure className="stairs" aria-label={`${t("trust.explain")}: L${level} ${t(`trust.${level}`)}`}>
+      <div className="stairs-stage" aria-hidden="true">
+        <div className="stairs-flight">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span
+              key={i}
+              className={`step${i <= level ? " on" : ""}${i >= 3 ? " bank" : ""}${i === level ? " current" : ""}`}
+              style={{ left: i * 42, ["--z" as string]: `${(i + 1) * 9}px` }}
+            >
+              <i />
+            </span>
+          ))}
+        </div>
+      </div>
+      <figcaption className="stairs-legend">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <span key={i} className={i <= level ? "on" : "off"}>
+            <b>L{i}</b>
+            <span className="name">{t(`trust.${i}`)}</span>
+          </span>
+        ))}
+      </figcaption>
+    </figure>
+  );
+}

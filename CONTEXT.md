@@ -1,7 +1,7 @@
 # CONTEXT.md — where the work stands
 
 Hand-over notes so a new Claude session (or a teammate) can continue without re-reading the
-whole history. Last updated: 23 Oct 2026. Read together with [AGENTS.md](AGENTS.md) (rules),
+whole history. Last updated: 26 Oct 2026. Read together with [AGENTS.md](AGENTS.md) (rules),
 [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) (design) and [README.md](README.md) (overview).
 **Update this file at the end of every working session.**
 
@@ -59,6 +59,7 @@ commits authored as `dreamybear66@gmail.com`). Repo: `mayank-bajaj-ai24/DepositT
   (`"live_scoring": true` / `"live_extraction": true` plus a `"training_data"` name), and a live
   model is labelled with what it was trained on (e.g. "trained on synthetic FDRs"). Renewal risk
   and LayoutLMv3 on FUNSD are **proxy only, live off**.
+  The forgery model is off: its synthetic result misses both targets (section 5a).
 - The demo institution user is linked to **R.V. College of Engineering, AICTE ID `1-43655541828`**
   (the ID as AICTE's public dashboard lists it; the user gave the permanent ID 1-10906981, which the
   dashboard does not show). Passed with `--institution-user-aicte-id`; nothing is committed about it.
@@ -72,7 +73,7 @@ Docker Compose: PostgreSQL 16 + pgvector, Redis, SeaweedFS (S3), Keycloak 26.8 (
 7 roles and one dev user per role, e.g. `scrutiny.demo` / `dev-only-scrutiny`), immudb. **Run end
 to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak login, immudb anchor.
 
-### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 446 tests pass, ruff clean; `ml/tests`: 24)
+### Backend — `apps/api` (FastAPI, SQLAlchemy 2, Alembic; 464 tests pass, ruff clean; `ml/tests`: 24)
 | Area | Where | Notes |
 | --- | --- | --- |
 | Auth M1 | `app/core/security.py`, `permissions.py`, `access.py` | Keycloak JWT (JWKS), role matrix, action-aware ABAC: every lookup names its action (or workflow roles) and only the caller's roles that grant it contribute visibility (`acting_roles`, `visible_institution_ids`); bank_service only ever reaches its own bank's instruments for attestation |
@@ -81,7 +82,7 @@ to end on 23 Oct** with Docker Desktop: migrations, master-data import, Keycloak
 | Intake M2 | `modules/instruments/intake.py`, `modules/storage/store.py` | Fernet-encrypted docs (local or S3), versioned, SHA-256 |
 | Extraction M3/N6 | `modules/extraction/` + `config/extraction.yaml` | RapidOCR; pass B = config rules; pass A plugs in only if a model trained on labelled FDRs exists (none) |
 | Checks M4/N7/N8 | `modules/checks/`, `config/checks.yaml` | Flags with fact/rule/clause/reason; double pledge via issuing + canonical bank (cross-merger needs same issue date and amount), near-duplicate, amount-in-words, continuity gap |
-| Forgery N6 | `modules/forgery/` | RGB-GLCM + ELA + ink + copy-move per OCR line; SVM; grey/suspicious bands; model being retrained on Find it again! |
+| Forgery N6 | `modules/forgery/` | RGB-GLCM + ELA + ink + copy-move per OCR line; SVM; grey/suspicious bands; loads only with `live_scoring: true` + `training_data` (re-read on change); retrained on synthetic FDRs (PR #16), off |
 | Bank M5/N3/N4 | `modules/bank/` | Pinned Ed25519 keys, credential verify, field compare → Trust L3/L4, freshness decay |
 | Lifecycle M7/N2 | `modules/lifecycle/` + `config/workflow.yaml` | State machine, coverage curves + first-gap forecast (bulk `coverage.reports()`), daily sweep with demo clock |
 | Alerts M8 | `modules/alerts/`, `config/alerts.yaml` | One notification per threshold/audience; overdue, coverage gap, risk, time boxes |
@@ -121,15 +122,22 @@ default) lists bank codes whose keys are published before any FDR. Settings in `
 - Not built: discrepancy-risk XGBoost from the plan; officer assistant (skipped).
 
 ### Web — `apps/web` (Next.js 16.4.3, React 19; ESLint, tsc and build pass; npm pinned 11.6.2)
-- taste-skill **achromatic-ledger** style (seed 549180210): blue-grey ground `#f2f4f7`, one hue
-  `#1d5fbf`; top-bar shell; coverage strip and Trust Ladder components.
+- Redesigned 27 Oct (branch `web-ui-redesign`, stacked on #16): taste-skill **framed-sheet** app style
+  (seed 871732628). A blue-grey L-frame (`#eef2f6`) holds a grouped sidebar and a 48px top bar (search
+  `/`, demo-clock stamp, language and theme); the work sits on a white sheet inset 8px. IBM Plex Sans
+  (with its Devanagari cut), Plex Mono only for FDR numbers, IFSCs and hashes, one hue `#1d5fbf` on
+  data. Light and dark themes (`dt.theme` in localStorage, set before first paint). Route changes
+  cross-fade and FDR numbers morph from list rows into the detail title (React `<ViewTransition>`).
+  3D: the sign-in screen draws five receipts climbing the Trust Ladder in three.js 0.186.1 (loaded
+  only there, still frame with reduced motion); the FDR detail shows the Trust Ladder as CSS 3D stairs.
 - Screens: `/overview`, `/queue`, `/instruments`, `/instruments/[id]`, `/cases`, `/cases/[id]`,
   `/reports`, `/audit`, `/verify`, `/admin`, `/my`, `/my/submit`, `/my/request/[id]`, `/bank`,
   `/auth/callback`.
-- **Opened in a browser on 23 Oct** (Chrome DevTools): sign-in, `/my`, `/admin`, `/overview`,
-  `/reports`, `/audit` load without console errors. taste-skill `inspect.mjs --app` not yet run on
-  the web app (only on the mock bank page). Admin/audit pages do not yet show `store_error`,
-  `receipt` or `immudb_problem` from PR #7.
+- **Checked 27 Oct** on the production build against the live stack: taste-skill `lint.mjs --app`
+  0 FAIL (1 WARN: the dash for missing values); `inspect.mjs --app` 0 FAIL on every screen at
+  1440/768/390, signed in as each dev role. The FDR detail uses the API's `editable_fields` /
+  `next_states`; `/my` names the caller's institution from `GET /me`; System shows what each model
+  was trained on or why it is off; Audit shows each anchor's immudb receipt, `store_error` and root check.
 - i18n: `src/i18n/en.json`, `hi.json` (Hindi written by Claude — **needs a fluent reviewer**).
 - Next 16 notes: read `node_modules/next/dist/docs/` first; Cache Components on, so
   `useParams`/`useSearchParams` must be inside `<Suspense>`; React 19 lint forbids setState in effects.
@@ -158,6 +166,20 @@ seed must be reset first (`alembic downgrade base && alembic upgrade head`). The
 checkout is still at migration 0004: run `alembic upgrade head` when switching it to `main`.
 Port note: a Wondershare app listens on `0.0.0.0:8090`; the mock bank binds `127.0.0.1:8090`.
 
+## 5a. Session of 25–26 Oct 2026 (teammate `dhruvgit77`)
+
+Pushed as PRs (none merged yet; the maintainer approves each):
+- Stack, merge in order: `synthetic-fdr-dataset-rule` (rule change) → `synthetic-fdr-generator`
+  (`ml/synthetic_fdr/`, 65 tests) → `extraction-on-synthetic-fdrs` (99.4% exact-match, 99.3% on
+  amount and dates, 0.66 s/page, synthetic; caption priority and IFSC O/0 next to a caption) →
+  `forgery-signal-on-synthetic-fdrs` (recall 0.67 at 5.9% false alarms on held-out pages, bands from a validation split, synthetic; live off).
+- Independent, from `main`: `institutions-scope-and-detail-hints` (PR #12 follow-ups),
+  `missing-documents-report-test` (T-06), `ci-workflow` (needs the `workflow` scope to push).
+- README test counts differ per branch (#13 418, #15 427, #16 440, #17 423, #18 417): resolve the line when merging.
+- Not done, and why: UI items (taste-skill not installed on that machine); demo walk-through
+  (no Docker there); the AICTE dashboard was unreachable from that network, so the synthetic
+  FDRs used the 3-institution fixture as depositors (re-run `fetch-institutions`).
+
 ## 6. Next steps (in order)
 
 1. Generate synthetic FDRs (PR #14) and walk upload → extraction → bank verification on a demo DB;
@@ -166,8 +188,7 @@ Port note: a Wondershare app listens on `0.0.0.0:8090`; the mock bank binds `127
 2. Retrain the forgery signal on synthetic FDRs (PR #16) and report it as synthetic; merge #11 and
    #12.
 3. Live stack processes (API, mock bank, web) were stopped for low memory; restart when needed.
-4. Walk the demo story (plan §12) on the live stack; run taste-skill `inspect.mjs --app` on every
-   screen (1440/768/390) and fix FAILs; show PR #7's anchor fields in the admin/audit UI.
+4. Walk the demo story (plan §12) on the live stack with the redesigned UI (`web-ui-redesign`).
 5. When the user grants the `workflow` scope: add the CI workflow.
 6. Open items needing AICTE answers: plan §14 (amounts, wording, release conditions, approvers,
    reminder days, integrations, state → regional office mapping).

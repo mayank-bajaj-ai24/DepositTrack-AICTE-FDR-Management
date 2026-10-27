@@ -32,14 +32,16 @@ function useCharts(): ChartsLib | null {
 }
 
 export function BarsChart({ labels, values, highlight, height = 180 }: { labels: string[]; values: number[]; highlight?: number; height?: number }) {
+  // Counts: small maxima get whole-number ticks (0-4), never 0, 0, 1, 1.
+  const most = Math.max(0, ...values);
   const ref = useRef<HTMLDivElement>(null);
   const lib = useCharts();
   const { locale } = useI18n();
   useEffect(() => {
     if (!lib || !ref.current) return;
     ref.current.innerHTML = "";
-    lib.bars(ref.current, { labels, values, highlight, height });
-  }, [lib, labels, values, highlight, height, locale]);
+    lib.bars(ref.current, { labels, values, highlight, height, ...(most < 4 ? { yTicks: [0, 1, 2, 3, 4] } : {}) });
+  }, [lib, labels, values, highlight, height, locale, most]);
   return <div className="chart" ref={ref} style={{ minHeight: height }} />;
 }
 

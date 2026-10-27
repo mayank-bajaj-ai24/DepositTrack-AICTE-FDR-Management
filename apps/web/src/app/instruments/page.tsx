@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, ViewTransition, useState } from "react";
 import { Shell } from "@/components/Shell";
 import { ErrorBox, Loading, StatePill, TrustLadder } from "@/components/ui";
 import { useResource } from "@/lib/api";
@@ -97,7 +97,11 @@ function List() {
                       </a>
                       <span className="sub">{i.institution?.aicte_id}</span>
                     </td>
-                    <td className="mono">{i.instrument_no}</td>
+                    <td>
+                      <ViewTransition name={`fdr-${i.id}`} share="morph" default="none">
+                        <span className="mono">{i.instrument_no}</span>
+                      </ViewTransition>
+                    </td>
                     <td className="hide-sm truncate">{i.bank_name ?? "—"}</td>
                     <td className="n num">{money(i.amount)}</td>
                     <td className="n num hide-sm">{date(i.maturity_date)}</td>

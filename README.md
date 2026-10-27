@@ -321,7 +321,7 @@ This is a **proposal**: the prototype uses a mock bank, and production would nee
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `oidc-client-ts`; charts drawn as SVG |
+| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "framed sheet" style, IBM Plex, light and dark), `oidc-client-ts`; charts drawn as SVG; three.js for the sign-in scene |
 | Backend API | FastAPI (Python 3.11), Pydantic, SQLAlchemy 2, Alembic |
 | Authentication | Keycloak (roles; OTP/MFA configurable) |
 | Background jobs | Lifecycle sweep run from the admin screen / API with a demo clock (Celery + beat from the plan not built; Redis is in Compose for it) |
@@ -448,6 +448,8 @@ An FDR submitted to DepositTrack gets "the bank has no record of this FDR" on "V
 | Field extraction (LayoutLMv3 method) | Entity F1 on FUNSD forms | — | 0.906 — **proxy**, FUNSD test split (50 forms); answer 0.928, question 0.917, header 0.649 | First Colab run, with the best checkpoint picked on test (slightly optimistic). The merged notebook trains a fixed 1,000 steps and evaluates once (the paper's protocol, which reports 90.29); to be re-run. Pass A off live |
 | Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.114 — **proxy**, Find it again! test split (218 receipts, 35 forged); page AUC 0.534 | Far below target, close to chance: the texture/ELA features miss these hand-made edits. Not merged, not live |
 | Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 6.6% — **proxy**, same split | Above target |
+| Forgery signals | Recall on tampered pages | ≥ 0.90 | 0.67 — **synthetic**, 180 held-out generated FDRs (seed 2026, 95 tampered by `ml/forgery/tamper.py`); by edit: blur 0.89, copy+blur 0.93, insert+blur 0.92, noise 0.72, insertion 0.67, insert+noise 0.57, copy-paste **0.08** | Below target; live off. Copy-paste of another field's own text is the main miss |
+| Forgery signals | False-alarm rate on genuine scans | ≤ 5% | 5.9% — **synthetic**, same test pages; the bands are set on a separate 90-page validation split | Just above target |
 | Discrepancy risk | Recall on suspicious class | ≥ 0.95 | — | Not built: the prototype uses explained rule flags plus the forgery bands instead |
 | Renewal risk | AUC | ≥ 0.80 | 0.789 pooled — **proxy**, BPI Challenge 2017 (6,197 later applications held out by time); by week since the offer 0.588 / 0.599 / 0.640 / 0.691 / 0.833; a one-feature baseline (days since last event) reaches 0.767 pooled | Below target on the proxy; early-week warning is weak. Live scoring off |
 | Renewal risk | Mean warning lead time | ≥ 21 days | 14.1 days mean, 16.5 median — **proxy**; 99.8% of missed deadlines caught at 12.0% false alarms | Below target on the proxy, whose deadline is only about 30 days after the offer |
@@ -478,7 +480,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 | T-02 | Repository completeness | All required fields stored and searchable | Passing (API: fields, search and filters) |
 | T-03 | Validity tracking | Every instrument in the correct state | Passing (API: sweep with demo clock) |
 | T-04 | Approaching maturity | Exactly one reminder per threshold; escalation when ignored | Passing (API: T-90/60/30 once each, overdue escalation) |
-| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal being retrained on an open proxy dataset, see [Expected outcomes](#expected-outcomes) |
+| T-05 | Discrepancy identification | Tampered recall ≥ 0.90; false alarms ≤ 5% | Passing for declared-vs-scan and bank mismatch (API); forgery signal retrained on synthetic FDRs, below target and off live (proxy on Find it again! near chance), see [Expected outcomes](#expected-outcomes) |
 | T-06 | Incomplete record | Flagged; listed in missing-documents report | Passing (rule tests; API: missing fields and documents flagged and listed with their reasons, scoped by region and institution, record leaves the list once the field is filled in or the record is closed, CSV export) |
 | T-07 | Double pledge | Critical flag, including merged-bank IFSC variant | Passing (API, both variants; unit tests for a same deposit across a bank merger and for unrelated same-number FDRs of two merged banks) |
 | T-08 | Renewal | Chain linked; late replacement gets a continuity-gap flag | Passing (API, both cases) |
@@ -500,7 +502,7 @@ Every test scenario named in the PS has an automated test. "API" tests run the r
 - [x] Research claims verified against the papers; corrections recorded in [plan §4.3](IMPLEMENTATION_PLAN.md#43-corrections-to-earlier-research-notes)
 - [x] Consolidated implementation plan ([IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md))
 - [x] README
-- [x] Backend: 446 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 24 tests
+- [x] Backend: 464 automated tests (unit + end-to-end API flows), lint clean; mock bank: 48 tests; ml scripts: 24 tests
 - [x] Live Docker stack run end to end (23 Oct 2026): migrations, master-data import, Keycloak login, immudb anchoring, main screens in a browser
 - [x] Data policy changed to real and open data only; synthetic-data results withdrawn
 - [x] Data policy changed again (25 Oct 2026): a labelled synthetic dataset is allowed for FDR documents only
@@ -537,12 +539,14 @@ flowchart LR
 - [x] Real master data instead of fictional seeds: AICTE approved institutions (public dashboard) and the RBI IFSC bank master with RBI-cited mergers (M12)
 - [x] Synthetic FDR generator, simulator and synthetic-trained notebook removed (PRs #9, #10)
 - [x] Synthetic FDR generator brought back under the 25 Oct rule (`ml/synthetic_fdr/`): real RBI IFSC branches named by their IFSC's bank (no payment, office or merged-bank rows) and AICTE institutions; captions and date formats read from `extraction.yaml`; three layouts; `SYNTHETIC - NOT A REAL DEPOSIT` banners plus a diagonal across the fields; word and line boxes with B-/I- tags for LayoutLMv3; seeded so the same `--seed` gives the same files; a mock-bank record per FDR; 65 tests
-- [x] Web app (Next.js 16) with Keycloak login, built with taste-skill ("achromatic ledger" style), English + Hindi
+- [x] Web app (Next.js 16) with Keycloak login, built with taste-skill, English + Hindi
+- [x] UI redesign (27 Oct): framed-sheet style with IBM Plex, light and dark themes, route transitions, a 3D Trust Ladder on sign-in and on each FDR; screens use the API's hints and `/me`; taste-skill lint and inspector pass on every screen
 - [x] Attribute-based access rules (own institution, region, own bank)
 - [ ] Answers to the open questions from an AICTE or institution accounts official
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
+- [x] Forgery signal retrained on synthetic tampered FDRs: recall 0.67 at 5.9% false alarms on held-out pages, bands set on a validation split (below target); the API now loads a forgery model only with `live_scoring: true` and a training-data name, re-read on change, and names the training data in status and in every forgery flag
 - [x] Extraction measured on synthetic FDRs (`ml/extraction/evaluate.py`, through `service.extract`): 99.4% exact-match, 99.3% on amount and dates, 0.66 s/page. Fixes found by it: a shorter caption never reads a longer caption's line (config order kept), an IFSC with `O` for `0` is read next to its caption only, the banner is ignored
 - [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until the maintainer approves a model trained on FDRs; FUNSD proxy notebook, and the API refuses non-FDR or unapproved models (M3)
 - [x] Completeness, declared-vs-scan and policy rules, each flag with fact, rule and reason (M4)
@@ -576,7 +580,7 @@ Immediate next steps, in order:
 1. **Synthetic FDRs** from the generator (PR #14), marked `SYNTHETIC - NOT A REAL DEPOSIT`, to walk the upload → extraction → bank verification story on a demo database. A real FDR scan (with the owner's consent, personal details redacted) is still wanted for final validation; record the same FDR at the mock bank (its operator page) before "Verify with bank".
 2. **Forgery signal:** retrain on synthetic FDRs (PR #16) and report the result as synthetic; if it still misses the targets, try other features or keep the signal off and rely on the bank cross-check.
 3. **Re-run the LayoutLMv3 notebook** with the merged protocol (fixed 1,000 steps, single evaluation) and record the score.
-4. **Demo story walk-through** (plan §12) on the live stack, and taste-skill `inspect.mjs --app` on every screen; show the new anchor receipt fields in the admin and audit screens.
+4. **Demo story walk-through** (plan §12) on the live stack with the redesigned UI.
 5. **CI workflow** once the GitHub token has the `workflow` scope.
 6. **Answer the open questions** (below) with an AICTE or institution accounts official, including the state → AICTE regional office mapping.
 7. **Idea submission** for the PS deadline (on hold).

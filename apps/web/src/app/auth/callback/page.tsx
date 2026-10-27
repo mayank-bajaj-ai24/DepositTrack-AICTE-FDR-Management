@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { Mark } from "@/components/Mark";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 
@@ -21,9 +22,11 @@ export default function Callback() {
   }, [completeLogin, router]);
 
   return (
-    <main className="canvas" style={{ maxWidth: 520, paddingTop: "18vh" }}>
-      <h1 style={{ fontSize: 20, fontWeight: 600 }}>{error ? t("auth.failed") : t("auth.completing")}</h1>
-      {error && <p className="note neg" style={{ marginTop: 12 }}>{error}</p>}
+    <main className="callback" aria-busy={!error}>
+      <Mark size={28} />
+      <h1>{error ? t("auth.failed") : t("auth.completing")}</h1>
+      {!error && <span className="callback-bar" aria-hidden="true" />}
+      {error && <p className="note neg">{error}</p>}
     </main>
   );
 }

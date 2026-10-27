@@ -81,7 +81,7 @@ Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No publ
 - **No model runs live without the maintainer's approval, and a live model is labelled with its training data** in the UI (for example "trained on synthetic FDRs"). A proxy that cannot speak for AICTE institutions (renewal risk on BPI 2017, LayoutLMv3 on FUNSD) stays off. The approval is recorded on the model's files, and the loaders refuse a model without it:
   - renewal risk: `"live_scoring": true` in `models/renewal_risk/meta.json`;
   - extraction pass A: `pass_a_enabled: true` in `extraction.yaml`, plus `"live_extraction": true` and a `"training_data"` name in `models/layoutlmv3-fdr/metrics.json`; FDR labels alone are not enough, because a model trained on synthetic FDRs has them too;
-  - forgery signal: the same gate (`"live_scoring": true` and `"training_data"` in `models/forgery/meta.json`) arrives with PR #16. Until it is merged, the forgery loader uses any model in `models/forgery/`, so write forgery training output outside `models/`.
+  - forgery signal: `"live_scoring": true`, a `"training_data"` name and both bands in `models/forgery/meta.json` (`ml/forgery/train.py` writes `false`); the API re-reads the files when they change, so switching a model on or off needs no restart, and every forgery flag names the training data.
 
   Ask the maintainer before switching any model on.
 - **Real FDRs are confidential.** A real FDR is used only with the owner's consent and personal details redacted, and is never committed.
@@ -106,7 +106,7 @@ Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No publ
 | Python packaging | `pip` + `venv`, dependencies in each package's `pyproject.toml` |
 | Python lint / format | `ruff check` and `ruff format` |
 | Python tests | `pytest` |
-| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "achromatic ledger" style), `npm` |
+| Frontend | Next.js 16 + React 19, TypeScript, plain CSS tokens (taste-skill "framed sheet" style), three.js on the sign-in screen only, `npm` |
 | Frontend lint / types | `npx eslint src`, `npx tsc --noEmit`, `npx next build` |
 | ML | scikit-learn, scikit-image, LightGBM (`ml` extra in `apps/api`); open datasets via `kagglehub` (`data` extra); OCR with RapidOCR |
 | Audit anchoring | immudb receipts via `immudb-py==1.5.0` (`anchoring` extra in `apps/api`; pinned because of its large dependency tree) |
@@ -166,7 +166,7 @@ Run lint and tests before every push. CI is not set up yet, so these local check
 
 ```
 apps/api/        FastAPI backend (modules per plan §8), config/ holds every rule file
-apps/web/        Next.js frontend (taste-skill achromatic-ledger style, English + Hindi)
+apps/web/        Next.js frontend (taste-skill framed-sheet style, light and dark, English + Hindi)
 services/mock-bank/  Mock bank (simulation): the operator records issued FDRs; signed credentials, lien status
 ml/open_datasets.json, ml/download_open_data.py  Open-dataset catalog and download helper
 ml/synthetic_fdr/  Synthetic FDR generator (marked SYNTHETIC - NOT A REAL DEPOSIT; output in data/synthetic_fdr/, not committed)

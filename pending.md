@@ -32,6 +32,15 @@ Pass A stays **off** live (`pass_a_enabled: false`), and the API refuses a model
 
 The texture and ELA features miss these hand-made edits. The retrain is not committed yet (uncommitted edits in the maintainer's worktree; see section 3), and **not live**.
 
+**Retrained on synthetic FDRs (26 Oct 2026):** 600 generated FDRs, half of them tampered by `ml/forgery/tamper.py` (copy-paste, insertion, noise, blur and combinations). Train 330 / validation 90 (sets the bands) / test 180 (reported).
+
+| Metric | Target | Measured | Dataset | Reached? |
+| --- | --- | --- | --- | --- |
+| Recall on tampered pages | ≥ 0.90 | **0.67** | 180 synthetic FDRs (held out, 95 tampered) | **No**. By edit: blur 0.89, copy+blur 0.93, insert+blur 0.92, noise 0.72, insertion 0.67, insert+noise 0.57, copy-paste **0.08** |
+| False-alarm rate on genuine scans | ≤ 5% | **5.9%** | Same | **No**, just above. The bands are set on a separate validation split, so this is not tuned on the test pages |
+
+Better than the receipt proxy (0.114), but below target, and a synthetic result. Live stays **off**: the API refuses a forgery model unless its `meta.json` has `"live_scoring": true`, a training-data name and both bands. The bands now come from a separate validation split (review of PR #16). Next idea, if wanted: a copy-move detector that compares patches across the page (copy-paste is the miss).
+
 ### Renewal risk (N9): LightGBM + SHAP reasons
 
 | Metric | Target | Measured | Dataset | Reached? |
@@ -56,14 +65,14 @@ Live scoring is **off**: the API loads a model only if its `meta.json` has `"liv
 
 | Component | Metric | Target | Measured | Reached? |
 | --- | --- | --- | --- | --- |
-| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 446 API tests pass, ruff clean | **Yes** |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 464 API tests pass, ruff clean | **Yes** |
 
 ### Summary
 
 - **Reached:** 1 target (access control).
 - **Missed:** 5 targets.
-  - Forgery recall: 0.114 against ≥ 0.90.
-  - Forgery false alarms: 6.6% against ≤ 5%.
+  - Forgery recall: 0.114 against ≥ 0.90 (proxy); 0.67 on synthetic FDRs.
+  - Forgery false alarms: 6.6% against ≤ 5% (proxy); 5.9% on synthetic FDRs.
   - Renewal-risk AUC: 0.789 against ≥ 0.80.
   - Renewal-risk lead time: 14.1 days against ≥ 21 days.
   - Field extraction: met on synthetic FDRs only (99.4%, 99.3% on amount and dates, 0.66 s/page), not measured on real FDRs, so it stays counted as missed.
@@ -118,7 +127,7 @@ All three were fixed on 26 Oct in PR #17 (API side):
 
 - ~~`GET /institutions` scopes by `len(roles) == 1` and region.~~ It now uses the action-aware rule (`scope_institutions`). An institution with a bank role sees only its own institution, and a bank account sees none.
 - ~~`next_states` and `editable_fields` come from all of the caller's roles.~~ They now come from the roles that can reach the instrument, and `next_states` also leaves out moves that policy (bank attestation before *Active*) or an open critical flag blocks, the same checks the endpoints apply. Editing a visible instrument without an editor role now returns 403 instead of 404.
-- **Still open, web UI (waits for the UI work):** `apps/web/src/components/InstrumentView.tsx` shows the Verify-field, Verify-with-bank, observation and resolve-flag controls by `auth.has(role)` and never reads `editable_fields` / `next_states`, so it can still offer actions the API refuses (e.g. an institution-plus-West-officer account opening its own East FDR). `apps/web/src/app/my/page.tsx` treats `items[0]` of `/institutions` as the caller's own institution, which is wrong for an account that also holds an officer role; it should identify the caller's institution explicitly.
+- ~~**Still open, web UI:**~~ Done on `web-ui-redesign`: the detail offers only the moves and field checks in the API's hints, `/my` reads the caller's institution from `GET /me`, and System labels each model with its training data. Was: `apps/web/src/components/InstrumentView.tsx` shows the Verify-field, Verify-with-bank, observation and resolve-flag controls by `auth.has(role)` and never reads `editable_fields` / `next_states`, so it can still offer actions the API refuses (e.g. an institution-plus-West-officer account opening its own East FDR). `apps/web/src/app/my/page.tsx` treats `items[0]` of `/institutions` as the caller's own institution, which is wrong for an account that also holds an officer role; it should identify the caller's institution explicitly.
 - ~~`CONTEXT.md` and README list #11/#12 as open.~~ Corrected.
 
 ### Unfinished test scenarios and gates
