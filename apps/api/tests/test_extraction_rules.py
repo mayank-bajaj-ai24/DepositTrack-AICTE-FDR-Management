@@ -1,5 +1,7 @@
 """Pass B extraction rules on hand-built OCR lines (no OCR engine needed)."""
 
+import pytest
+
 from app.core.configfiles import load_config
 from app.modules.extraction.ocr import OcrLine
 from app.modules.extraction.rules import extract_fields, normalize_amount, normalize_date
@@ -56,6 +58,67 @@ def test_configured_ignore_text_is_never_a_value():
     rules = RULES | {"ignore_lines_equal": ["INSTRUMENT"]}
     got = extract_fields([line("INSTRUMENT", 10, 10), line("Real Bank", 10, 40)], rules)
     assert got["bank"].normalized == "Real Bank"
+
+
+def test_longer_caption_wins_when_captions_share_a_prefix():
+    lines = [line("Depositor Name: ABC INSTITUTE OF TECHNOLOGY", 10, 10)]
+    got = extract_fields(lines, RULES)
+    assert got["depositor"].normalized == "ABC INSTITUTE OF TECHNOLOGY"
+
+
+def test_shorter_caption_is_not_used_when_the_longer_one_has_no_value():
+    lines = [line("Depositor Name", 10, 200), line("ABC INSTITUTE", 10, 240)]
+    assert "depositor" not in extract_fields(lines, RULES)
+
+
+def test_longer_caption_shadows_only_when_it_ends_at_a_word_boundary():
+    lines = [line("Depositor Namespace Trust", 10, 10)]
+    assert extract_fields(lines, RULES)["depositor"].normalized == "Namespace Trust"
+
+
+def test_caption_priority_follows_the_config_order():
+    lines = [line("Receipt No. A123456", 10, 10), line("FDR No. 9988776655", 10, 60)]
+    assert extract_fields(lines, RULES)["fdr_no"].normalized == "9988776655"
+    lines = [line("Date of Issue 05/03/2025", 10, 10), line("Deposit Date 01/01/2024", 10, 60)]
+    assert extract_fields(lines, RULES)["issue_date"].normalized == "2024-01-01"
+
+
+def test_ifsc_with_letter_o_as_fifth_character_is_read_as_zero_next_to_a_caption():
+    got = extract_fields([line("IFSC Code: BARBOBANGAX", 10, 10)], RULES)
+    assert got["ifsc"].normalized == "BARB0BANGAX"
+
+
+@pytest.mark.parametrize(
+    "text", ["CORPORATION BANK", "GUJARAT TECHNOLOGICAL UNIVERSITY", "METHODOLOGY"]
+)
+def test_ordinary_words_are_never_an_ifsc(text):
+    assert "ifsc" not in extract_fields([line(text, 10, 10)], RULES)
+
+
+@pytest.mark.parametrize(
+    "caption_line, beside",
+    [
+        ("IFSC: SBIN 0001234", "Branch: CORPORATION ROAD"),
+        ("IFSC:", "Depositor: GUJARAT TECHNOLOGICAL UNIVERSITY"),
+    ],
+)
+def test_loose_ifsc_pattern_is_only_for_the_caption_line(caption_line, beside):
+    lines = [line(caption_line, 10, 10), line(beside, 400, 10)]
+    assert "ifsc" not in extract_fields(lines, RULES)
+
+
+def test_header_word_does_not_hide_the_ifsc_further_down():
+    lines = [line("CORPORATION BANK", 10, 10), line("IFS Code: CORP0001234", 10, 60)]
+    assert extract_fields(lines, RULES)["ifsc"].normalized == "CORP0001234"
+
+
+def test_synthetic_banner_is_never_the_bank():
+    lines = [
+        line("SYNTHETIC - NOT A REAL DEPOSIT", 480, 18),
+        line("Punjab National Bank", 70, 70),
+        line("SYNTHETIC", 480, 860),
+    ]
+    assert extract_fields(lines, RULES)["bank"].normalized == "Punjab National Bank"
 
 
 def test_ifsc_found_without_caption_has_lower_confidence():
