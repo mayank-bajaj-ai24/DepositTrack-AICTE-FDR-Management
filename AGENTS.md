@@ -81,7 +81,7 @@ Decided on 25 Oct 2026; it replaces the 23 Oct "no synthetic data" rule. No publ
 - **No model runs live without the maintainer's approval, and a live model is labelled with its training data** in the UI (for example "trained on synthetic FDRs"). A proxy that cannot speak for AICTE institutions (renewal risk on BPI 2017, LayoutLMv3 on FUNSD) stays off. The approval is recorded on the model's files, and the loaders refuse a model without it:
   - renewal risk: `"live_scoring": true` in `models/renewal_risk/meta.json`;
   - extraction pass A: `pass_a_enabled: true` in `extraction.yaml`, plus `"live_extraction": true` and a `"training_data"` name in `models/layoutlmv3-fdr/metrics.json`; FDR labels alone are not enough, because a model trained on synthetic FDRs has them too;
-  - forgery signal: the same gate (`"live_scoring": true` and `"training_data"` in `models/forgery/meta.json`) arrives with PR #16. Until it is merged, the forgery loader uses any model in `models/forgery/`, so write forgery training output outside `models/`.
+  - forgery signal: `"live_scoring": true`, a `"training_data"` name and both bands in `models/forgery/meta.json` (`ml/forgery/train.py` writes `false`); the API re-reads the files when they change, so switching a model on or off needs no restart, and every forgery flag names the training data.
 
   Ask the maintainer before switching any model on.
 - **Real FDRs are confidential.** A real FDR is used only with the owner's consent and personal details redacted, and is never committed.
