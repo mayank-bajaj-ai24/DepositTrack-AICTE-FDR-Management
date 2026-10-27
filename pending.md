@@ -118,7 +118,7 @@ The 25 Oct rule (AGENTS.md rule 5) allows a labelled synthetic dataset for FDR d
 6. **Manual-vs-portal timing runs** for section 2, then fill in the Expected outcomes table.
 7. **Recorded backup demo video.**
 8. ~~**CI workflow**~~ **Done 26 Oct:** `.github/workflows/ci.yml` (PR #19), all five jobs green on GitHub. Old note: Run `gh auth refresh -h github.com -s workflow` in PowerShell; after that the workflow can be added. The old file is on the local branch `main-local-with-ci`.
-9. **Hindi translations:** `apps/web/src/i18n/hi.json` was written by Claude and needs a fluent reviewer.
+9. **Hindi translations:** `apps/web/src/i18n/hi.json` was written by Claude and needs a fluent reviewer. Machine-read notes for that reviewer: `apps/web/src/i18n/hi-review-notes.md` (26 Oct). The main question is that जमा (submit) also means "deposit".
 10. **Idea submission** for the PS deadline (on hold).
 
 ### Small follow-ups from the PR #12 review
