@@ -7,10 +7,12 @@ import { Shell } from "@/components/Shell";
 import { ErrorBox, Loading } from "@/components/ui";
 import { useResource } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import type { InstrumentSummary } from "@/lib/types";
+import type { Anchor, InstrumentSummary } from "@/lib/types";
 
 type Chains = { checked: number; broken: { instrument: InstrumentSummary; broken_at_seq: number }[]; system_chain: { intact: boolean; length: number } };
-type Anchors = { items: { id: string; batch_start: string; batch_end: string; merkle_root: string; store_tx: string | null; valid: boolean }[] };
+type Anchors = { items: Anchor[] };
+
+const RECEIPT_TONE: Record<string, string> = { verified: "pos", mismatch: "neg", none: "", unchecked: "" };
 type Conformance = {
   constraints_version: string;
   validated_by: string | null;
@@ -70,12 +72,18 @@ function Audit() {
           ) : (
             <div className="rows">
               {anchors.data.items.slice(0, 5).map((a) => (
-                <div className="row" key={a.id}>
+                <div className="row" key={a.id} style={{ alignItems: "flex-start" }}>
                   <span className="grow">
-                    <span className="mono">{a.merkle_root.slice(0, 16)}…</span>
-                    <span className="line2">{dateTime(a.batch_end)}{a.store_tx ? ` · immudb tx ${a.store_tx}` : ""}</span>
+                    <span className="mono" title={a.merkle_root}>{a.merkle_root.slice(0, 16)}…</span>
+                    <span className="line2">
+                      {dateTime(a.batch_end)}
+                      {a.store_tx ? ` · immudb tx ${a.store_tx}` : ""}
+                    </span>
+                    <span className="line2">{t(`audit.receipt.${a.receipt ?? "none"}`, undefined, a.receipt_detail ?? "")}</span>
+                    {a.store_error && <span className="line2" style={{ color: "var(--warning)" }}>{t("audit.storeError", { error: a.store_error })}</span>}
+                    {!a.root_matches && <span className="line2" style={{ color: "var(--negative)" }}>{t("audit.rootMismatch")}</span>}
                   </span>
-                  <span className={`pill ${a.valid ? "pos" : "neg"}`}>{a.valid ? t("audit.anchor.valid") : t("audit.anchor.invalid")}</span>
+                  <span className={`pill ${a.valid ? RECEIPT_TONE[a.receipt ?? "none"] || "pos" : "neg"}`}>{a.valid ? t("audit.anchor.valid") : t("audit.anchor.invalid")}</span>
                 </div>
               ))}
             </div>

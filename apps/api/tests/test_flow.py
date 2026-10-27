@@ -952,3 +952,27 @@ def test_editing_a_visible_instrument_without_an_editor_role_is_403_not_404(env)
         headers=env.h("west"),
     )
     assert unseen.status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("who", "institution", "region", "bank_code"),
+    [
+        ("inst_a", "SYN-A", None, None),
+        # An officer who is also institution B: their own institution is B, though the
+        # institution list (their region plus B) starts with A.
+        ("west_inst_b", "SYN-B", "West", None),
+        ("west", None, "West", None),
+        ("bank", None, None, "XNBK"),
+    ],
+)
+def test_me_names_the_accounts_own_institution(env, who, institution, region, bank_code):
+    r = env.client.get("/api/v1/me", headers=env.h(who))
+    assert r.status_code == 200, r.text
+    me = r.json()
+    assert (me["institution"] or {}).get("aicte_id") == institution
+    assert (me["region"], me["bank_code"]) == (region, bank_code)
+
+
+def test_me_lists_only_depositrack_roles(env):
+    me = env.client.get("/api/v1/me", headers=env.h("nobody")).json()
+    assert me["roles"] == [] and me["institution"] is None

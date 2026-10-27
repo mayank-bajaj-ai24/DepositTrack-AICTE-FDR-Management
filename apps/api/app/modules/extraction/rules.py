@@ -61,22 +61,55 @@ def normalize_date(raw: str, formats: list[str]) -> str | None:
     return None
 
 
+def _fix_characters(value: str, spec: dict) -> str:
+    """Set the characters a field always has at a position (`fixed_characters` in the YAML)."""
+    chars = list(value)
+    for position, char in (spec.get("fixed_characters") or {}).items():
+        if int(position) < len(chars):
+            chars[int(position)] = char
+    return "".join(chars)
+
+
 def _normalize(field: str, raw: str, rules: dict) -> str | None:
     if field == "amount":
         return normalize_amount(raw)
     if field in ("issue_date", "maturity_date"):
         return normalize_date(raw, rules["date_formats"])
     if field in ("ifsc", "fdr_no"):
-        return raw.replace(" ", "").upper()
+        return _fix_characters(raw.replace(" ", "").upper(), rules["fields"][field])
     return " ".join(raw.split())
 
 
-def _match_pattern(spec: dict, text: str) -> str | None:
-    pattern = spec.get("pattern")
+def _match_pattern(spec: dict, text: str, captioned: bool = False) -> str | None:
+    """The value in `text`. Next to a caption, a looser `caption_pattern` may apply."""
+    pattern = (captioned and spec.get("caption_pattern")) or spec.get("pattern")
     if not pattern:
         return text
     found = re.search(pattern, text)
     return found.group(0) if found else None
+
+
+def _starts_with(text: str, caption: str) -> bool:
+    return text.lower().startswith(caption.lower())
+
+
+def _starts_with_word(text: str, caption: str) -> bool:
+    """`caption` starts `text` and ends at a non-letter: "Depositor Name: X" yes,
+    "Depositor Namespace Trust" no."""
+    rest = text[len(caption) :]
+    return _starts_with(text, caption) and not (rest and rest[0].isalpha())
+
+
+def _shadowed(text: str, caption: str, captions: list[str]) -> bool:
+    """True when a longer caption of the same field that begins with `caption` also starts
+    `text`: "Depositor Name: X" is never read as "Depositor" + "Name: X", even when the
+    longer caption finds no value on that line."""
+    return any(
+        len(other) > len(caption)
+        and _starts_with(other, caption)
+        and _starts_with_word(text, other)
+        for other in captions
+    )
 
 
 def is_ignored(text: str, rules: dict) -> bool:
@@ -106,16 +139,26 @@ def extract_fields(lines: list[OcrLine], rules: dict) -> dict[str, ExtractedFiel
             )
 
     for field, spec in rules["fields"].items():
-        # 1. caption on a line; value after it on the same line or the next line in the row
-        for caption in spec.get("captions", []):
+        # 1. caption on a line; value after it on the same line or the next line in the row.
+        # Captions are tried in the YAML's order (its priority).
+        captions = spec.get("captions", [])
+        for caption in captions:
             for row in rows:
                 for index, line in enumerate(row):
-                    if not line.text.lower().startswith(caption.lower()):
+                    if not _starts_with(line.text, caption) or _shadowed(
+                        line.text, caption, captions
+                    ):
                         continue
                     sources = [(_strip_caption(line.text, caption), line)]
                     sources += [(other.text, other) for other in row[index + 1 :]]
-                    for candidate, source in sources:
-                        value = _match_pattern(spec, candidate) if candidate else None
+                    # The looser caption_pattern applies only to the caption's own line;
+                    # other lines in the row are ordinary text and use the strict pattern.
+                    for position, (candidate, source) in enumerate(sources):
+                        value = (
+                            _match_pattern(spec, candidate, captioned=position == 0)
+                            if candidate
+                            else None
+                        )
                         if value:
                             keep(field, value, source.score, source.box)
                             break
