@@ -71,6 +71,11 @@ def test_shorter_caption_is_not_used_when_the_longer_one_has_no_value():
     assert "depositor" not in extract_fields(lines, RULES)
 
 
+def test_longer_caption_shadows_only_when_it_ends_at_a_word_boundary():
+    lines = [line("Depositor Namespace Trust", 10, 10)]
+    assert extract_fields(lines, RULES)["depositor"].normalized == "Namespace Trust"
+
+
 def test_caption_priority_follows_the_config_order():
     lines = [line("Receipt No. A123456", 10, 10), line("FDR No. 9988776655", 10, 60)]
     assert extract_fields(lines, RULES)["fdr_no"].normalized == "9988776655"
@@ -88,6 +93,18 @@ def test_ifsc_with_letter_o_as_fifth_character_is_read_as_zero_next_to_a_caption
 )
 def test_ordinary_words_are_never_an_ifsc(text):
     assert "ifsc" not in extract_fields([line(text, 10, 10)], RULES)
+
+
+@pytest.mark.parametrize(
+    "caption_line, beside",
+    [
+        ("IFSC: SBIN 0001234", "Branch: CORPORATION ROAD"),
+        ("IFSC:", "Depositor: GUJARAT TECHNOLOGICAL UNIVERSITY"),
+    ],
+)
+def test_loose_ifsc_pattern_is_only_for_the_caption_line(caption_line, beside):
+    lines = [line(caption_line, 10, 10), line(beside, 400, 10)]
+    assert "ifsc" not in extract_fields(lines, RULES)
 
 
 def test_header_word_does_not_hide_the_ifsc_further_down():

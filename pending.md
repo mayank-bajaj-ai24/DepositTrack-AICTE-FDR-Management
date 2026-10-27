@@ -1,6 +1,6 @@
 # pending.md: what is left, and how the models measure up
 
-State on `main` as of 24 Oct 2026, after PR #12. The prototype deadline is before 28 Oct 2026.
+State on `main` as of 24 Oct 2026, after PR #12, plus the T-06 work in PR #18 (26 Oct). The prototype deadline is before 28 Oct 2026.
 The numbers below come from [README.md → Expected outcomes](README.md#expected-outcomes) and [CONTEXT.md](CONTEXT.md). Nothing here is estimated.
 
 > **Rule change (25 Oct 2026):** a labelled synthetic FDR dataset is now allowed; see section 3. The results below predate it.
@@ -65,7 +65,7 @@ Live scoring is **off**: the API loads a model only if its `meta.json` has `"liv
 
 | Component | Metric | Target | Measured | Reached? |
 | --- | --- | --- | --- | --- |
-| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 440 API tests pass, ruff clean | **Yes** |
+| Access control | Allow/deny test cases passing | 100% of ≥ 20 cases | 100% of 28 role cases, plus scoping tests for institution, region, bank and mixed roles; 459 API tests pass, ruff clean | **Yes** |
 
 ### Summary
 
@@ -123,14 +123,17 @@ The 25 Oct rule (AGENTS.md rule 5) allows a labelled synthetic dataset for FDR d
 
 ### Small follow-ups from the PR #12 review
 
-- `GET /institutions` (`apps/api/app/api/admin.py`) still scopes by `len(roles) == 1` and region instead of the action-aware rule. It serves public master data, so it is low risk.
-- In the instrument detail, `next_states` and `editable_fields` are UI hints computed from all of the caller's roles, so they can offer a move that the endpoint then refuses. The endpoints themselves enforce the role scope.
-- `CONTEXT.md` still lists #11 and #12 as open PRs, and README "Work to be done" still lists PR #12. Both are merged.
+All three were fixed on 26 Oct in PR #17 (API side):
+
+- ~~`GET /institutions` scopes by `len(roles) == 1` and region.~~ It now uses the action-aware rule (`scope_institutions`). An institution with a bank role sees only its own institution, and a bank account sees none.
+- ~~`next_states` and `editable_fields` come from all of the caller's roles.~~ They now come from the roles that can reach the instrument, and `next_states` also leaves out moves that policy (bank attestation before *Active*) or an open critical flag blocks, the same checks the endpoints apply. Editing a visible instrument without an editor role now returns 403 instead of 404.
+- **Still open, web UI (waits for the UI work):** `apps/web/src/components/InstrumentView.tsx` shows the Verify-field, Verify-with-bank, observation and resolve-flag controls by `auth.has(role)` and never reads `editable_fields` / `next_states`, so it can still offer actions the API refuses (e.g. an institution-plus-West-officer account opening its own East FDR). `apps/web/src/app/my/page.tsx` treats `items[0]` of `/institutions` as the caller's own institution, which is wrong for an account that also holds an officer role; it should identify the caller's institution explicitly.
+- ~~`CONTEXT.md` and README list #11/#12 as open.~~ Corrected.
 
 ### Unfinished test scenarios and gates
 
 - **T-05:** the forgery part (recall ≥ 0.90, false alarms ≤ 5%) is not met; see section 1.
-- **T-06:** the missing-documents report endpoint is built but not separately tested.
+- ~~**T-06:** the missing-documents report endpoint is built but not separately tested.~~ API tests added in PR #18. The review of that PR also fixed the report: filling in a missing field now resolves its flag, released/renewed/rejected/archived records leave the report, flags are filtered in SQL in a stable order, and an unknown export format returns 422.
 - **T-11:** drill-down clicks have not been walked in the browser.
 - **Phase 2 gate:** the full story from upload to maturity reminder passes in API tests; on the live stack it waits for a real FDR scan.
 - **Phase 3 gate:** feature freeze, not declared yet.
