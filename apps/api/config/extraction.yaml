@@ -11,9 +11,13 @@ human_review_below: 0.8       # route a field to human confirmation below this c
 pass_a_enabled: false
 
 # Text that is never a field value (e.g. a bank's watermark or stamp text), matched
-# case-insensitively. Empty until such text is seen on real FDRs.
-ignore_lines_containing: []
-ignore_lines_equal: []
+# case-insensitively. The only entries so far are the banner on synthetic FDRs
+# (ml/synthetic_fdr, AGENTS.md rule 5); a real FDR never carries it.
+ignore_lines_containing:
+  - "NOT A REAL DEPOSIT"
+ignore_lines_equal:
+  - "SYNTHETIC"
+  - "SYNTHETIC -"
 
 fields:
   fdr_no:
@@ -23,6 +27,11 @@ fields:
     captions: ["IFSC", "IFSC Code"]
     pattern: "[A-Z]{4}0[A-Z0-9]{6}"
     search_anywhere: true
+    # The 5th character is always 0 (RBI); OCR often reads it as the letter O before letters.
+    # The O is accepted only next to an IFSC caption, because away from one ordinary words
+    # match too (CORPORATION, METHODOLOGY), and fixed_characters then sets it back to 0.
+    caption_pattern: "[A-Z]{4}[0O][A-Z0-9]{6}"
+    fixed_characters: {4: "0"}
   amount:
     captions: ["Amount", "Deposit Amount", "Principal"]
     pattern: "(?:Rs\\.?|INR|₹)\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?"

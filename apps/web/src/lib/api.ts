@@ -89,3 +89,15 @@ export async function download(token: string | null, path: string, filename: str
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** The same alert sent on several sweeps is one row, with how often it was sent. */
+export function groupAlerts<N extends { id: string; instrument_id: string; kind: string; message: string }>(items: N[]): { n: N; times: number }[] {
+  const groups = new Map<string, { n: N; times: number }>();
+  for (const n of items) {
+    const key = `${n.instrument_id}|${n.kind}|${n.message}`;
+    const g = groups.get(key);
+    if (g) g.times += 1;
+    else groups.set(key, { n, times: 1 });
+  }
+  return [...groups.values()];
+}
