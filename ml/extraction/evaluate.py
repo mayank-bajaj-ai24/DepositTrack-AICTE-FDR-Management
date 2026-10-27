@@ -100,9 +100,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    records = sorted(args.data.glob("fdr_*.json"))[: args.limit]
-    if not records:
+    found = sorted(args.data.glob("fdr_*.json"))
+    if not found:
         raise SystemExit(f"No generated FDRs in {args.data}: run python -m fdrsynth first")
+    records = found[: args.limit]
+    if not records:
+        raise SystemExit(f"--limit {args.limit} leaves none of the {len(found)} FDRs to score")
     # The first OCR call loads the models; keep it out of the per-page timing.
     run_ocr(Image.open(records[0].with_suffix(".png")).convert("RGB"))
 
