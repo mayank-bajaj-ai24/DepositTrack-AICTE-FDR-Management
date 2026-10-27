@@ -310,12 +310,13 @@
     const lg = series.length > 1 ? legendEl(series.map((sr, k) => ({ label: sr.name, w: 16, draw: (sw) => svg('line', { x1: 0, x2: 16, y1: 6, y2: 6, stroke: colourOf(sr, k), 'stroke-width': 2, 'stroke-dasharray': sr.dash ? '4 3' : null }, sw) })), legend) : null;
     return { legend: lg };
   }
-  function bars(el, { labels, values, format = fmt.int, tickFormat = null, height = 200, highlight = null, dim = [], colour, mutedColour, annotations, reference, xAt = null }) {
+  function bars(el, { labels, values, format = fmt.int, tickFormat = null, height = 200, highlight = null, dim = [], colour, mutedColour, annotations, reference, xAt = null, yTicks = null }) {
     el._fmt = format;
     const lit = (i) => highlight == null || (Array.isArray(highlight) ? highlight.includes(i) : highlight === i);
     const draw = () => {
       const { s, w, h } = frame(el, heightOf(height));
-      const yt = ticks(0, Math.max(...values, ...[].concat(reference || []).map((r) => r.value)), 4), tick = tickFormat || format;
+      // DepositTrack: yTicks, as in line(), so small counts get whole-number ticks
+      const yt = yTicks || ticks(0, Math.max(...values, ...[].concat(reference || []).map((r) => r.value)), 4), tick = tickFormat || format;
       const padL = 12 + Math.max(...yt.map((v) => measure(s, tick(v), 12))), padB = 26;
       const band = (w - padL) / values.length, bw = Math.max(2, band * 0.62);
       const x = (i) => padL + band * i + band / 2;
