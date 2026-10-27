@@ -170,7 +170,7 @@ export function TrustStairs({ level }: { level: number }) {
         {[0, 1, 2, 3, 4].map((i) => (
           <span key={i} className={i <= level ? "on" : "off"}>
             <b>L{i}</b>
-            {t(`trust.${i}`)}
+            <span className="name">{t(`trust.${i}`)}</span>
           </span>
         ))}
       </figcaption>

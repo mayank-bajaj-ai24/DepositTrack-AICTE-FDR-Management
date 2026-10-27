@@ -112,7 +112,8 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
             </p>
           )}
           {compact ? (
-            <h1 className="mono">{i.instrument_no}</h1>
+            // In the queue the screen's h1 is the queue's title; the FDR is a section of it.
+            <h2 className="mono detail-title">{i.instrument_no}</h2>
           ) : (
             // Morphs from the FDR number in the row that was clicked (same name in the lists).
             <ViewTransition name={`fdr-${id}`} share="morph" default="none">
@@ -130,7 +131,7 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
 
       {notice && <p className={`note note-in ${notice.tone}`} style={{ marginBottom: 16 }} role="status">{notice.text}</p>}
 
-      <div className="grid top">
+      <div className={`grid top${compact ? " compact" : ""}`}>
         <section className="panel flush span-8">
           <header>
             <div>
@@ -185,7 +186,7 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
           </div>
         </section>
 
-        <div className="span-4 stack">
+        <div className="span-4 stack side">
           <section className="panel">
             <header>
               <h2>{t("trust.title")}</h2>
@@ -258,7 +259,7 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
                     <span style={{ fontWeight: 500 }}>{t(`flag.${f.type}`, undefined, f.type)}</span>
                     <span className="line2">{f.reason}</span>
                     {f.clause_ref && <span className="line2">{f.clause_ref}</span>}
-                    {f.status === "resolved" && <span className="line2">✓ {f.resolved_by}</span>}
+                    {f.status === "resolved" && <span className="line2">{t("detail.resolvedBy", { who: f.resolved_by ?? "" })}</span>}
                   </span>
                   <span style={{ display: "grid", gap: 6, justifyItems: "end" }}>
                     <SeverityPill severity={f.severity} />

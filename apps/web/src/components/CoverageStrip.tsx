@@ -93,7 +93,7 @@ export function CoverageStrip({ coverage, today }: { coverage: Coverage; today: 
           <g>
             <line x1={x(gapMs)} x2={x(gapMs)} y1={TOP + 10} y2={baseline} stroke="var(--negative)" strokeWidth="1.5" />
             {/* A gap that starts today is labelled in words under the Today label, never on top of it. */}
-            <text x={Math.min(x(gapMs) + 4, W - 140)} y={Math.abs(x(gapMs) - x(todayMs)) < 120 ? TOP + 22 : TOP + 8} fontSize="11" fill="var(--negative)">
+            <text x={Math.min(x(gapMs) + 4, W - 140)} y={Math.abs(x(gapMs) - x(todayMs)) < 120 ? baseline - 8 : TOP + 8} fontSize="11" fill="var(--negative)">
               {gapMs <= todayMs ? t("coverage.gapNow") : t("coverage.gapFrom", { date: date(coverage.first_gap) })}
             </text>
           </g>
