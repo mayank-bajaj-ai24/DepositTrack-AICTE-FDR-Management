@@ -7,18 +7,20 @@ import { ViewTransition } from "react";
 import { CoverageStrip } from "@/components/CoverageStrip";
 import { Shell } from "@/components/Shell";
 import { ErrorBox, Loading, StatePill, TrustLadder } from "@/components/ui";
-import { useResource } from "@/lib/api";
+import { groupAlerts, useResource } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import type { Case, Coverage, Institution, InstrumentSummary, Notification } from "@/lib/types";
+import type { Case, Coverage, InstrumentSummary, Me, Notification } from "@/lib/types";
 
 function Home() {
   const { t, money, date, dateTime } = useI18n();
-  const inst = useResource<{ items: Institution[] }>("/api/v1/institutions");
+  // The account's own institution, from /me: the institution list also holds an officer's region.
+  const me = useResource<Me>("/api/v1/me");
   const list = useResource<{ total: number; items: InstrumentSummary[] }>("/api/v1/instruments?limit=200");
   const cov = useResource<{ today: string; items: { coverage: Coverage; basis_ref: string }[] }>("/api/v1/coverage");
   const alerts = useResource<{ items: Notification[] }>("/api/v1/notifications");
   const cases = useResource<{ items: Case[] }>("/api/v1/cases?state=open");
-  const name = inst.data?.items[0]?.name ?? "";
+  const name = me.data?.institution?.name ?? "";
+  const reminders = groupAlerts(alerts.data?.items ?? []);
   const needsRenewal = (list.data?.items ?? []).filter((i) => i.state === "expiring" || i.state === "overdue");
 
   return (
@@ -26,7 +28,7 @@ function Home() {
       <div className="title-row">
         <div>
           <h1>{t("my.title")}</h1>
-          <p className="sub">{t("my.sub", { institution: name })}</p>
+          <p className="sub">{name ? t("my.sub", { institution: name }) : "\u00a0"}</p>
         </div>
         <div className="actions">
           <Link className="btn primary" href="/my/submit">{t("nav.submit")}</Link>
@@ -50,7 +52,7 @@ function Home() {
 
         <section className="panel flush span-8">
           <header>
-            <h2>{t("nav.my")}</h2>
+            <h2>{t("my.list")}</h2>
             <span className="meta">{t("common.total", { n: list.data?.total ?? 0 })}</span>
           </header>
           {!list.data ? (
@@ -103,7 +105,7 @@ function Home() {
                       <span className="mono">{i.instrument_no}</span>
                       <span className="line2">{t("col.maturity")} {date(i.maturity_date)}</span>
                     </span>
-                    <Link className="btn small primary" href={`/my/submit?replaces=${i.id}`}>{t("detail.submitRenewal")}</Link>
+                    <Link className="btn small" href={`/my/submit?replaces=${i.id}`}>{t("detail.submitRenewal")}</Link>
                   </div>
                 ))}
               </div>
@@ -117,12 +119,12 @@ function Home() {
               <p className="muted">{t("overview.alerts.none")}</p>
             ) : (
               <div className="rows">
-                {alerts.data.items.slice(0, 5).map((n) => (
+                {reminders.slice(0, 5).map(({ n, times }) => (
                   <Link className="row" key={n.id} href={`/instruments/${n.instrument_id}`}>
                     <span className="grow">
                       {t(`notify.${n.kind}`, undefined, n.kind)}
                       <span className="line2">{n.message}</span>
-                      <span className="line2">{dateTime(n.created_at)}</span>
+                      <span className="line2">{dateTime(n.created_at)}{times > 1 ? ` · ${t("my.reminder.times", { n: times })}` : ""}</span>
                     </span>
                   </Link>
                 ))}
