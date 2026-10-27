@@ -3,6 +3,7 @@
 // Institution home: "Is my deposit requirement covered, and what do I need to do?"
 
 import Link from "next/link";
+import { ViewTransition } from "react";
 import { CoverageStrip } from "@/components/CoverageStrip";
 import { Shell } from "@/components/Shell";
 import { ErrorBox, Loading, StatePill, TrustLadder } from "@/components/ui";
@@ -72,7 +73,11 @@ function Home() {
                   {list.data.items.map((i) => (
                     <tr key={i.id}>
                       <td>
-                        <Link className="mono" href={`/instruments/${i.id}`}>{i.instrument_no}</Link>
+                        <Link className="mono" href={`/instruments/${i.id}`}>
+                          <ViewTransition name={`fdr-${i.id}`} share="morph" default="none">
+                            <span>{i.instrument_no}</span>
+                          </ViewTransition>
+                        </Link>
                         <span className="sub">{i.bank_name}</span>
                       </td>
                       <td className="n num">{money(i.amount)}</td>
