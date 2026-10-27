@@ -114,7 +114,7 @@ The 25 Oct rule (AGENTS.md rule 5) allows a labelled synthetic dataset for FDR d
 3. **Re-run the LayoutLMv3 notebook (manual, free Colab T4)** with the merged protocol, then record the score in README.
 4. ~~**Measure field extraction on synthetic FDRs**~~ — done in PR #15 (section 1): 99.4% overall, 99.3% on amount and dates, 0.66 s/page, synthetic. Keep the real-FDR row open until labelled real FDRs exist.
    - **Pass A on synthetic FDRs: out of scope for the prototype.** The FDR LayoutLMv3 notebook was removed in `a309ab7` and is not restored. A synthetic-trained pass A could go live only with the maintainer's approval, recorded as `"live_extraction": true` and a `"training_data"` name in its `metrics.json` (the loader now checks both).
-5. **Demo story walk-through** (plan §12) on the live stack, with generated FDRs, on a demo database that is reset afterwards. Restart the API, mock bank and web first; they were stopped because memory was low. Run taste-skill `inspect.mjs --app` on every screen (1440/768/390) and fix the FAILs. Show PR #7's anchor fields (`store_error`, `receipt`, `immudb_problem`) in the admin and audit screens.
+5. **Demo story walk-through** (plan §12) on the live stack, with generated FDRs, on a demo database that is reset afterwards. **API side done 26 Oct:** every step passes with synthetic FDRs (`scripts/demo_story.py`, 0 failures), and the run found one bug: the lien flag stayed set after the bank removed the lien (fixed in PR #21). **Still open:** the browser walk-through and the screen checks, which wait for the UI work. Original note: Restart the API, mock bank and web first; they were stopped because memory was low. Run taste-skill `inspect.mjs --app` on every screen (1440/768/390) and fix the FAILs. Show PR #7's anchor fields (`store_error`, `receipt`, `immudb_problem`) in the admin and audit screens.
 6. **Manual-vs-portal timing runs** for section 2, then fill in the Expected outcomes table.
 7. **Recorded backup demo video.**
 8. **CI workflow (manual permission first).** Run `gh auth refresh -h github.com -s workflow` in PowerShell; after that the workflow can be added. The old file is on the local branch `main-local-with-ci`.
@@ -135,7 +135,7 @@ All three were fixed on 26 Oct in PR #17 (API side):
 - **T-05:** the forgery part (recall ≥ 0.90, false alarms ≤ 5%) is not met; see section 1.
 - ~~**T-06:** the missing-documents report endpoint is built but not separately tested.~~ API tests added in PR #18. The review of that PR also fixed the report: filling in a missing field now resolves its flag, released/renewed/rejected/archived records leave the report, flags are filtered in SQL in a stable order, and an unknown export format returns 422.
 - **T-11:** drill-down clicks have not been walked in the browser.
-- **Phase 2 gate:** the full story from upload to maturity reminder passes in API tests; on the live stack it waits for a real FDR scan.
+- **Phase 2 gate:** the full story from upload to maturity reminder passes in API tests and, since 26 Oct, on the live stack through the API with synthetic FDRs (`scripts/demo_story.py`). The browser part waits for the UI work.
 - **Phase 3 gate:** feature freeze, not declared yet.
 
 ## 4. Open questions for AICTE (not assumed)

@@ -134,6 +134,11 @@ python -m app.masterdata fetch-institutions && python -m app.masterdata import-i
 python -m app.masterdata fetch-banks && python -m app.masterdata import-banks                # RBI IFSC master + mergers
 python -m app.seed demo --institution-user-aicte-id <AICTE ID>   # dev accounts (no instruments)
 
+# Demo story against the running stack (synthetic FDRs for the linked institution)
+python scripts/demo_story.py --fdrs data/synthetic_fdr/demo
+# macOS without Docker Desktop: `brew install lima docker docker-compose`, then
+# `limactl start --name=docker template:docker` and point the docker CLI at its socket
+
 # Mock bank (services/mock-bank)
 pip install -e ".[dev]"
 cp .env.example .env                                 # development-only placeholders

@@ -546,6 +546,7 @@ flowchart LR
 
 **Phase 2: core lifecycle**
 - [x] Upload and encrypted, versioned document storage (M2)
+- [x] Demo story walked end to end on the live stack (26 Oct 2026, macOS + Lima Docker) with synthetic FDRs, through the API with real Keycloak tokens: OCR auto-fill, scrutiny, bank-signed credential (Trust L4), sweep and reminders, explained flags, a release blocked until its checklist is done, lien removal, an immudb-anchored audit and file verification. Repeatable with `scripts/demo_story.py`. The browser walk-through waits for the UI work
 - [x] Forgery signal retrained on synthetic tampered FDRs: recall 0.67 at 5.9% false alarms on held-out pages, bands set on a validation split (below target); the API now loads a forgery model only with `live_scoring: true` and a training-data name, re-read on change, and names the training data in status and in every forgery flag
 - [x] Extraction measured on synthetic FDRs (`ml/extraction/evaluate.py`, through `service.extract`): 99.4% exact-match, 99.3% on amount and dates, 0.66 s/page. Fixes found by it: a shorter caption never reads a longer caption's line (config order kept), an IFSC with `O` for `0` is read next to its caption only, the banner is ignored
 - [x] Extraction with auto-fill: RapidOCR + config-driven rules (pass B); LayoutLMv3 pass A stays off until the maintainer approves a model trained on FDRs; FUNSD proxy notebook, and the API refuses non-FDR or unapproved models (M3)
@@ -622,6 +623,8 @@ DepositTrack-AICTE-FDR-Management/
     open_datasets.json       # open datasets: pinned Kaggle versions, licences, citations
     synthetic_fdr/           # synthetic FDR generator (fdrsynth), labelled SYNTHETIC; output in data/synthetic_fdr/
     extraction/              # extraction measurement on synthetic FDRs (evaluate.py)
+  scripts/
+    demo_story.py            # walks the demo story against a running stack (synthetic FDRs)
     download_open_data.py    # downloads a catalog entry into data/<name>/
     forgery/                 # forgery signal training (Find it again! retrain on a separate branch)
     risk/                    # renewal-risk proxy training (BPI Challenge 2017)
