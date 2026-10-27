@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Shell } from "@/components/Shell";
-import { ErrorBox, Loading } from "@/components/ui";
+import { ErrorBox, Loading, StatePill, TrustLadder } from "@/components/ui";
 import { download, useResource } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
@@ -11,7 +11,7 @@ const REPORTS = ["interventions", "pending-verifications", "upcoming-maturities"
 type Report = { name: string; title: string; header: string[]; rows: (string | number)[][] };
 
 function Reports() {
-  const { t } = useI18n();
+  const { t, money, date } = useI18n();
   const { token } = useAuth();
   const [name, setName] = useState<(typeof REPORTS)[number]>("interventions");
   const res = useResource<Report>(`/api/v1/reports/${name}`);
@@ -44,20 +44,42 @@ function Reports() {
           <div style={{ padding: 20 }}><p className="empty">{t("reports.empty")}</p></div>
         ) : (
           <div className="table-wrap">
-            <table>
+            <table className="report responsive">
               <thead>
-                <tr>{res.data.header.map((h, i) => <th key={h} className={i === 5 || i === 6 || i === 8 ? "n" : undefined}>{h}</th>)}</tr>
+                <tr>
+                  {/* One fixed column order for every report (apps/api/app/api/dashboard.py); the AICTE ID
+                      and the report's detail ride under the institution, as in the export's columns 2 and 10. */}
+                  <th>{t("reports.col.0", undefined, res.data.header[0])}</th>
+                  <th>{t("reports.col.2", undefined, res.data.header[2])}</th>
+                  <th className="hide-md">{t("reports.col.3", undefined, res.data.header[3])}</th>
+                  <th className="hide-md">{t("reports.col.4", undefined, res.data.header[4])}</th>
+                  <th className="n">{t("reports.col.5", undefined, res.data.header[5])}</th>
+                  <th className="n hide-sm">{t("reports.col.6", undefined, res.data.header[6])}</th>
+                  <th>{t("reports.col.7", undefined, res.data.header[7])}</th>
+                  <th className="hide-md">{t("reports.col.8", undefined, res.data.header[8])}</th>
+                </tr>
               </thead>
               <tbody>
-                {res.data.rows.map((row, ri) => (
-                  <tr key={ri}>
-                    {row.map((cell, ci) => (
-                      <td key={ci} className={ci === 5 || ci === 6 || ci === 8 ? "n num" : ci === 2 || ci === 4 ? "mono" : ci === 0 || ci === 9 ? "truncate" : undefined}>
-                        {cell === "" || cell === null ? "—" : String(cell)}
+                {res.data.rows.map((row, ri) => {
+                  const v = (i: number) => (row[i] === "" || row[i] === null || row[i] === undefined ? null : String(row[i]));
+                  const dash = <span className="muted">—</span>;
+                  return (
+                    <tr key={ri}>
+                      <td>
+                        <span className="truncate" style={{ display: "block" }} title={v(0) ?? ""}>{v(0) ?? "—"}</span>
+                        <span className="sub mono">{v(1) ?? "—"}</span>
+                        {v(9) && <span className="sub">{v(9)}</span>}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                      <td className="mono nowrap">{v(2) ?? dash}</td>
+                      <td className="nowrap hide-md">{v(3) ?? dash}</td>
+                      <td className="mono nowrap hide-md">{v(4) ?? dash}</td>
+                      <td className="n num nowrap">{v(5) ? money(v(5)) : dash}</td>
+                      <td className="n num nowrap hide-sm">{v(6) ? date(v(6)) : dash}</td>
+                      <td>{v(7) ? <StatePill state={v(7)!} /> : dash}</td>
+                      <td className="hide-md">{v(8) ? <TrustLadder level={Number(v(8))} label={false} /> : dash}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
