@@ -4,9 +4,9 @@
 // Fields with their Trust Ladder level lead; discrepancies and the next action sit beside them.
 
 import Link from "next/link";
-import { useState } from "react";
+import { ViewTransition, useState } from "react";
 import { CoverageStrip } from "@/components/CoverageStrip";
-import { ErrorBox, Loading, ReasonDialog, SeverityPill, StatePill, TrustLadder } from "@/components/ui";
+import { ErrorBox, Loading, ReasonDialog, SeverityPill, StatePill, TrustLadder, TrustStairs } from "@/components/ui";
 import { download, errorText, useApi, useResource } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
@@ -43,6 +43,10 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
   const isOfficer = auth.has("scrutiny_officer", "verifying_officer");
   const openFlags = d.flags.filter((f) => f.status === "open");
   const fields = [...d.fields].sort((a, b) => FIELD_ORDER.indexOf(a.field as never) - FIELD_ORDER.indexOf(b.field as never));
+  // The API's hints: only fields this caller's roles may edit on this FDR now, below L2.
+  const canVerify = new Set(
+    d.fields.filter((f) => d.editable_fields.includes(f.field) && isOfficer && f.trust_level < 2 && f.declared).map((f) => f.field),
+  );
   const flaggedFields = new Set(openFlags.map((f) => (f.fact?.field as string | undefined) ?? ""));
 
   async function act(fn: () => Promise<unknown>, ok?: string) {
@@ -107,18 +111,24 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
               <span>/</span>
             </p>
           )}
-          <h1 className="mono" style={{ fontFamily: "var(--mono)" }}>{i.instrument_no}</h1>
+          {compact ? (
+            <h1 className="mono">{i.instrument_no}</h1>
+          ) : (
+            // Morphs from the FDR number in the row that was clicked (same name in the lists).
+            <ViewTransition name={`fdr-${id}`} share="morph" default="none">
+              <h1 className="mono">{i.instrument_no}</h1>
+            </ViewTransition>
+          )}
           <p className="sub">
             {i.institution?.name} · {i.bank_name ?? "—"} · {money(i.amount)} · {t("col.maturity")} {date(i.maturity_date)}
           </p>
         </div>
         <div className="actions" style={{ alignItems: "center" }}>
           <StatePill state={i.state} />
-          <TrustLadder level={i.trust_level} />
         </div>
       </div>
 
-      {notice && <p className={`note ${notice.tone}`} style={{ marginBottom: 12 }}>{notice.text}</p>}
+      {notice && <p className={`note note-in ${notice.tone}`} style={{ marginBottom: 16 }} role="status">{notice.text}</p>}
 
       <div className="grid top">
         <section className="panel flush span-8">
@@ -129,7 +139,7 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
             </div>
           </header>
           <div className="table-wrap" style={{ marginTop: 8 }}>
-            <table className="responsive">
+            <table className="responsive fields-table">
               <thead>
                 <tr>
                   <th>{t("detail.fields")}</th>
@@ -137,6 +147,7 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
                   <th className="hide-sm">{t("col.extracted")}</th>
                   <th className="hide-sm">{t("col.bankValue")}</th>
                   <th>{t("col.trust")}</th>
+                  {canVerify.size > 0 && <th className="hide-sm"><span className="visually-hidden">{t("detail.actions")}</span></th>}
                 </tr>
               </thead>
               <tbody>
@@ -155,15 +166,17 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
                       </td>
                       <td className="hide-sm truncate">{fmtValue(f.field, f.bank_value, money, date)}</td>
                       <td>
-                        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                          <TrustLadder level={f.trust_level} label={false} />
-                          {isOfficer && f.trust_level < 2 && f.declared && (
-                            <button className="btn ghost small" onClick={() => setPending({ kind: "verify", field: f.field })}>
+                        <TrustLadder level={f.trust_level} label={false} />
+                      </td>
+                      {canVerify.size > 0 && (
+                        <td className="hide-sm n">
+                          {canVerify.has(f.field) && (
+                            <button className="btn small" onClick={() => setPending({ kind: "verify", field: f.field })}>
                               {t("detail.verifyField")}
                             </button>
                           )}
-                        </span>
-                      </td>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -173,6 +186,13 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
         </section>
 
         <div className="span-4 stack">
+          <section className="panel">
+            <header>
+              <h2>{t("trust.title")}</h2>
+              <span className="meta">{t("detail.trust.weakest")}</span>
+            </header>
+            <TrustStairs level={i.trust_level} />
+          </section>
           <section className="panel">
             <header>
               <h2>{t("detail.actions")}</h2>
@@ -202,7 +222,9 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
               {auth.has("institution") && (i.state === "expiring" || i.state === "overdue") && (
                 <Link className="btn primary" href={`/my/submit?replaces=${id}`}>{t("detail.submitRenewal")}</Link>
               )}
-              {d.next_states.length === 0 && !isOfficer && !auth.has("institution") && <p className="muted">{t("common.none")}</p>}
+              {d.next_states.length === 0 && !auth.has("verifying_officer", "scrutiny_officer") && !(auth.has("institution") && ["active", "matured", "expiring", "overdue"].includes(i.state)) && (
+                <p className="muted">{t("detail.actions.none")}</p>
+              )}
             </div>
           </section>
 
@@ -261,7 +283,7 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
                   {doc.kind.replace("evidence:", "")} · v{doc.version}
                   <span className="line2 mono" title={doc.sha256}>sha256 {doc.sha256.slice(0, 12)}…</span>
                 </span>
-                {doc.forgery_score !== null && <span className="muted small">{doc.forgery_score.toFixed(2)}</span>}
+                {doc.forgery_score !== null && <span className="muted small num" title={t("detail.forgery.title")}>{t("detail.forgery.score", { s: doc.forgery_score.toFixed(2) })}</span>}
                 <button className="btn ghost small" onClick={() => download(auth.token, `/api/v1/instruments/${id}/documents/${doc.id}`, `${i.instrument_no}-${doc.kind}-v${doc.version}`)}>
                   {t("common.download")}
                 </button>
@@ -345,7 +367,7 @@ export function InstrumentView({ id, compact = false }: { id: string; compact?: 
                     {t(`event.${e.action}`, undefined, e.action)}
                     {e.action === "instrument.state_changed" && e.after?.state ? ` → ${t(`state.${String(e.after.state)}`)}` : ""}
                     <span className="line2" style={{ display: "block" }}>
-                      {e.actor} · {e.role}
+                      {e.actor === e.role ? e.actor : `${e.actor} · ${t(`role.${e.role}`, undefined, e.role)}`}
                       {e.reason ? ` · ${e.reason}` : ""}
                     </span>
                     <span className="hash mono">#{e.seq} {e.hash.slice(0, 16)}…</span>
