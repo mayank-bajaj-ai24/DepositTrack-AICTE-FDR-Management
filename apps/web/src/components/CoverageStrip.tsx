@@ -5,11 +5,11 @@
 // coverage carries the one hue, the requirement is a dashed reference line, today is a
 // 1px ink line and the first forecast gap is marked in the negative colour.
 
+import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n";
 import type { Coverage } from "@/lib/types";
 
-const W = 720;
-const H = 132;
+const H = 148;
 const TOP = 18;
 const BOTTOM = 22;
 const LEFT = 56;
@@ -23,6 +23,16 @@ function niceMax(v: number): number {
 
 export function CoverageStrip({ coverage, today }: { coverage: Coverage; today: string }) {
   const { t, money, date } = useI18n();
+  // Drawn at the figure's real width, so 11px text stays 11px at every size.
+  const box = useRef<HTMLElement>(null);
+  const [W, setW] = useState(720);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const segs = coverage.segments;
   if (!segs.length) return null;
   const start = new Date(segs[0].start).getTime();
@@ -55,8 +65,8 @@ export function CoverageStrip({ coverage, today }: { coverage: Coverage; today: 
   const gapMs = coverage.first_gap ? new Date(coverage.first_gap).getTime() : null;
 
   return (
-    <figure className="strip">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${t("overview.coverage.required")} ${money(required)}; ${t("overview.coverage.declared")} ${money(coverage.declared_today)}; ${t("overview.coverage.attested")} ${money(coverage.attested_today)}`}>
+    <figure className="strip" ref={box}>
+      <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`${t("overview.coverage.required")} ${money(required)}; ${t("overview.coverage.declared")} ${money(coverage.declared_today)}; ${t("overview.coverage.attested")} ${money(coverage.attested_today)}`}>
         {[0, top / 2, top].map((v) => (
           <g key={v}>
             <line x1={LEFT} x2={W} y1={y(v)} y2={y(v)} stroke="var(--grid)" strokeWidth={v === 0 ? 2 : 1} />
@@ -65,8 +75,8 @@ export function CoverageStrip({ coverage, today }: { coverage: Coverage; today: 
             </text>
           </g>
         ))}
-        <path d={area("declared")} fill="var(--chart-muted)" />
-        <path d={area("attested")} fill="var(--hue)" />
+        <path className="area" d={area("declared")} fill="var(--chart-muted)" />
+        <path className="area" d={area("attested")} fill="var(--hue)" />
         <line x1={LEFT} x2={W} y1={y(required)} y2={y(required)} stroke="var(--text)" strokeWidth="1" strokeDasharray="4 3" />
         {yearTicks.map((ms) => (
           <text key={ms} x={x(ms)} y={H - 6} textAnchor="middle" fontSize="11" fill="var(--axis-ink)">
@@ -82,8 +92,9 @@ export function CoverageStrip({ coverage, today }: { coverage: Coverage; today: 
         {gapMs !== null && gapMs <= end && (
           <g>
             <line x1={x(gapMs)} x2={x(gapMs)} y1={TOP + 10} y2={baseline} stroke="var(--negative)" strokeWidth="1.5" />
-            <text x={Math.min(x(gapMs) + 4, W - 120)} y={TOP + 8} fontSize="11" fill="var(--negative)">
-              {date(coverage.first_gap)}
+            {/* A gap that starts today is labelled in words under the Today label, never on top of it. */}
+            <text x={Math.min(x(gapMs) + 4, W - 140)} y={Math.abs(x(gapMs) - x(todayMs)) < 120 ? baseline - 8 : TOP + 8} fontSize="11" fill="var(--negative)">
+              {gapMs <= todayMs ? t("coverage.gapNow") : t("coverage.gapFrom", { date: date(coverage.first_gap) })}
             </text>
           </g>
         )}

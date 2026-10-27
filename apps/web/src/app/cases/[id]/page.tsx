@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense, useRef, useState } from "react";
+import { Icon } from "@/components/Icon";
 import { Shell } from "@/components/Shell";
 import { ErrorBox, Loading, ReasonDialog, StatePill } from "@/components/ui";
 import { errorText, useApi, useResource } from "@/lib/api";
@@ -96,7 +97,7 @@ function CaseView({ id }: { id: string }) {
               return (
                 <div className="row" key={item.id}>
                   <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: 4, border: `1.5px solid ${item.done ? "var(--text)" : "var(--control)"}`, background: item.done ? "var(--text)" : "transparent", color: "#fff", display: "grid", placeItems: "center", fontSize: 12, flex: "none" }}>
-                    {item.done ? "✓" : ""}
+                    {item.done ? <Icon name="check" size={12} /> : null}
                   </span>
                   <span className="grow">
                     {item.label}

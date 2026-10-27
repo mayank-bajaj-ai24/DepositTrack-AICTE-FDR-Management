@@ -168,9 +168,37 @@ export type SystemStatus = {
   bank_channel_configured: boolean;
   bank_keys_pinned: number;
   layoutlm_available: boolean;
+  /** What the approved pass A model was trained on, for the "trained on ..." label. */
+  layoutlm_training_data: string | null;
   forgery_model_available: boolean;
+  forgery_model_training_data: string | null;
   risk_model_available: boolean;
   immudb_enabled: boolean;
+  immudb_client_installed: boolean;
+  immudb_problem: string | null;
+};
+
+/** The caller as the API sees them (GET /api/v1/me). */
+export type Me = {
+  username: string;
+  roles: string[];
+  permissions: string[];
+  institution: Institution | null;
+  region: string | null;
+  bank_code: string | null;
+};
+
+export type Anchor = {
+  id: string;
+  batch_start: string;
+  batch_end: string;
+  merkle_root: string;
+  store_tx: string | null;
+  store_error: string | null;
+  valid: boolean;
+  root_matches: boolean;
+  receipt: string | null;
+  receipt_detail: string | null;
 };
 
 export type ExtractionPreview = {
